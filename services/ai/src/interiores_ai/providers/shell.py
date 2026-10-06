@@ -31,12 +31,19 @@ def rectangular_shell(
         WallSegment(id="w-left", start=p(0, depth), end=p(0, 0), hasWindow=False),
     ]
     openings: list[Opening] = []
-    for i, (cx, w, h, sill) in enumerate(windows):
+    placed: list[tuple[float, float]] = []  # (inicio, fin) de cada ventana sobre w-back
+    for cx, w, h, sill in windows:
         w = min(w, width * 0.6)
         offset = min(max(cx * width, w / 2 + 0.1), width - w / 2 - 0.1)
+        start, end = offset - w / 2, offset + w / 2
+        # El detector puede devolver la misma ventana dos veces (o dos que el recorte junta):
+        # una abertura que se solapa con otra no es física, así que se descarta.
+        if any(start < e + 0.05 and s < end + 0.05 for s, e in placed):
+            continue
+        placed.append((start, end))
         openings.append(
             Opening(
-                id=f"o-window-{i + 1}",
+                id=f"o-window-{len(placed)}",
                 type="window",
                 wallId="w-back",
                 widthM=round(w, 3),

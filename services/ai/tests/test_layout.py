@@ -169,3 +169,16 @@ def test_invariante_sin_solapes_y_todo_dentro(w, d, room):
     assert_valid(shell, result, catalog)
     for p in result.placements:
         assert math.isfinite(p.position.x) and math.isfinite(p.position.z)
+
+
+def test_el_cascaron_descarta_ventanas_duplicadas_o_solapadas():
+    # Regresión: el detector devolvía la misma ventana dos veces y el cuarto quedaba con
+    # aberturas superpuestas (el API las rechaza al cambiar las medidas).
+    shell = rectangular_shell(3.0, 3.0, 2.6, windows=[(0.7, 1.2, 1.0, 0.9), (0.7, 1.2, 1.0, 0.9), (0.75, 1.0, 1.0, 0.9)])
+    windows = [o for o in shell.openings if o.type == "window"]
+    assert len(windows) == 1
+
+
+def test_el_cascaron_conserva_ventanas_separadas():
+    shell = rectangular_shell(6.0, 3.0, 2.6, windows=[(0.2, 1.0, 1.0, 0.9), (0.8, 1.0, 1.0, 0.9)])
+    assert [o.id for o in shell.openings if o.type == "window"] == ["o-window-1", "o-window-2"]
