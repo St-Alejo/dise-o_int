@@ -59,4 +59,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=5 \
   CMD wget -qO- http://127.0.0.1:3000/api/health/live >/dev/null || exit 1
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+# APP_ENTRY elige el proceso con la misma imagen: dist/main.js (API) · dist/worker.js · dist/cli/seed.js
+ENV APP_ENTRY=dist/main.js
+CMD ["sh", "-c", "exec node \"$APP_ENTRY\""]
