@@ -56,6 +56,33 @@ Crea un servicio por imagen y usa bases gestionadas:
 - nginx resuelve el upstream por DNS dinámicamente (`NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1`): funciona
   con el DNS interno de cualquier plataforma.
 
+### Railway (desplegado)
+
+Proyecto `interiores-ia` · web pública: https://web-production-2bde9.up.railway.app
+
+| Servicio | Origen | Variables propias de Railway |
+|---|---|---|
+| web | `railway up --service web` (raíz) | `RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile`, `API_UPSTREAM=api.railway.internal:3000`, `NGINX_RESOLVER_IPV6=on`, `PORT=8080` |
+| api | `railway up --service api` (raíz) | `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`, `PORT=3000`, `LISTEN_HOST=::`, `TRUST_PROXY=2` |
+| worker | `railway up --service worker` (raíz) | igual que api + `APP_ENTRY=dist/worker.js` |
+| ai | `railway up services/ai --path-as-root --service ai` | `UVICORN_HOST=::` |
+| Postgres / Redis | plantillas de Railway | `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `REDIS_URL=${{Redis.REDIS_URL}}?family=0` |
+| bucket `interiores-media` | Railway Buckets | `S3_ENDPOINT=https://t3.storageapi.dev`, `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=false` |
+
+- La red privada de Railway puede ser IPv6: por eso `LISTEN_HOST=::`, `UVICORN_HOST=::`,
+  `NGINX_RESOLVER_IPV6=on` y `?family=0` en la URL de Redis (ioredis).
+- Railway no acepta `RUN --mount=type=cache` sin id de servicio: los Dockerfiles no los usan.
+- **Migraciones y seed** (cuando cambie el esquema o el catálogo): abrir un proxy TCP temporal,
+  correr la imagen `interiores-api-migrate` (y el seed con `APP_ENTRY=dist/cli/seed.js`) contra él y
+  borrarlo al terminar, para que Postgres siga solo en la red privada:
+  ```bash
+  railway tcp-proxy create --service Postgres --port 5432 --json   # anota dominio:puerto
+  docker run --rm -e DATABASE_URL=postgresql://…@<dominio>:<puerto>/railway interiores-api-migrate:local
+  railway tcp-proxy delete <dominio:puerto> --service Postgres --yes
+  ```
+- Verificación: `node e2e/smoke.mjs https://web-production-2bde9.up.railway.app` (17 comprobaciones) y
+  Playwright con `BASE_URL` apuntando a la misma URL.
+
 ## 3. Escalar
 
 - **api**: sin estado → réplicas horizontales. El rate limit y el progreso viven en Redis; el
