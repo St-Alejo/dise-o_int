@@ -4,6 +4,7 @@ Sube una foto de tu cuarto y obtén:
 
 - **Track A — propuestas 2D.** Varios estilos a la vez, con un comparador antes/después y un control de intensidad.
 - **Track B — escena 3D editable.** Muebles reales a escala (catálogo CC0) que puedes mover, rotar y cambiar, con deshacer y rehacer, realidad aumentada ("ver en mi cuarto"), versiones, un link público y una lista de compras en PDF.
+- **Cuarto a tu medida.** Escribe ancho, largo y alto exactos (al subir la foto o después, en "Medidas del cuarto") y ubica puertas y ventanas; los muebles se reacomodan sin borrarse. Si no tienes metro, calibra con una sola medida conocida.
 
 La arquitectura y las decisiones de producto están en [`docs/README-interiores-ia.md`](docs/README-interiores-ia.md). Las decisiones técnicas tomadas al implementarlo están en [`docs/adr/`](docs/adr).
 
@@ -123,7 +124,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | API | `npm test -w api` | Casos de uso con adaptadores en memoria: EXIF, cuotas, 409, borrado real, caché, retención, pipeline |
 | Web | `npm test -w web` | Command/undo, construcción del cuarto sin WebGL, shell |
 | IA | `pytest` (`services/ai`) | Layout con **Hypothesis** (sin solapes, todo dentro, nunca bloquea puertas), API, Replicate simulado, **contrato zod ↔ Pydantic** |
-| Humo | `node e2e/smoke.mjs <url>` | Flujo completo del backend por nginx (16 comprobaciones) |
+| Humo | `node e2e/smoke.mjs <url>` | Flujo completo del backend por nginx (17 comprobaciones) |
 | UI + a11y | `make e2e` | Playwright: flujo completo, sesión persistente, link público y **axe** (WCAG 2.1 AA) en desktop y móvil |
 | Resiliencia | `node e2e/resilience.mjs <url> "<parar ia>" "<arrancar ia>"` | IA caída → 503 + reintentos + error claro → recuperación con "Reintentar" |
 
