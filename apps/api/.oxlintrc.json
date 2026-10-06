@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "typescript/no-explicit-any": "warn",
+    "no-unused-vars": "warn",
+    "eqeqeq": "error",
+    "no-console": "warn"
+  },
+  "env": { "node": true }
+}

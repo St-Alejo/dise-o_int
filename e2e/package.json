@@ -1,0 +1,14 @@
+{
+  "name": "interiores-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Pruebas end-to-end (Playwright + axe) contra el stack de Docker Compose",
+  "scripts": {
+    "smoke": "node smoke.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "1.63.0"
+  }
+}

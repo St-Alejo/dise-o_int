@@ -1,0 +1,30 @@
+{
+  "name": "@interiores/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modelo de datos canónico, DTOs y geometría compartidos entre web, api e IA.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "generated"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "schema": "npm run build && node scripts/export-json-schema.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  }
+}

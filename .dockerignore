@@ -1,0 +1,18 @@
+# Contexto de build = raíz del monorepo (web y api comparten packages/shared-types)
+**/node_modules
+**/dist
+**/.angular
+**/coverage
+**/*.tsbuildinfo
+apps/api/src/generated
+services
+infra/catalog/cache
+docs
+e2e/test-results
+e2e/playwright-report
+.git
+.github
+.env
+.env.*
+!.env.example
+**/*.md

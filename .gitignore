@@ -1,0 +1,38 @@
+# Dependencias y builds
+node_modules/
+dist/
+.angular/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Tests e2e
+playwright-report/
+test-results/
+
+# Entorno: .env NUNCA se sube; .env.example SÍ
+.env
+.env.*
+!.env.example
+
+# Artefactos generados
+apps/api/src/generated/
+infra/catalog/cache/
+backups/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.idea/
+*.log

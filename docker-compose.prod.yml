@@ -1,0 +1,46 @@
+# Producción con imágenes publicadas (GHCR u otro registro), sin compilar en el servidor:
+#   IMAGE_REGISTRY=ghcr.io/<usuario> IMAGE_TAG=v0.1.0 \
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
+#
+# Para usar servicios gestionados (Postgres/Redis/S3 de la nube) define DATABASE_URL,
+# REDIS_URL y S3_* en el entorno y levanta solo: web api worker ai migrate seed.
+x-prod: &prod
+  pull_policy: always
+  restart: always
+
+services:
+  web:
+    <<: *prod
+    build: !reset null
+    image: ${IMAGE_REGISTRY:?define IMAGE_REGISTRY}/interiores-web:${IMAGE_TAG:-latest}
+  api:
+    <<: *prod
+    build: !reset null
+    image: ${IMAGE_REGISTRY}/interiores-api:${IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  worker:
+    <<: *prod
+    build: !reset null
+    image: ${IMAGE_REGISTRY}/interiores-api:${IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+  seed:
+    build: !reset null
+    image: ${IMAGE_REGISTRY}/interiores-api:${IMAGE_TAG:-latest}
+    pull_policy: always
+  migrate:
+    build: !reset null
+    image: ${IMAGE_REGISTRY}/interiores-api-migrate:${IMAGE_TAG:-latest}
+    pull_policy: always
+  ai:
+    <<: *prod
+    build: !reset null
+    image: ${IMAGE_REGISTRY}/interiores-ai:${IMAGE_TAG:-latest}
+  postgres:
+    restart: always
+  redis:
+    restart: always
+  storage:
+    restart: always

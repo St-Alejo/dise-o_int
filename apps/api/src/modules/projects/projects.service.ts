@@ -1,0 +1,409 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  CalibrationError,
+  DEFAULT_PROMPT_STRENGTH,
+  DEFAULT_STYLES,
+  STAGE_MESSAGES,
+  calibrateRoomShell,
+  clampToRoom,
+  mountY,
+  scalePlacements,
+  type AutoLayoutRequest,
+  type CalibrateRequest,
+  type CreateProjectFields,
+  type DesignProject,
+  type FurniturePlacement,
+  type GenerateStylesRequest,
+  type JobAccepted,
+  type JobProgressEvent,
+  type ProjectListItem,
+  type RoomShell,
+  type ShareLink,
+  type ShoppingList,
+  type StyleId,
+  type UpdateSceneRequest,
+  CreateProjectFieldsSchema,
+} from '@interiores/shared-types';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import type { AppConfig } from '../../config/env.js';
+import { DependencyError, NotFoundError, ValidationError } from '../../common/errors.js';
+import { MediaUrlSigner } from '../../infrastructure/media/media-url-signer.js';
+import { PhotoProcessor } from '../../infrastructure/imaging/photo-processor.js';
+import {
+  APP_CONFIG,
+  CATALOG_REPOSITORY,
+  FILE_STORAGE,
+  JOB_QUEUE,
+  PROGRESS_BROKER,
+  PROJECT_REPOSITORY,
+  QUOTA,
+  type CatalogRecord,
+  type ICatalogRepository,
+  type IFileStorage,
+  type IJobQueue,
+  type IProgressBroker,
+  type IProjectRepository,
+  type IQuota,
+  type ProjectRecord,
+} from '../../ports/index.js';
+import { projectKeys, toDesignProject, toListItem } from './project.mapper.js';
+
+export interface Actor {
+  userId: string;
+  requestId?: string | undefined;
+}
+
+export const previewCacheKey = (photoHash: string, styleId: StyleId, strength: number) =>
+  createHash('sha256').update(`${photoHash}|${styleId}|${strength.toFixed(2)}|v1`).digest('hex');
+
+/**
+ * Casos de uso del agregado DesignProject. No conoce HTTP, Prisma, S3 ni BullMQ:
+ * solo los puertos. Todas las operaciones verifican propiedad y devuelven 404 (no 403)
+ * a quien no es dueño, para no filtrar la existencia de proyectos ajenos.
+ */
+@Injectable()
+export class ProjectsService {
+  private readonly logger = new Logger(ProjectsService.name);
+
+  constructor(
+    @Inject(PROJECT_REPOSITORY) private readonly projects: IProjectRepository,
+    @Inject(CATALOG_REPOSITORY) private readonly catalog: ICatalogRepository,
+    @Inject(FILE_STORAGE) private readonly storage: IFileStorage,
+    @Inject(JOB_QUEUE) private readonly queue: IJobQueue,
+    @Inject(PROGRESS_BROKER) private readonly progress: IProgressBroker,
+    @Inject(QUOTA) private readonly quota: IQuota,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly photos: PhotoProcessor,
+    private readonly signer: MediaUrlSigner,
+  ) {}
+
+  // ------------------------------------------------------------------ lectura
+  async list(actor: Actor): Promise<ProjectListItem[]> {
+    const rows = await this.projects.listByOwner(actor.userId);
+    return rows.map((p) => toListItem(p, this.signer));
+  }
+
+  async get(actor: Actor, id: string): Promise<DesignProject> {
+    return this.toDto(await this.own(actor, id));
+  }
+
+  async progressHistory(actor: Actor, id: string): Promise<JobProgressEvent[]> {
+    await this.own(actor, id);
+    return this.progress.history(id);
+  }
+
+  // ------------------------------------------------------------------ creación (paso 1-2 del flujo)
+  async create(actor: Actor, rawFields: CreateProjectFields, photo: Buffer | undefined): Promise<DesignProject> {
+    const fields = CreateProjectFieldsSchema.parse(rawFields);
+    if (!photo) throw new ValidationError('Falta la foto del cuarto (campo "photo")');
+    const styles = fields.styles ?? [...DEFAULT_STYLES];
+
+    // Primero se valida la foto (barato) y después se consume cuota.
+    const processed = await this.photos.process(photo, this.config.UPLOAD_MAX_MB * 1024 * 1024);
+    await this.quota.consume(actor.userId, styles.length);
+
+    const id = randomUUID();
+    try {
+      await this.storage.put(projectKeys.photo(id), processed.photo, 'image/jpeg');
+      await this.storage.put(projectKeys.thumb(id), processed.thumbnail, 'image/webp');
+      const project = await this.projects.create({
+        id,
+        ownerId: actor.userId,
+        name: fields.name,
+        roomType: fields.roomType,
+        status: 'processing',
+        photoKey: projectKeys.photo(id),
+        photoHash: processed.hash,
+        thumbKey: projectKeys.thumb(id),
+        roomShell: null,
+        placements: [],
+        selectedStyleId: null,
+        requestedStyles: styles,
+        saved: false,
+      });
+      const jobId = await this.queue.enqueue('analyze-room', `analyze.${id}`, {
+        projectId: id,
+        styles,
+        promptStrength: DEFAULT_PROMPT_STRENGTH,
+        ...(actor.requestId ? { requestId: actor.requestId } : {}),
+      });
+      await this.publishQueued(id, jobId, 'analyze-room');
+      this.logger.log({ projectId: id, jobId, requestId: actor.requestId }, 'Proyecto creado y encolado');
+      return this.toDto(project);
+    } catch (err) {
+      await this.quota.refund(actor.userId, styles.length).catch(() => undefined);
+      await this.storage.deletePrefix(projectKeys.prefix(id)).catch(() => undefined);
+      await this.projects.delete(id).catch(() => undefined);
+      if (err instanceof Error && /ECONNREFUSED|Connection is closed|ETIMEDOUT/.test(err.message)) {
+        throw new DependencyError('No se pudo encolar el análisis; intenta de nuevo en unos segundos');
+      }
+      throw err;
+    }
+  }
+
+  /** Reintenta el análisis de un proyecto que falló (p. ej. la IA estaba caída). */
+  async retryAnalysis(actor: Actor, id: string): Promise<DesignProject> {
+    const project = await this.own(actor, id);
+    if (project.status !== 'failed') throw new ValidationError('Solo se pueden reintentar proyectos con error');
+    const updated = await this.projects.update(id, { status: 'processing', lastError: null });
+    const jobId = await this.queue.enqueue('analyze-room', `analyze.${id}`, {
+      projectId: id,
+      styles: project.requestedStyles.length ? project.requestedStyles : [...DEFAULT_STYLES],
+      promptStrength: DEFAULT_PROMPT_STRENGTH,
+      ...(actor.requestId ? { requestId: actor.requestId } : {}),
+    });
+    await this.publishQueued(id, jobId, 'analyze-room');
+    return this.toDto(updated);
+  }
+
+  async rename(actor: Actor, id: string, name: string): Promise<DesignProject> {
+    await this.own(actor, id);
+    return this.toDto(await this.projects.update(id, { name }));
+  }
+
+  /** Borrado REAL: primero los archivos en S3, luego la base de datos (§8.4 privacidad). */
+  async remove(actor: Actor, id: string): Promise<void> {
+    await this.own(actor, id);
+    await this.hardDelete(id);
+  }
+
+  async hardDelete(id: string): Promise<void> {
+    const removed = await this.storage.deletePrefix(projectKeys.prefix(id));
+    await this.projects.delete(id);
+    this.logger.log({ projectId: id, removedObjects: removed }, 'Proyecto eliminado definitivamente');
+  }
+
+  // ------------------------------------------------------------------ escena 3D (paso 5)
+  async updateScene(actor: Actor, id: string, req: UpdateSceneRequest): Promise<DesignProject> {
+    const project = await this.own(actor, id);
+    const shell = this.requireShell(project);
+    const placements = await this.sanitizePlacements(shell, req.furniturePlacements);
+    const updated = await this.projects.update(
+      id,
+      {
+        placements,
+        ...(req.selectedStyleId !== undefined ? { selectedStyleId: req.selectedStyleId } : {}),
+      },
+      { expectedRevision: req.revision, bumpRevision: true },
+    );
+    return this.toDto(updated);
+  }
+
+  async calibrate(actor: Actor, id: string, req: CalibrateRequest): Promise<DesignProject> {
+    const project = await this.own(actor, id);
+    const shell = this.requireShell(project);
+    let result: { shell: RoomShell; factor: number };
+    try {
+      result = calibrateRoomShell(shell, req.reference, req.valueM);
+    } catch (err) {
+      if (err instanceof CalibrationError) throw new ValidationError(err.message);
+      throw err;
+    }
+    const placements = await this.sanitizePlacements(result.shell, scalePlacements(project.placements, result.factor));
+    const updated = await this.projects.update(
+      id,
+      { roomShell: result.shell, placements },
+      { expectedRevision: req.revision, bumpRevision: true },
+    );
+    return this.toDto(updated);
+  }
+
+  async selectStyle(actor: Actor, id: string, styleId: StyleId | null): Promise<DesignProject> {
+    await this.own(actor, id);
+    return this.toDto(await this.projects.update(id, { selectedStyleId: styleId }));
+  }
+
+  // ------------------------------------------------------------------ versiones (paso 7)
+  async saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
+    await this.own(actor, id);
+    await this.projects.addVersion(id, note?.trim() || null);
+    return this.get(actor, id);
+  }
+
+  async restoreVersion(actor: Actor, id: string, versionId: string): Promise<DesignProject> {
+    await this.own(actor, id);
+    const version = await this.projects.getVersion(id, versionId);
+    if (!version) throw new NotFoundError('La versión no existe');
+    const updated = await this.projects.update(
+      id,
+      { roomShell: version.roomShell, placements: version.placements, selectedStyleId: version.selectedStyleId },
+      { bumpRevision: true },
+    );
+    return this.toDto(updated);
+  }
+
+  // ------------------------------------------------------------------ Track A: estilos
+  async generateStyles(actor: Actor, id: string, req: GenerateStylesRequest): Promise<JobAccepted> {
+    const project = await this.own(actor, id);
+    if (!project.photoHash || !project.photoKey) throw new ValidationError('El proyecto no tiene foto');
+
+    const toGenerate: string[] = [];
+    for (const styleId of req.styles) {
+      const cacheKey = previewCacheKey(project.photoHash, styleId, req.promptStrength);
+      const cached = await this.projects.findPreviewByCacheKey(id, cacheKey);
+      if (cached?.status === 'pending') continue; // ya se está generando
+      if (cached?.status === 'ready') {
+        // Misma foto + estilo + intensidad: se reutiliza el render (no se vuelve a pagar la
+        // inferencia) y se registra como la generación más reciente de ese estilo.
+        await this.projects.createPreview({
+          projectId: id,
+          styleId,
+          promptStrength: req.promptStrength,
+          status: 'ready',
+          imageKey: cached.imageKey,
+          cacheKey,
+          provider: `${(cached.provider ?? 'desconocido').replace(/ \(caché\)$/, '')} (caché)`,
+        });
+        continue;
+      }
+      const preview = await this.projects.createPreview({
+        projectId: id,
+        styleId,
+        promptStrength: req.promptStrength,
+        status: 'pending',
+        imageKey: null,
+        cacheKey,
+        provider: null,
+      });
+      toGenerate.push(preview.id);
+    }
+    if (toGenerate.length === 0) return { jobId: 'cached', projectId: id };
+
+    await this.quota.consume(actor.userId, toGenerate.length);
+    const digest = createHash('sha256').update(toGenerate.join(',')).digest('hex').slice(0, 16);
+    const jobId = await this.queue.enqueue('generate-styles', `styles.${id}.${digest}`, {
+      projectId: id,
+      previewIds: toGenerate,
+      ...(actor.requestId ? { requestId: actor.requestId } : {}),
+    });
+    await this.publishQueued(id, jobId, 'generate-styles');
+    return { jobId, projectId: id };
+  }
+
+  // ------------------------------------------------------------------ Track B: layout automático
+  async autoLayout(actor: Actor, id: string, req: AutoLayoutRequest): Promise<JobAccepted> {
+    const project = await this.own(actor, id);
+    this.requireShell(project);
+    const styleId = req.styleId === undefined ? project.selectedStyleId : req.styleId;
+    const jobId = await this.queue.enqueue('build-scene', `scene.${id}`, {
+      projectId: id,
+      styleId,
+      keepLocked: req.keepLocked ?? true,
+      ...(actor.requestId ? { requestId: actor.requestId } : {}),
+    });
+    await this.publishQueued(id, jobId, 'build-scene');
+    return { jobId, projectId: id };
+  }
+
+  // ------------------------------------------------------------------ compartir
+  async share(actor: Actor, id: string): Promise<ShareLink> {
+    await this.own(actor, id);
+    await this.projects.revokeShareLinks(id);
+    const token = randomBytes(24).toString('base64url');
+    await this.projects.createShareLink(id, token);
+    // Compartir implica querer conservarlo: deja de estar sujeto a la limpieza de 24 h.
+    await this.projects.update(id, { saved: true });
+    return { token, path: `/p/${token}` };
+  }
+
+  async unshare(actor: Actor, id: string): Promise<void> {
+    await this.own(actor, id);
+    await this.projects.revokeShareLinks(id);
+  }
+
+  // ------------------------------------------------------------------ lista de compras
+  async shoppingList(actor: Actor, id: string): Promise<ShoppingList> {
+    return this.buildShoppingList(await this.own(actor, id));
+  }
+
+  async buildShoppingList(project: ProjectRecord): Promise<ShoppingList> {
+    const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
+    const counts = new Map<string, number>();
+    for (const p of project.placements) counts.set(p.catalogItemId, (counts.get(p.catalogItemId) ?? 0) + 1);
+
+    const lines = [...counts.entries()].flatMap(([itemId, quantity]) => {
+      const item = items.get(itemId);
+      if (!item) return [];
+      return [
+        {
+          catalogItemId: item.id,
+          name: item.name,
+          category: item.category,
+          quantity,
+          unitPrice: item.price,
+          subtotal: item.price === null ? null : Math.round(item.price * quantity * 100) / 100,
+          currency: item.currency,
+          productUrl: item.productUrl,
+          license: item.license,
+          attribution: item.attribution,
+        },
+      ];
+    });
+    lines.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    const total = Math.round(lines.reduce((acc, l) => acc + (l.subtotal ?? 0), 0) * 100) / 100;
+    return { projectId: project.id, projectName: project.name, lines, total, currency: lines[0]?.currency ?? 'USD' };
+  }
+
+  // ------------------------------------------------------------------ helpers
+  async own(actor: Actor, id: string): Promise<ProjectRecord> {
+    const project = await this.projects.findById(id);
+    if (!project || project.ownerId !== actor.userId) throw new NotFoundError('El proyecto no existe');
+    return project;
+  }
+
+  async toDto(project: ProjectRecord): Promise<DesignProject> {
+    const [previews, versions, shared] = await Promise.all([
+      this.projects.listPreviews(project.id),
+      this.projects.listVersions(project.id),
+      this.projects.hasActiveShareLink(project.id),
+    ]);
+    return toDesignProject(project, previews, versions, shared, this.signer);
+  }
+
+  private requireShell(project: ProjectRecord): RoomShell {
+    if (!project.roomShell) throw new ValidationError('El cuarto aún se está analizando');
+    return project.roomShell;
+  }
+
+  /**
+   * Defensa en profundidad: aunque el editor ya evita salirse del cuarto, el servidor
+   * valida que el catálogo exista, fija la altura según el montaje y mete dentro del
+   * cuarto cualquier mueble fuera de límites.
+   */
+  private async sanitizePlacements(shell: RoomShell, placements: FurniturePlacement[]): Promise<FurniturePlacement[]> {
+    const ids = new Set<string>();
+    for (const p of placements) {
+      if (ids.has(p.id)) throw new ValidationError(`Id de mueble repetido: ${p.id}`);
+      ids.add(p.id);
+    }
+    const catalog = new Map<string, CatalogRecord>(
+      (await this.catalog.findByIds(placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]),
+    );
+    const unknown = placements.filter((p) => !catalog.has(p.catalogItemId)).map((p) => p.catalogItemId);
+    if (unknown.length) throw new ValidationError(`Muebles inexistentes en el catálogo: ${[...new Set(unknown)].join(', ')}`);
+
+    return placements.map((p) => {
+      const item = catalog.get(p.catalogItemId)!;
+      const dims = { x: item.widthM, y: item.heightM, z: item.depthM };
+      const twoPi = Math.PI * 2;
+      const rotationY = ((p.rotationY % twoPi) + twoPi) % twoPi;
+      const clamped = clampToRoom(p.position, dims, rotationY, shell);
+      return { ...p, rotationY, position: { ...clamped, y: mountY(item.mount, dims, shell) } };
+    });
+  }
+
+  private async publishQueued(projectId: string, jobId: string, kind: JobProgressEvent['kind']): Promise<void> {
+    await this.progress
+      .publish({
+        jobId,
+        projectId,
+        kind,
+        stage: 'queued',
+        pct: 0,
+        message: STAGE_MESSAGES.queued,
+        status: 'active',
+        at: new Date().toISOString(),
+      })
+      .catch((err) => this.logger.warn({ err }, 'No se pudo publicar el progreso inicial'));
+  }
+}

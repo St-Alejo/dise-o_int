@@ -1,0 +1,720 @@
+{
+  "$comment": "Generado por scripts/export-json-schema.mjs — no editar a mano",
+  "schemas": {
+    "AnalyzeRoomRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "photoKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roomType": {
+          "type": "string",
+          "enum": [
+            "living",
+            "bedroom",
+            "dining",
+            "office"
+          ]
+        }
+      },
+      "required": [
+        "photoKey",
+        "roomType"
+      ]
+    },
+    "AnalyzeRoomResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "roomShell": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "widthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "depthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "heightM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "walls": {
+              "minItems": 3,
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "start": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "z": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ]
+                  },
+                  "end": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "z": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ]
+                  },
+                  "hasWindow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "start",
+                  "end",
+                  "hasWindow"
+                ]
+              }
+            },
+            "openings": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "door",
+                      "window"
+                    ]
+                  },
+                  "wallId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "widthM": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "heightM": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "offsetM": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "sillHeightM": {
+                    "default": 0,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "wallId",
+                  "widthM",
+                  "heightM",
+                  "offsetM"
+                ]
+              }
+            },
+            "scaleConfidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "needsCalibration": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "widthM",
+            "depthM",
+            "heightM",
+            "walls",
+            "openings",
+            "scaleConfidence",
+            "needsCalibration"
+          ]
+        },
+        "detectedObjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "bbox": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "items": false,
+                "minItems": 4,
+                "maxItems": 4
+              }
+            },
+            "required": [
+              "label",
+              "confidence",
+              "bbox"
+            ]
+          }
+        },
+        "provider": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "roomShell",
+        "detectedObjects",
+        "provider",
+        "durationMs"
+      ]
+    },
+    "GenerateStyleRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "photoKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "styleId": {
+          "type": "string",
+          "enum": [
+            "escandinavo",
+            "minimalista",
+            "industrial",
+            "bohemio",
+            "moderno",
+            "clasico"
+          ]
+        },
+        "roomType": {
+          "type": "string",
+          "enum": [
+            "living",
+            "bedroom",
+            "dining",
+            "office"
+          ]
+        },
+        "promptStrength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "photoKey",
+        "outputKey",
+        "styleId",
+        "roomType",
+        "promptStrength"
+      ]
+    },
+    "GenerateStyleResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "imageKey": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "imageKey",
+        "provider",
+        "durationMs"
+      ]
+    },
+    "PlaceFurnitureRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "roomShell": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "widthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "depthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "heightM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "walls": {
+              "minItems": 3,
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "start": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "z": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ]
+                  },
+                  "end": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "z": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ]
+                  },
+                  "hasWindow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "start",
+                  "end",
+                  "hasWindow"
+                ]
+              }
+            },
+            "openings": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "door",
+                      "window"
+                    ]
+                  },
+                  "wallId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "widthM": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "heightM": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "offsetM": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "sillHeightM": {
+                    "default": 0,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "wallId",
+                  "widthM",
+                  "heightM",
+                  "offsetM"
+                ]
+              }
+            },
+            "scaleConfidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "needsCalibration": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "widthM",
+            "depthM",
+            "heightM",
+            "walls",
+            "openings",
+            "scaleConfidence",
+            "needsCalibration"
+          ]
+        },
+        "roomType": {
+          "type": "string",
+          "enum": [
+            "living",
+            "bedroom",
+            "dining",
+            "office"
+          ]
+        },
+        "styleId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "escandinavo",
+                "minimalista",
+                "industrial",
+                "bohemio",
+                "moderno",
+                "clasico"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "sofa",
+                  "table",
+                  "chair",
+                  "bed",
+                  "storage",
+                  "lighting",
+                  "decor"
+                ]
+              },
+              "subcategory": {
+                "type": "string"
+              },
+              "styleTags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "escandinavo",
+                    "minimalista",
+                    "industrial",
+                    "bohemio",
+                    "moderno",
+                    "clasico"
+                  ]
+                }
+              },
+              "dimensionsM": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "mount": {
+                "type": "string",
+                "enum": [
+                  "floor",
+                  "ceiling"
+                ]
+              },
+              "price": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "category",
+              "styleTags",
+              "dimensionsM",
+              "mount"
+            ]
+          }
+        },
+        "locked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "catalogItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotationY": {
+                "type": "number"
+              },
+              "lockedByUser": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "catalogItemId",
+              "position",
+              "rotationY",
+              "lockedByUser"
+            ]
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "roomShell",
+        "roomType",
+        "styleId",
+        "candidates",
+        "locked"
+      ]
+    },
+    "PlaceFurnitureResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "placements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "catalogItemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotationY": {
+                "type": "number"
+              },
+              "lockedByUser": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "catalogItemId",
+              "position",
+              "rotationY",
+              "lockedByUser"
+            ]
+          }
+        },
+        "unplaced": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "score": {
+          "type": "number"
+        },
+        "engine": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "placements",
+        "unplaced",
+        "score",
+        "engine"
+      ]
+    }
+  }
+}

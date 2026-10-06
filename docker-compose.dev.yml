@@ -1,0 +1,87 @@
+# Desarrollo con recarga en caliente (override de docker-compose.yml):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   (o `make dev`)
+# - web: `ng serve` en http://localhost:4300 (puertos configurables con DEV_*_PORT) (proxy /api → api, igual que nginx en prod)
+# - api/worker: `nest start --watch`; ai: `uvicorn --reload`
+# - Postgres, Redis y S3 publican sus puertos para inspeccionarlos con herramientas locales.
+services:
+  web:
+    # Compilar en modo watch necesita más memoria que ejecutar en producción.
+    deploy: { resources: { limits: { cpus: "2.0", memory: 2G } } }
+    build: { context: ., dockerfile: apps/web/Dockerfile, target: dev }
+    image: interiores-web:dev
+    ports: !override ["${DEV_WEB_PORT:-4300}:4200"]
+    environment:
+      API_PROXY_TARGET: http://api:3000
+    # Polling: los eventos de archivos no cruzan los bind mounts de Docker Desktop (Windows/macOS).
+    command: ["npm", "start", "-w", "web", "--", "--poll", "1500"]
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+    read_only: false
+    tmpfs: !reset []
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4200/ >/dev/null || exit 1"]
+      interval: 10s
+      start_period: 60s
+
+  api:
+    # Compilar en modo watch necesita más memoria que ejecutar en producción.
+    deploy: { resources: { limits: { cpus: "2.0", memory: 2G } } }
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: dev }
+    image: interiores-api:dev
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      TSC_WATCHFILE: DynamicPriorityPolling
+      TSC_WATCHDIRECTORY: DynamicPriorityPolling
+    ports: ["${DEV_API_PORT:-3300}:3000", "${DEV_DEBUG_PORT:-9229}:9229"]
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages/shared-types/src:/app/packages/shared-types/src
+    command: ["sh", "-c", "npm run build -w @interiores/shared-types && npm run start:dev -w api"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health/live >/dev/null || exit 1"]
+      interval: 10s
+      start_period: 90s
+
+  worker:
+    # Compilar en modo watch necesita más memoria que ejecutar en producción.
+    deploy: { resources: { limits: { cpus: "2.0", memory: 2G } } }
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: dev }
+    image: interiores-api:dev
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      TSC_WATCHFILE: DynamicPriorityPolling
+      TSC_WATCHDIRECTORY: DynamicPriorityPolling
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages/shared-types/src:/app/packages/shared-types/src
+    command: ["sh", "-c", "npm run build -w @interiores/shared-types && npm run start:worker:dev -w api"]
+    healthcheck:
+      start_period: 90s
+
+  seed:
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: prod }
+
+  ai:
+    build: { context: services/ai, target: dev }
+    image: interiores-ai:dev
+    environment:
+      LOG_LEVEL: DEBUG
+      WATCHFILES_FORCE_POLLING: "true"
+    ports: ["${DEV_AI_PORT:-8800}:8000"]
+    volumes:
+      - ./services/ai/src:/app/src
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"]
+      interval: 10s
+      start_period: 30s
+
+  postgres:
+    ports: ["${DEV_PG_PORT:-15433}:5432"]
+  redis:
+    ports: ["${DEV_REDIS_PORT:-16380}:6379"]
+  storage:
+    ports: ["${DEV_S3_PORT:-18334}:8333"]
