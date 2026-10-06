@@ -11,7 +11,8 @@ map $http_upgrade $connection_upgrade {
 # Resolución DNS dinámica del upstream: si la API se recrea o escala y cambia de IP,
 # nginx la vuelve a resolver (con `upstream` estático quedaría apuntando a la IP vieja → 502).
 # NGINX_LOCAL_RESOLVERS lo rellena la imagen oficial a partir de /etc/resolv.conf.
-resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+# NGINX_RESOLVER_IPV6=on en plataformas con red privada IPv6 (Railway).
+resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=${NGINX_RESOLVER_IPV6};
 
 server {
     listen 8080;

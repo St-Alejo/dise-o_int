@@ -29,7 +29,7 @@ async function bootstrap(): Promise<void> {
   if (config.SWAGGER_ENABLED) mountSwagger(app, buildOpenApiDocument(app));
 
   await app.get<IFileStorage>(FILE_STORAGE).ensureBucket();
-  await app.listen(config.PORT, '0.0.0.0');
+  await app.listen(config.PORT, config.LISTEN_HOST);
   NestLogger.log(`API escuchando en :${config.PORT} (${config.NODE_ENV})`, 'Bootstrap');
 }
 

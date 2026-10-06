@@ -41,4 +41,6 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=5 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2).status == 200 else 1)"
-CMD ["uvicorn", "--factory", "interiores_ai.main:app_factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--no-server-header"]
+# UVICORN_HOST='::' escucha IPv4 + IPv6 (red privada de Railway).
+ENV UVICORN_HOST=0.0.0.0 UVICORN_PORT=8000
+CMD ["sh", "-c", "exec uvicorn --factory interiores_ai.main:app_factory --host \"$UVICORN_HOST\" --port \"$UVICORN_PORT\" --workers 2 --no-server-header"]

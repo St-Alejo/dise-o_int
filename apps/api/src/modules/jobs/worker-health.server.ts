@@ -33,7 +33,7 @@ export class WorkerHealthServer implements OnApplicationBootstrap, OnApplication
       res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ status: ok ? 'ok' : 'error', redis: redisOk, worker: this.worker.running }));
     });
-    this.server.listen(this.config.WORKER_HEALTH_PORT, '0.0.0.0', () =>
+    this.server.listen(this.config.WORKER_HEALTH_PORT, this.config.LISTEN_HOST, () =>
       this.logger.log(`Health del worker en :${this.config.WORKER_HEALTH_PORT}/health`),
     );
   }

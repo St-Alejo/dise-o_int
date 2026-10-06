@@ -26,7 +26,7 @@ RUN npm run build -w @interiores/shared-types && npm run build -w web
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS prod
 # NGINX_ENTRYPOINT_LOCAL_RESOLVERS: la imagen detecta el DNS local (Docker, K8s, Railway...)
-ENV API_UPSTREAM=api:3000 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+ENV API_UPSTREAM=api:3000 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 NGINX_RESOLVER_IPV6=off
 COPY infra/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html
 EXPOSE 8080
