@@ -5,10 +5,13 @@ import {
   DEFAULT_STYLES,
   ROOM_TYPES,
   ROOM_TYPE_LABELS,
+  RoomDimensionsSchema,
   STYLES,
   type RoomType,
   type StyleId,
 } from '@interiores/shared-types';
+
+const FIELD_LABELS: Record<string, string> = { widthM: 'Ancho', depthM: 'Largo', heightM: 'Alto' };
 import type { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
@@ -78,6 +81,28 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
               }
             </div>
           </fieldset>
+
+          <details class="dims" [open]="knowsDims()" (toggle)="knowsDims.set($any($event.target).open)">
+            <summary>Conozco las medidas del cuarto <span class="muted">(opcional, más precisión)</span></summary>
+            <p class="muted small">Si las escribes, el 3D usa tus medidas exactas en lugar de estimarlas de la foto.</p>
+            <div class="dims-grid">
+              <div class="field">
+                <label for="dim-w">Ancho (m)</label>
+                <input id="dim-w" name="dimW" class="input" type="number" inputmode="decimal" min="0.8" max="30" step="0.01" [(ngModel)]="widthM" placeholder="4.20" />
+              </div>
+              <div class="field">
+                <label for="dim-d">Largo (m)</label>
+                <input id="dim-d" name="dimD" class="input" type="number" inputmode="decimal" min="0.8" max="30" step="0.01" [(ngModel)]="depthM" placeholder="3.50" />
+              </div>
+              <div class="field">
+                <label for="dim-h">Alto (m)</label>
+                <input id="dim-h" name="dimH" class="input" type="number" inputmode="decimal" min="2" max="6" step="0.01" [(ngModel)]="heightM" placeholder="2.50" />
+              </div>
+            </div>
+            @if (dimsError(); as msg) {
+              <p class="field-error" role="alert">{{ msg }}</p>
+            }
+          </details>
 
           @if (error()) {
             <p class="alert alert-danger" role="alert">{{ error() }}</p>
@@ -192,6 +217,26 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
       font-size: 0.82rem;
       margin: 0;
     }
+    .dims {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .dims summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .dims-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .field-error {
+      color: var(--danger);
+      font-size: 0.85rem;
+      margin: 6px 0 0;
+    }
     @media (max-width: 860px) {
       .layout,
       .tips {
@@ -219,7 +264,25 @@ export class NewProjectPage implements OnDestroy {
   protected readonly uploading = signal(false);
   protected readonly uploadPct = signal(0);
   protected readonly error = signal<string | null>(null);
-  protected readonly canSubmit = computed(() => !!this.file() && this.styles().length > 0 && !this.uploading());
+  protected readonly knowsDims = signal(false);
+  // ngModel de inputs numéricos: number, o null/'' si el campo está vacío.
+  protected readonly widthM = signal<number | null>(null);
+  protected readonly depthM = signal<number | null>(null);
+  protected readonly heightM = signal<number | null>(null);
+  /** Las medidas son opcionales, pero si se escribe alguna deben venir las tres y en rango. */
+  protected readonly room = computed(() => {
+    const raw = [this.widthM(), this.depthM(), this.heightM()].map((v) => (v === null || (v as unknown) === '' ? null : Number(v)));
+    if (!this.knowsDims() || raw.every((v) => v === null)) return { value: undefined, error: null };
+    if (raw.some((v) => v === null)) return { value: undefined, error: 'Escribe ancho, largo y alto (o deja los tres vacíos).' };
+    const parsed = RoomDimensionsSchema.safeParse({ widthM: raw[0], depthM: raw[1], heightM: raw[2] });
+    return parsed.success
+      ? { value: parsed.data, error: null }
+      : { value: undefined, error: `${FIELD_LABELS[String(parsed.error.issues[0]?.path[0])] ?? 'Medida'}: ${parsed.error.issues[0]?.message}` };
+  });
+  protected readonly dimsError = computed(() => this.room().error);
+  protected readonly canSubmit = computed(
+    () => !!this.file() && this.styles().length > 0 && !this.uploading() && !this.dimsError(),
+  );
   private sub: Subscription | null = null;
 
   toggleStyle(id: StyleId): void {
@@ -259,7 +322,7 @@ export class NewProjectPage implements OnDestroy {
     this.error.set(null);
     this.uploading.set(true);
     this.uploadPct.set(0);
-    this.sub = this.api.create(f, this.name.trim() || 'Mi cuarto', this.roomType(), this.styles()).subscribe({
+    this.sub = this.api.create(f, this.name.trim() || 'Mi cuarto', this.roomType(), this.styles(), this.room().value).subscribe({
       next: (e) => {
         if (e.kind === 'progress') this.uploadPct.set(e.pct);
         else void this.router.navigate(['/proyectos', e.project.id]);

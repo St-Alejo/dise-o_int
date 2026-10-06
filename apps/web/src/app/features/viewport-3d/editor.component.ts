@@ -4,6 +4,7 @@ import { STYLES, clampToRoom, type CatalogItem } from '@interiores/shared-types'
 import { ToastService } from '../../core/ui/toast.service';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
+import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
 import { CATEGORY_ICONS, CatalogPanelComponent } from '../catalog/catalog-panel.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { AddCommand, SwapCommand } from './commands';
@@ -18,7 +19,14 @@ import { ThreeViewportComponent } from './three-viewport.component';
   selector: 'app-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [SceneService],
-  imports: [ThreeViewportComponent, CatalogPanelComponent, CalibrationDialogComponent, ArViewerComponent, CurrencyPipe],
+  imports: [
+    ThreeViewportComponent,
+    CatalogPanelComponent,
+    CalibrationDialogComponent,
+    RoomDimensionsDialogComponent,
+    ArViewerComponent,
+    CurrencyPipe,
+  ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
   template: `
     <div class="toolbar row" role="toolbar" aria-label="Herramientas del editor">
@@ -26,7 +34,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
       <button type="button" class="icon-btn" (click)="store.redo()" [disabled]="!store.canRedo()" [attr.aria-label]="'Rehacer ' + (store.redoLabel() ?? '')" title="Rehacer (Ctrl+Y)">↷</button>
       <span class="sep" aria-hidden="true"></span>
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()">Centrar vista</button>
-      <button type="button" class="btn btn-sm" (click)="calibration.open()">📏 Medidas</button>
+      <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas">📏 Medidas del cuarto</button>
       <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="El motor de colocación redistribuye los muebles que no moviste a mano">✨ Reacomodar</button>
       <span class="spacer"></span>
       <span class="save" [class]="'save save-' + store.saveState()" aria-live="polite">
@@ -49,9 +57,10 @@ import { ThreeViewportComponent } from './three-viewport.component';
     }
     @if (shell()?.needsCalibration) {
       <div class="alert alert-warning row calib">
-        <span>📏 Medidas aproximadas (confianza {{ confidence() }}%). Ajústalas si quieres precisión al comprar.</span>
+        <span>📏 Medidas aproximadas (confianza {{ confidence() }}%). Escribe las reales si quieres precisión al comprar.</span>
         <span class="spacer"></span>
-        <button type="button" class="btn btn-sm" (click)="calibration.open()">Ajustar medidas</button>
+        <button type="button" class="btn btn-sm" (click)="roomDims.open()">Escribir medidas</button>
+        <button type="button" class="btn btn-sm" (click)="calibration.open()">Calibrar con una medida</button>
       </div>
     }
 
@@ -115,6 +124,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
       </aside>
     </div>
 
+    <app-room-dimensions-dialog #roomDims (calibrate)="calibration.open()" />
     <app-calibration-dialog #calibration />
     <app-ar-viewer #ar />
   `,

@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import {
   clampToRoom,
+  effectiveDimensions,
   footprint,
   footprintsOverlap,
   mountY,
@@ -8,6 +9,7 @@ import {
   type DesignProject,
   type FurniturePlacement,
   type StyleId,
+  type UpdateRoomRequest,
   type Vector3,
 } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
@@ -141,28 +143,44 @@ export class DesignProjectStore {
     return this.catalog().get(catalogItemId)?.dimensionsM ?? null;
   }
 
+  /** Medidas reales de una pieza colocada: las suyas si el usuario las cambió, si no las del catálogo. */
+  placementDimensions(p: Pick<FurniturePlacement, 'catalogItemId' | 'dimensionsM'>): Vector3 | null {
+    const item = this.catalog().get(p.catalogItemId);
+    return item ? effectiveDimensions(item.dimensionsM, p) : null;
+  }
+
   /**
    * ¿Es válida esta pose? Dentro del cuarto y sin chocar con otros muebles de la misma
-   * "capa" (las alfombras no chocan con muebles; las lámparas de techo solo entre sí).
+   * "capa" (las alfombras no chocan con muebles; las lámparas de techo solo entre sí; lo que va
+   * en la pared o sobre una superficie no compite por el piso).
+   * `dimensionsM` permite validar un tamaño nuevo antes de aplicarlo.
    */
-  isPoseValid(placementId: string, catalogItemId: string, position: Vector3, rotationY: number): boolean {
+  isPoseValid(
+    placementId: string,
+    catalogItemId: string,
+    position: Vector3,
+    rotationY: number,
+    dimensionsM?: Vector3,
+  ): boolean {
     const shell = this.shell();
     const item = this.catalog().get(catalogItemId);
     if (!shell || !item) return false;
-    const fp = footprint(position, item.dimensionsM, rotationY);
-    const clamped = clampToRoom(position, item.dimensionsM, rotationY, shell);
+    const own = this.placements().find((p) => p.id === placementId);
+    const dims = dimensionsM ?? (own && own.catalogItemId === catalogItemId ? effectiveDimensions(item.dimensionsM, own) : item.dimensionsM);
+    const fp = footprint(position, dims, rotationY);
+    const clamped = clampToRoom(position, dims, rotationY, shell);
     if (Math.abs(clamped.x - position.x) > 1e-3 || Math.abs(clamped.z - position.z) > 1e-3) return false;
     const layer = this.layerOf(item);
     return !this.placements().some((other) => {
       if (other.id === placementId) return false;
       const otherItem = this.catalog().get(other.catalogItemId);
       if (!otherItem || this.layerOf(otherItem) !== layer) return false;
-      return footprintsOverlap(fp, footprint(other.position, otherItem.dimensionsM, other.rotationY));
+      return footprintsOverlap(fp, footprint(other.position, effectiveDimensions(otherItem.dimensionsM, other), other.rotationY));
     });
   }
 
-  layerOf(item: CatalogItem): 'floor' | 'rug' | 'ceiling' {
-    if (item.mount === 'ceiling') return 'ceiling';
+  layerOf(item: CatalogItem): 'floor' | 'rug' | 'ceiling' | 'wall' | 'surface' {
+    if (item.mount !== 'floor') return item.mount;
     return item.subcategory === 'rug' ? 'rug' : 'floor';
   }
 
@@ -170,13 +188,14 @@ export class DesignProjectStore {
   findFreeSpot(placementId: string, item: CatalogItem, near: Vector3, rotationY = 0): Vector3 | null {
     const shell = this.shell();
     if (!shell) return null;
-    const y = mountY(item.mount, item.dimensionsM, shell);
+    const dims = item.dimensionsM;
+    const y = mountY(item.mount, dims, shell, { elevationDefaultM: item.elevationDefaultM });
     for (let r = 0; r <= 4; r += 0.2) {
       const steps = r === 0 ? 1 : Math.ceil((2 * Math.PI * r) / 0.25);
       for (let i = 0; i < steps; i++) {
         const a = (i / steps) * Math.PI * 2;
-        const pos = clampToRoom({ x: near.x + Math.cos(a) * r, y, z: near.z + Math.sin(a) * r }, item.dimensionsM, rotationY, shell);
-        if (this.isPoseValid(placementId, item.id, pos, rotationY)) return pos;
+        const pos = clampToRoom({ x: near.x + Math.cos(a) * r, y, z: near.z + Math.sin(a) * r }, dims, rotationY, shell);
+        if (this.isPoseValid(placementId, item.id, pos, rotationY, dims)) return pos;
       }
     }
     return null;
@@ -235,6 +254,20 @@ export class DesignProjectStore {
   async retrySave(): Promise<void> {
     this.saveState.set('dirty');
     await this.flush();
+  }
+
+  /**
+   * Cambia las medidas exactas del cuarto en el servidor (que reacomoda los muebles) y adopta el
+   * resultado. Primero se guardan los cambios pendientes para no perderlos ni provocar un 409.
+   * Los errores (422 de medidas inválidas, 409) se propagan para que el diálogo los muestre.
+   */
+  async updateRoom(body: Omit<UpdateRoomRequest, 'revision'>): Promise<void> {
+    if (!this.project()) return;
+    await this.flush();
+    const project = this.project()!;
+    const updated = await this.api.updateRoom(project.id, { ...body, revision: project.revision });
+    this.saveState.set('saved');
+    this.replaceFromServer(updated);
   }
 
   async selectStyle(styleId: StyleId): Promise<void> {

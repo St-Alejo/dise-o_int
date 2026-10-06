@@ -11,10 +11,12 @@ import type {
   JobProgressEvent,
   ProjectListItem,
   PublicProject,
+  RoomDimensionsInput,
   RoomType,
   ShareLink,
   ShoppingList,
   StyleId,
+  UpdateRoomRequest,
   UpdateSceneRequest,
 } from '@interiores/shared-types';
 import { Observable, filter, firstValueFrom, map, shareReplay } from 'rxjs';
@@ -35,12 +37,20 @@ export class ProjectsApi {
     return firstValueFrom(this.http.get<DesignProject>(`${this.base}/${id}`));
   }
 
-  /** Sube la foto reportando progreso real de la subida. */
-  create(photo: File, name: string, roomType: RoomType, styles: StyleId[]): Observable<UploadEvent> {
+  /**
+   * Sube la foto reportando progreso real de la subida. Si el usuario conoce las medidas del
+   * cuarto, viajan junto a la foto y mandan sobre la estimación de la IA.
+   */
+  create(photo: File, name: string, roomType: RoomType, styles: StyleId[], room?: RoomDimensionsInput): Observable<UploadEvent> {
     const form = new FormData();
     form.append('name', name);
     form.append('roomType', roomType);
     form.append('styles', styles.join(','));
+    if (room) {
+      form.append('widthM', String(room.widthM));
+      form.append('depthM', String(room.depthM));
+      form.append('heightM', String(room.heightM));
+    }
     form.append('photo', photo, photo.name);
     return this.http.post<DesignProject>(this.base, form, { reportProgress: true, observe: 'events' }).pipe(
       filter((e: HttpEvent<DesignProject>) => e.type === HttpEventType.UploadProgress || e.type === HttpEventType.Response),
@@ -70,6 +80,10 @@ export class ProjectsApi {
 
   saveScene(id: string, body: UpdateSceneRequest): Promise<DesignProject> {
     return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/scene`, body));
+  }
+
+  updateRoom(id: string, body: UpdateRoomRequest): Promise<DesignProject> {
+    return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/room`, body));
   }
 
   calibrate(id: string, body: CalibrateRequest): Promise<DesignProject> {
