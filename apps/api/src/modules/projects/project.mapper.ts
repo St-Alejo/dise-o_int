@@ -67,6 +67,7 @@ export function toDesignProject(
     stylePreviews: latestPreviewPerStyle(previews).map((p) => toPreviewDto(p, signer)),
     selectedStyleId: project.selectedStyleId,
     furniturePlacements: project.placements,
+    finishes: project.finishes,
     versions: versions.map(toVersionSummary),
     visibility: shared ? 'shared-link' : 'private',
     saved: project.saved,

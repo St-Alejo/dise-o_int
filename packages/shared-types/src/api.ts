@@ -4,10 +4,33 @@ import {
   CatalogCategorySchema,
   DesignProjectSchema,
   FurniturePlacementSchema,
+  MountSchema,
+  OpeningSchema,
   ProjectStatusSchema,
+  RoomFinishesSchema,
   RoomTypeSchema,
   StyleIdSchema,
 } from './domain.js';
+
+// ---------- Medidas del cuarto ----------
+// (límites duplicados de geometry.ts:ROOM_LIMITS para no crear un ciclo de imports)
+const side = z.number().min(0.8, 'Mínimo 0.8 m').max(30, 'Máximo 30 m');
+const height = z.number().min(2, 'Mínimo 2 m').max(6, 'Máximo 6 m');
+
+export const RoomDimensionsSchema = z.object({ widthM: side, depthM: side, heightM: height });
+export type RoomDimensionsInput = z.infer<typeof RoomDimensionsSchema>;
+
+/**
+ * En multipart todo llega como texto: "" o ausente = no indicado. Acepta coma decimal.
+ * También acepta un número ya convertido: el pipe del controlador y el caso de uso aplican el
+ * schema en serie, así que debe ser idempotente.
+ */
+const optionalNumberField = (schema: z.ZodNumber) =>
+  z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => (typeof v !== 'string' ? v : v.trim() === '' ? undefined : Number(v.replace(',', '.'))))
+    .pipe(schema.optional());
 
 // ---------- Auth ----------
 export const RegisterRequestSchema = z.object({
@@ -43,10 +66,7 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 export const CreateProjectFieldsSchema = z.object({
   name: z.string().trim().min(1).max(120).default('Mi cuarto'),
   roomType: RoomTypeSchema.default('living'),
-  /**
-   * Lista separada por comas (o ya convertida en lista); si falta se usan los estilos por defecto.
-   * Idempotente: el pipe del controlador y el caso de uso aplican el schema en serie.
-   */
+  /** Lista separada por comas (o ya convertida en lista); si falta se usan los estilos por defecto. */
   styles: z
     .union([z.string(), z.array(z.string())])
     .optional()
@@ -55,7 +75,14 @@ export const CreateProjectFieldsSchema = z.object({
       return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
     })
     .pipe(z.array(StyleIdSchema).min(1).max(4).optional()),
-});
+  /** Medidas reales opcionales: si se indican las tres, mandan sobre la estimación de la foto. */
+  widthM: optionalNumberField(side),
+  depthM: optionalNumberField(side),
+  heightM: optionalNumberField(height),
+}).refine(
+  (f) => [f.widthM, f.depthM, f.heightM].every((v) => v === undefined) || [f.widthM, f.depthM, f.heightM].every((v) => v !== undefined),
+  { message: 'Indica ancho, largo y alto juntos (o ninguno)', path: ['widthM'] },
+);
 export type CreateProjectFields = z.input<typeof CreateProjectFieldsSchema>;
 
 export const ProjectListItemSchema = z.object({
@@ -86,8 +113,17 @@ export const UpdateSceneRequestSchema = z.object({
   revision: z.number().int().nonnegative(),
   furniturePlacements: z.array(FurniturePlacementSchema).max(200),
   selectedStyleId: StyleIdSchema.nullable().optional(),
+  /** undefined = no tocar; null = volver a los acabados por defecto. */
+  finishes: RoomFinishesSchema.nullable().optional(),
 });
 export type UpdateSceneRequest = z.infer<typeof UpdateSceneRequestSchema>;
+
+/** `PUT /projects/:id/room`: medidas exactas del cuarto y, opcionalmente, sus puertas y ventanas. */
+export const UpdateRoomRequestSchema = RoomDimensionsSchema.extend({
+  revision: z.number().int().nonnegative(),
+  openings: z.array(OpeningSchema).max(16).optional(),
+});
+export type UpdateRoomRequest = z.infer<typeof UpdateRoomRequestSchema>;
 
 export const SaveVersionRequestSchema = z.object({
   note: z.string().trim().max(200).optional(),
@@ -181,6 +217,7 @@ export const CatalogQuerySchema = z.object({
   style: StyleIdSchema.optional(),
   roomType: RoomTypeSchema.optional(),
   q: z.string().trim().max(60).optional(),
+  mount: MountSchema.optional(),
 });
 export type CatalogQuery = z.infer<typeof CatalogQuerySchema>;
 

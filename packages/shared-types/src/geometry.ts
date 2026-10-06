@@ -10,6 +10,7 @@ import type {
   FurniturePlacement,
   Mount,
   Opening,
+  ResizeRanges,
   RoomShell,
   Vector3,
   WallSegment,
@@ -124,9 +125,74 @@ export function clampToRoom(
   };
 }
 
-/** Altura (y) de la base del objeto según su montaje. */
-export function mountY(mount: Mount, dimensionsM: Vector3, shell: Pick<RoomShell, 'heightM'>): number {
-  return mount === 'ceiling' ? Math.max(0, shell.heightM - dimensionsM.y) : 0;
+export interface MountContext {
+  /** Altura pedida para objetos de pared. */
+  elevationM?: number | undefined;
+  /** Altura por defecto del catálogo para objetos de pared. */
+  elevationDefaultM?: number | undefined;
+  /** y del tope del mueble de apoyo (objetos sobre superficies). */
+  supportTopY?: number | undefined;
+}
+
+/** Altura por defecto de un objeto de pared sin indicación: centrado a la altura de los ojos. */
+const WALL_EYE_LEVEL_M = 1.5;
+
+/**
+ * Altura (y) de la base del objeto según su montaje.
+ * - piso: 0 · techo: pegado al techo
+ * - pared: la elevación pedida, acotada para no atravesar piso ni techo
+ * - superficie: el tope del soporte (o el piso si no hay soporte)
+ */
+export function mountY(
+  mount: Mount,
+  dimensionsM: Vector3,
+  shell: Pick<RoomShell, 'heightM'>,
+  ctx: MountContext = {},
+): number {
+  switch (mount) {
+    case 'ceiling':
+      return Math.max(0, shell.heightM - dimensionsM.y);
+    case 'wall': {
+      const wanted = ctx.elevationM ?? ctx.elevationDefaultM ?? WALL_EYE_LEVEL_M - dimensionsM.y / 2;
+      return Math.min(Math.max(0, shell.heightM - dimensionsM.y), Math.max(0, wanted));
+    }
+    case 'surface':
+      return Math.max(0, ctx.supportTopY ?? 0);
+    case 'floor':
+      return 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Medidas por pieza (cada mueble puede tener su propio tamaño)
+// ---------------------------------------------------------------------------
+
+/** Medidas reales de una pieza: las suyas si el usuario las cambió, si no las del catálogo. */
+export function effectiveDimensions(catalogDims: Vector3, placement: Pick<FurniturePlacement, 'dimensionsM'>): Vector3 {
+  return placement.dimensionsM ?? catalogDims;
+}
+
+/**
+ * Ajusta las medidas pedidas a los rangos permitidos por el catálogo. Un eje sin rango no es
+ * redimensionable y conserva la medida del catálogo.
+ */
+export function clampDimensions(wanted: Vector3, catalogDims: Vector3, resize?: ResizeRanges): Vector3 {
+  const axis = (k: 'x' | 'y' | 'z') => {
+    const range = resize?.[k];
+    if (!range) return catalogDims[k];
+    return Math.min(range[1], Math.max(range[0], wanted[k]));
+  };
+  return { x: axis('x'), y: axis('y'), z: axis('z') };
+}
+
+/** Rangos por defecto cuando el catálogo no los define: ±30 % de cada medida (mín. 5 cm). */
+export function defaultResizeRanges(dims: Vector3): ResizeRanges {
+  const r = (v: number): [number, number] => [Math.max(0.05, round3(v * 0.7)), round3(v * 1.3)];
+  return { x: r(dims.x), y: r(dims.y), z: r(dims.z) };
+}
+
+function round3(v: number): number {
+  return Math.round(v * 1000) / 1000;
 }
 
 /** Ajusta un ángulo al múltiplo más cercano de `step` (por defecto 15°). */
@@ -154,7 +220,7 @@ export function checkScene(
 ): CollisionReport {
   const report: CollisionReport = { outside: [], overlapping: [] };
   const fps = placements.map((p) => {
-    const dims = dimensionsOf(p.catalogItemId);
+    const dims = p.dimensionsM ?? dimensionsOf(p.catalogItemId);
     return dims ? { p, fp: footprint(p.position, dims, p.rotationY) } : null;
   });
   fps.forEach((entry, i) => {
@@ -301,4 +367,170 @@ export function scalePlacements(placements: FurniturePlacement[], factor: number
     ...p,
     position: { x: p.position.x * factor, y: p.position.y, z: p.position.z * factor },
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Medidas exactas del cuarto (el usuario escribe ancho, largo y alto)
+// ---------------------------------------------------------------------------
+
+export const ROOM_LIMITS = {
+  minSideM: 0.8,
+  maxSideM: 30,
+  minHeightM: 2,
+  maxHeightM: 6,
+  /** Separación mínima entre una abertura y la esquina u otra abertura. */
+  openingMarginM: 0.05,
+} as const;
+
+export interface RoomDimensions {
+  widthM: number;
+  depthM: number;
+  heightM: number;
+}
+
+export class RoomGeometryError extends Error {}
+
+/** Valida que las aberturas quepan en su pared, no se solapen y no atraviesen el techo. */
+export function validateOpenings(shell: Pick<RoomShell, 'walls' | 'openings' | 'heightM'>): void {
+  const walls = new Map(shell.walls.map((w) => [w.id, w]));
+  const margin = ROOM_LIMITS.openingMarginM;
+  const byWall = new Map<string, Opening[]>();
+  for (const o of shell.openings) {
+    const wall = walls.get(o.wallId);
+    if (!wall) throw new RoomGeometryError(`La abertura ${o.id} apunta a una pared inexistente (${o.wallId})`);
+    const len = wallLength(wall);
+    const label = o.type === 'door' ? 'La puerta' : 'La ventana';
+    if (o.offsetM - o.widthM / 2 < margin - EPS || o.offsetM + o.widthM / 2 > len - margin + EPS) {
+      throw new RoomGeometryError(`${label} ${o.id} no cabe en la pared (mide ${len.toFixed(2)} m)`);
+    }
+    if (o.sillHeightM + o.heightM > shell.heightM - margin + EPS) {
+      throw new RoomGeometryError(`${label} ${o.id} es más alta que el cuarto`);
+    }
+    byWall.set(o.wallId, [...(byWall.get(o.wallId) ?? []), o]);
+  }
+  for (const list of byWall.values()) {
+    const sorted = [...list].sort((a, b) => a.offsetM - b.offsetM);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1]!;
+      const cur = sorted[i]!;
+      if (prev.offsetM + prev.widthM / 2 + margin > cur.offsetM - cur.widthM / 2 + EPS) {
+        throw new RoomGeometryError(`Las aberturas ${prev.id} y ${cur.id} se solapan`);
+      }
+    }
+  }
+}
+
+/**
+ * Quita las aberturas que se solapan con otra anterior de la misma pared. Los proyectos
+ * analizados antes de corregir el detector pueden traer la misma ventana duplicada: como el
+ * usuario no las escribió, se limpian en silencio en lugar de bloquear el cambio de medidas.
+ */
+export function dropOverlappingOpenings(openings: Opening[]): Opening[] {
+  const margin = ROOM_LIMITS.openingMarginM;
+  const kept: Opening[] = [];
+  for (const o of openings) {
+    const clash = kept.some(
+      (k) =>
+        k.wallId === o.wallId &&
+        k.offsetM - k.widthM / 2 < o.offsetM + o.widthM / 2 + margin &&
+        o.offsetM - o.widthM / 2 < k.offsetM + k.widthM / 2 + margin,
+    );
+    if (!clash) kept.push(o);
+  }
+  return kept;
+}
+
+/** Mete una abertura dentro de su pared nueva: recorta ancho/alto y desliza el centro. */
+function fitOpening(o: Opening, wallLen: number, heightM: number): Opening {
+  const margin = ROOM_LIMITS.openingMarginM;
+  const widthM = Math.min(o.widthM, Math.max(0.2, wallLen - 2 * margin));
+  const sillHeightM = Math.min(o.sillHeightM, Math.max(0, heightM - 0.5));
+  const heightMax = Math.max(0.2, heightM - sillHeightM - margin);
+  const half = widthM / 2;
+  const offsetM = Math.min(wallLen - margin - half, Math.max(margin + half, o.offsetM));
+  return { ...o, widthM, heightM: Math.min(o.heightM, heightMax), sillHeightM, offsetM };
+}
+
+/**
+ * Cambia ancho, largo y alto del cuarto de forma independiente (a diferencia de la calibración,
+ * que escala todo por un factor). Las paredes se reconstruyen; cada abertura conserva su
+ * posición relativa en su pared y se recorta si ya no cabe. Si se pasan `openings`, sustituyen a
+ * las actuales y se validan tal cual (sin recortes silenciosos: el usuario las escribió).
+ * Las medidas del usuario son exactas: la escala queda confirmada.
+ */
+export function resizeRoomShell(shell: RoomShell, dims: RoomDimensions, openings?: Opening[]): RoomShell {
+  const { minSideM, maxSideM, minHeightM, maxHeightM } = ROOM_LIMITS;
+  for (const [label, v, lo, hi] of [
+    ['ancho', dims.widthM, minSideM, maxSideM],
+    ['largo', dims.depthM, minSideM, maxSideM],
+    ['alto', dims.heightM, minHeightM, maxHeightM],
+  ] as const) {
+    if (!Number.isFinite(v) || v < lo || v > hi) {
+      throw new RoomGeometryError(`El ${label} del cuarto debe estar entre ${lo} y ${hi} m`);
+    }
+  }
+  const rebuilt = createRectangularShell(dims.widthM, dims.depthM, dims.heightM, { id: shell.id, door: false, window: false });
+  const newWalls = new Map(rebuilt.walls.map((w) => [w.id, w]));
+  const oldWalls = new Map(shell.walls.map((w) => [w.id, w]));
+
+  let nextOpenings: Opening[];
+  if (openings) {
+    nextOpenings = openings;
+  } else {
+    nextOpenings = dropOverlappingOpenings(
+      shell.openings.flatMap((o) => {
+        const before = oldWalls.get(o.wallId);
+        const after = newWalls.get(o.wallId);
+        if (!before || !after) return []; // pared que ya no existe (cuartos no rectangulares)
+        const ratio = wallLength(after) / (wallLength(before) || 1);
+        return [fitOpening({ ...o, offsetM: o.offsetM * ratio }, wallLength(after), dims.heightM)];
+      }),
+    );
+  }
+  const walls = rebuilt.walls.map((w) => ({
+    ...w,
+    hasWindow: nextOpenings.some((o) => o.wallId === w.id && o.type === 'window'),
+  }));
+  const result: RoomShell = {
+    ...shell,
+    widthM: dims.widthM,
+    depthM: dims.depthM,
+    heightM: dims.heightM,
+    walls,
+    openings: nextOpenings,
+    scaleConfidence: 1,
+    needsCalibration: false,
+  };
+  validateOpenings(result);
+  return result;
+}
+
+export interface FitResult {
+  placements: FurniturePlacement[];
+  /** Piezas que se movieron para quedar dentro. */
+  moved: string[];
+  /** Piezas que ni moviéndolas caben (más grandes que el cuarto): se dejan para que el usuario decida. */
+  tooBig: string[];
+}
+
+/**
+ * Tras cambiar el cuarto, mete cada mueble dentro moviéndolo lo mínimo. Nada se borra: los que
+ * no caben se reportan en `tooBig`.
+ */
+export function fitPlacementsToRoom(
+  placements: FurniturePlacement[],
+  dimensionsOf: (p: FurniturePlacement) => Vector3 | undefined,
+  shell: Pick<RoomShell, 'widthM' | 'depthM'>,
+): FitResult {
+  const moved: string[] = [];
+  const tooBig: string[] = [];
+  const next = placements.map((p) => {
+    const dims = dimensionsOf(p);
+    if (!dims) return p;
+    const position = clampToRoom(p.position, dims, p.rotationY, shell);
+    if (Math.abs(position.x - p.position.x) > EPS || Math.abs(position.z - p.position.z) > EPS) moved.push(p.id);
+    if (!isInsideRoom(footprint(position, dims, p.rotationY), shell)) tooBig.push(p.id);
+    return { ...p, position };
+  });
+  return { placements: next, moved, tooBig };
 }

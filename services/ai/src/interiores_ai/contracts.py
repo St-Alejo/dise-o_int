@@ -10,8 +10,22 @@ from pydantic import BaseModel, ConfigDict, Field
 
 RoomType = Literal["living", "bedroom", "dining", "office"]
 StyleId = Literal["escandinavo", "minimalista", "industrial", "bohemio", "moderno", "clasico"]
-Category = Literal["sofa", "table", "chair", "bed", "storage", "lighting", "decor"]
-Mount = Literal["floor", "ceiling"]
+Category = Literal[
+    "sofa",
+    "table",
+    "chair",
+    "bed",
+    "storage",
+    "lighting",
+    "decor",
+    "kitchen",
+    "bathroom",
+    "wall-decor",
+    "textile",
+    "electronics",
+]
+Mount = Literal["floor", "ceiling", "wall", "surface"]
+PlacementOrigin = Literal["user", "layout", "detected", "chat"]
 
 Meters = Annotated[float, Field(gt=0, le=100)]
 
@@ -54,12 +68,25 @@ class RoomShell(Model):
     needsCalibration: bool
 
 
+class Dimensions(Model):
+    x: Meters
+    y: Meters
+    z: Meters
+
+
 class FurniturePlacement(Model):
     id: str = Field(min_length=1, max_length=64)
     catalogItemId: str = Field(min_length=1, max_length=64)
     position: Vector3
     rotationY: float
     lockedByUser: bool
+    # v3: opcionales (los placements fijados por el usuario los traen y deben aceptarse).
+    dimensionsM: Dimensions | None = None
+    materials: dict[str, str] | None = None
+    elevationM: float | None = Field(default=None, ge=0, le=10)
+    wallId: str | None = Field(default=None, min_length=1, max_length=64)
+    supportId: str | None = Field(default=None, min_length=1, max_length=64)
+    origin: PlacementOrigin | None = None
 
 
 class AnalyzeRoomRequest(Model):

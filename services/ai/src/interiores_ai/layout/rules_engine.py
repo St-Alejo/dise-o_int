@@ -33,7 +33,8 @@ from ..contracts import (
 )
 from .geometry import Footprint, angle_facing, forward, inside, normalize_angle, overlaps, right
 
-Layer = Literal["floor", "rug", "ceiling"]
+# "wall" y "surface" no compiten por el piso: un cuadro o una lámpara de mesa no bloquean muebles.
+Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
 Anchor = Literal["wall", "front-of", "facing-wall", "beside", "around", "corner", "center", "over", "under"]
 
 DOOR_CLEARANCE_M = 0.9
@@ -142,8 +143,8 @@ class Scene:
 
 
 def layer_of(item: LayoutCandidate) -> Layer:
-    if item.mount == "ceiling":
-        return "ceiling"
+    if item.mount in ("ceiling", "wall", "surface"):
+        return item.mount
     if item.subcategory == "rug":
         return "rug"
     return "floor"
@@ -179,6 +180,9 @@ class RulesLayoutEngine:
             item = catalog.get(lp.catalogItemId)
             if item is None:
                 continue
+            if lp.dimensionsM is not None:  # el usuario cambió el tamaño de esta pieza
+                d = lp.dimensionsM
+                item = item.model_copy(update={"dimensionsM": Vector3(x=d.x, y=d.y, z=d.z)})
             scene.placed.append(
                 Placed(lp.id, item, lp.position.x, lp.position.z, lp.rotationY, layer_of(item), self._role_of(item, req.roomType), locked=True)
             )
@@ -196,7 +200,9 @@ class RulesLayoutEngine:
             if already >= role.count:
                 required_ok += role.required
                 continue
-            options = self._select(role, req.candidates, req.styleId, shell)
+            # v1 del motor: solo piso/techo; los objetos de pared y superficie los coloca el usuario o el chat.
+            floor_or_ceiling = [c for c in req.candidates if c.mount in ("floor", "ceiling")]
+            options = self._select(role, floor_or_ceiling, req.styleId, shell)
             if not options:
                 if role.required:
                     unplaced.append(role.name)

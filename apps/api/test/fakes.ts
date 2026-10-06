@@ -80,6 +80,7 @@ export class InMemoryProjectRepository implements IProjectRepository {
       note,
       roomShell: structuredClone(p.roomShell),
       placements: structuredClone(p.placements),
+      finishes: structuredClone(p.finishes),
       selectedStyleId: p.selectedStyleId,
       createdAt: this.now(),
     };
@@ -159,6 +160,10 @@ export function catalogItem(overrides: Partial<CatalogRecord> = {}): CatalogReco
     license: 'cc0',
     attribution: null,
     source: 'procedural:sofa-block',
+    tags: [],
+    synonyms: [],
+    description: null,
+    spec: null,
     active: true,
     ...overrides,
   };

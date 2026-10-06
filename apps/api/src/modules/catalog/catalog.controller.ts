@@ -37,7 +37,18 @@ export function toCatalogItem(r: CatalogRecord): CatalogItem {
     ...(r.productUrl ? { productUrl: r.productUrl } : {}),
     license: r.license,
     ...(r.attribution ? { attribution: r.attribution } : {}),
+    tags: r.tags,
+    synonyms: r.synonyms,
+    ...(r.description ? { description: r.description } : {}),
+    source: catalogSource(r.source),
+    ...r.spec,
   };
+}
+
+/** En la base de datos `source` es "polyhaven:asset" o "procedural:kind"; la API expone solo la familia. */
+export function catalogSource(source: string): CatalogItem['source'] {
+  const family = source.split(':')[0];
+  return family === 'polyhaven' || family === 'parametric' ? family : 'procedural';
 }
 
 @ApiTags('catalog')

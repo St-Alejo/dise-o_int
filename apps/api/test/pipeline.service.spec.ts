@@ -26,6 +26,8 @@ describe('PipelineService', () => {
       thumbKey: null,
       roomShell: null,
       placements: [],
+      finishes: null,
+      requestedRoom: null,
       selectedStyleId: null,
       requestedStyles: ['moderno', 'industrial'],
       saved: false,

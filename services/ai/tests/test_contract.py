@@ -44,12 +44,13 @@ def test_respuestas_de_python_cumplen_el_schema_de_typescript(schemas, catalog):
         provider="mock",
         durationMs=12,
     )
-    check(schemas, "AnalyzeRoomResponse", analyze.model_dump(mode="json"))
+    # Igual que los endpoints (response_model_exclude_none): los opcionales ausentes no viajan.
+    check(schemas, "AnalyzeRoomResponse", analyze.model_dump(mode="json", exclude_none=True))
     check(schemas, "GenerateStyleResponse", GenerateStyleResponse(imageKey="projects/a.jpg", provider="mock", durationMs=5).model_dump(mode="json"))
 
     req = PlaceFurnitureRequest(roomShell=shell, roomType="living", styleId="moderno", candidates=catalog, locked=[])
     placed = RulesLayoutEngine().place(req)
-    check(schemas, "PlaceFurnitureResponse", placed.model_dump(mode="json"))
+    check(schemas, "PlaceFurnitureResponse", placed.model_dump(mode="json", exclude_none=True))
 
 
 def test_peticiones_de_typescript_se_aceptan_en_python(schemas, catalog):

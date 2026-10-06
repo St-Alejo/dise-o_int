@@ -4,3 +4,4 @@ export * from './ai-contract.js';
 export * from './progress.js';
 export * from './styles.js';
 export * from './geometry.js';
+export * from './materials.js';

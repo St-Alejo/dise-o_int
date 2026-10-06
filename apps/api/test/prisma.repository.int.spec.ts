@@ -46,6 +46,8 @@ describe.skipIf(!url)('PrismaProjectRepository (PostgreSQL real)', () => {
       thumbKey: null,
       roomShell: createRectangularShell(4, 3.5, 2.6),
       placements: [],
+      finishes: null,
+      requestedRoom: null,
       selectedStyleId: null,
       requestedStyles: ['moderno'],
       saved: false,
@@ -77,6 +79,34 @@ describe.skipIf(!url)('PrismaProjectRepository (PostgreSQL real)', () => {
     const p = await newProject();
     const versions = await Promise.all([repo.addVersion(p.id, 'a'), repo.addVersion(p.id, 'b'), repo.addVersion(p.id, 'c')]);
     expect(versions.map((v) => v.number).sort()).toEqual([1, 2, 3]);
+  });
+
+  it('v3: acabados, medidas pedidas y campos nuevos del placement sobreviven al JSONB y a las versiones', async () => {
+    const p = await newProject();
+    const finishes = { floor: 'wood-walnut', walls: { all: 'paint-greige', 'w-back': 'paint-navy' }, ceiling: 'paint-white' };
+    const placement = {
+      id: 'c1',
+      catalogItemId: 'cuadro',
+      position: { x: 2, y: 1.3, z: 0.02 },
+      rotationY: 0,
+      lockedByUser: true,
+      dimensionsM: { x: 1, y: 0.7, z: 0.04 },
+      materials: { marco: 'wood-black' },
+      elevationM: 1.3,
+      wallId: 'w-back',
+      origin: 'chat' as const,
+    };
+    await repo.update(p.id, { finishes, placements: [placement], requestedRoom: { widthM: 4, depthM: 3.5, heightM: 2.6 } });
+    const read = (await repo.findById(p.id))!;
+    expect(read.finishes).toEqual(finishes);
+    expect(read.placements).toEqual([placement]);
+    expect(read.requestedRoom).toEqual({ widthM: 4, depthM: 3.5, heightM: 2.6 });
+
+    const version = await repo.addVersion(p.id, 'con acabados');
+    expect(version.finishes).toEqual(finishes);
+
+    await repo.update(p.id, { finishes: null });
+    expect((await repo.findById(p.id))!.finishes).toBeNull();
   });
 
   it('existingIds filtra los ids que no existen', async () => {

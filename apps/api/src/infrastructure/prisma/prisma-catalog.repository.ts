@@ -1,8 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import type { CatalogCategory, CatalogQuery, RoomType, StyleId } from '@interiores/shared-types';
-import type { CatalogItem as CatalogRow, Prisma } from '../../generated/prisma/client.js';
+import {
+  CatalogSpecSchema,
+  MountSchema,
+  type CatalogCategory,
+  type CatalogQuery,
+  type CatalogSpec,
+  type RoomType,
+  type StyleId,
+} from '@interiores/shared-types';
+import { Prisma, type CatalogItem as CatalogRow } from '../../generated/prisma/client.js';
 import type { CatalogRecord, ICatalogRepository } from '../../ports/index.js';
 import { PrismaService } from './prisma.service.js';
+
+/** Un spec corrupto no debe tumbar el catálogo entero: el ítem queda como no personalizable. */
+function parseSpec(value: unknown): CatalogSpec | null {
+  if (value === null || value === undefined) return null;
+  const parsed = CatalogSpecSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 function toRecord(row: CatalogRow): CatalogRecord {
   return {
@@ -15,7 +30,7 @@ function toRecord(row: CatalogRow): CatalogRecord {
     widthM: row.widthM,
     heightM: row.heightM,
     depthM: row.depthM,
-    mount: row.mount === 'ceiling' ? 'ceiling' : 'floor',
+    mount: MountSchema.catch('floor').parse(row.mount),
     modelKey: row.modelKey,
     thumbnailKey: row.thumbnailKey,
     price: row.price,
@@ -24,6 +39,10 @@ function toRecord(row: CatalogRow): CatalogRecord {
     license: row.license as CatalogRecord['license'],
     attribution: row.attribution,
     source: row.source,
+    tags: row.tags,
+    synonyms: row.synonyms,
+    description: row.description,
+    spec: parseSpec(row.spec),
     active: row.active,
   };
 }
@@ -37,7 +56,11 @@ export class PrismaCatalogRepository implements ICatalogRepository {
     if (query.category) where.category = query.category;
     if (query.style) where.styleTags = { has: query.style };
     if (query.roomType) where.roomTypes = { has: query.roomType };
-    if (query.q) where.name = { contains: query.q, mode: 'insensitive' };
+    if (query.mount) where.mount = query.mount;
+    if (query.q) {
+      const term = query.q.toLowerCase();
+      where.OR = [{ name: { contains: query.q, mode: 'insensitive' } }, { tags: { has: term } }, { synonyms: { has: term } }];
+    }
     const rows = await this.prisma.catalogItem.findMany({ where, orderBy: [{ category: 'asc' }, { name: 'asc' }], take: 500 });
     return rows.map(toRecord);
   }
@@ -54,8 +77,9 @@ export class PrismaCatalogRepository implements ICatalogRepository {
   }
 
   async upsert(item: CatalogRecord): Promise<void> {
-    const { id, ...rest } = item;
-    await this.prisma.catalogItem.upsert({ where: { id }, create: item, update: rest });
+    const { id, spec, ...rest } = item;
+    const data = { ...rest, spec: spec === null ? Prisma.DbNull : (spec as Prisma.InputJsonValue) };
+    await this.prisma.catalogItem.upsert({ where: { id }, create: { id, ...data }, update: data });
   }
 
   async count(): Promise<number> {

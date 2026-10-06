@@ -71,6 +71,10 @@ model Project {
   thumbKey        String?
   roomShell       Json?
   placements      Json           @default("[]")
+  /// Acabados del cuarto (piso, paredes, techo); null = por defecto.
+  finishes        Json?
+  /// Medidas reales que dio el usuario al crear el proyecto: mandan sobre la estimación de la IA.
+  requestedRoom   Json?
   selectedStyleId String?
   /// Estilos pedidos al subir la foto (el worker los genera en el pipeline inicial).
   requestedStyles String[]       @default([])
@@ -96,6 +100,7 @@ model ProjectVersion {
   note            String?
   roomShell       Json?
   placements      Json
+  finishes        Json?
   selectedStyleId String?
   createdAt       DateTime @default(now())
 
@@ -141,6 +146,12 @@ model CatalogItem {
   license      String
   attribution  String?
   source       String
+  /// Palabras clave y sinónimos (es/en) para la búsqueda.
+  tags         String[] @default([])
+  synonyms     String[] @default([])
+  description  String?
+  /// Personalización: receta paramétrica, slots de material, rangos de tamaño, montaje en pared...
+  spec         Json?
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

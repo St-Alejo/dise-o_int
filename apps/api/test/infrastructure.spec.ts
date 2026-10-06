@@ -91,7 +91,7 @@ describe('RetentionService', () => {
   it('borra (S3 + DB) solo los proyectos no guardados más viejos que la retención', async () => {
     const repo = new InMemoryProjectRepository();
     const storage = new MemoryFileStorage();
-    const base = { ownerId: 'u', name: 'x', roomType: 'living' as const, status: 'ready' as const, photoKey: null, photoHash: null, thumbKey: null, roomShell: null, placements: [], selectedStyleId: null, requestedStyles: [] };
+    const base = { ownerId: 'u', name: 'x', roomType: 'living' as const, status: 'ready' as const, photoKey: null, photoHash: null, thumbKey: null, roomShell: null, placements: [], finishes: null, requestedRoom: null, selectedStyleId: null, requestedStyles: [] };
     await repo.create({ ...base, id: 'viejo', saved: false });
     await repo.create({ ...base, id: 'guardado', saved: true });
     await storage.put('projects/viejo/source.jpg', Buffer.from('x'), 'image/jpeg');

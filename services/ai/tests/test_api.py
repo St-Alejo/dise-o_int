@@ -140,6 +140,8 @@ def test_layout_endpoint(client, catalog):
     assert r.status_code == 200, r.text
     assert r.json()["engine"] == "rules-greedy-v1"
     assert len(r.json()["placements"]) >= 3
+    # zod rechaza null en campos opcionales: el endpoint no debe enviarlos.
+    assert all(None not in p.values() for p in r.json()["placements"])
 
 
 # --------------------------------------------------------------------- Replicate (sin red)

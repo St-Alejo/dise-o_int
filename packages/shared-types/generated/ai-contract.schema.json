@@ -519,7 +519,12 @@
                   "bed",
                   "storage",
                   "lighting",
-                  "decor"
+                  "decor",
+                  "kitchen",
+                  "bathroom",
+                  "wall-decor",
+                  "textile",
+                  "electronics"
                 ]
               },
               "subcategory": {
@@ -562,7 +567,9 @@
                 "type": "string",
                 "enum": [
                   "floor",
-                  "ceiling"
+                  "ceiling",
+                  "wall",
+                  "surface"
                 ]
               },
               "price": {
@@ -617,6 +624,68 @@
               },
               "lockedByUser": {
                 "type": "boolean"
+              },
+              "dimensionsM": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "y": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "z": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "materials": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "elevationM": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "wallId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "supportId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "layout",
+                  "detected",
+                  "chat"
+                ]
               }
             },
             "required": [
@@ -685,6 +754,68 @@
               },
               "lockedByUser": {
                 "type": "boolean"
+              },
+              "dimensionsM": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "y": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  },
+                  "z": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "materials": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "elevationM": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "wallId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "supportId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "layout",
+                  "detected",
+                  "chat"
+                ]
               }
             },
             "required": [

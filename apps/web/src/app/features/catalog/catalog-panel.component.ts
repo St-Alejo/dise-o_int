@@ -17,6 +17,11 @@ export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   storage: 'Almacenaje',
   lighting: 'Luz',
   decor: 'Deco',
+  kitchen: 'Cocina',
+  bathroom: 'Baño',
+  'wall-decor': 'Pared',
+  textile: 'Textiles',
+  electronics: 'Electrónica',
 };
 
 export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
@@ -27,6 +32,11 @@ export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
   storage: '🗄️',
   lighting: '💡',
   decor: '🪴',
+  kitchen: '🍳',
+  bathroom: '🛁',
+  'wall-decor': '🖼️',
+  textile: '🧶',
+  electronics: '📺',
 };
 
 /**

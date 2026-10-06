@@ -25,6 +25,7 @@ import {
   SaveVersionRequestSchema,
   SelectStyleRequestSchema,
   UpdateProjectRequestSchema,
+  UpdateRoomRequestSchema,
   UpdateSceneRequestSchema,
   type AutoLayoutRequest,
   type CalibrateRequest,
@@ -40,6 +41,7 @@ import {
   type ShareLink,
   type ShoppingList,
   type UpdateProjectRequest,
+  type UpdateRoomRequest,
   type UpdateSceneRequest,
 } from '@interiores/shared-types';
 import type { Response } from 'express';
@@ -70,7 +72,7 @@ export class ProjectsController {
   @Post()
   @Throttle({ default: { limit: 12, ttl: 60_000 } })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', required: ['photo'], properties: { photo: { type: 'string', format: 'binary' }, name: { type: 'string' }, roomType: { type: 'string', enum: ['living', 'bedroom', 'dining', 'office'] }, styles: { type: 'string', description: 'Estilos separados por comas' } } } })
+  @ApiBody({ schema: { type: 'object', required: ['photo'], properties: { photo: { type: 'string', format: 'binary' }, name: { type: 'string' }, roomType: { type: 'string', enum: ['living', 'bedroom', 'dining', 'office'] }, styles: { type: 'string', description: 'Estilos separados por comas' }, widthM: { type: 'string', description: 'Ancho real en metros (opcional; junto con depthM y heightM)' }, depthM: { type: 'string' }, heightM: { type: 'string' } } } })
   @UseInterceptors(FileInterceptor('photo', { limits: { fileSize: MULTER_HARD_LIMIT, files: 1, fields: 10 } }))
   create(
     @CurrentUser() user: AuthPrincipal,
@@ -125,6 +127,16 @@ export class ProjectsController {
     @Body(new ZodPipe(UpdateSceneRequestSchema)) body: UpdateSceneRequest,
   ): Promise<DesignProject> {
     return this.service.updateScene(this.actor(user), id, body);
+  }
+
+  @Put(':id/room')
+  @ApiBody({ schema: openApiSchema(UpdateRoomRequestSchema) })
+  updateRoom(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(UpdateRoomRequestSchema)) body: UpdateRoomRequest,
+  ): Promise<DesignProject> {
+    return this.service.updateRoom(this.actor(user), id, body);
   }
 
   @Post(':id/calibrate')

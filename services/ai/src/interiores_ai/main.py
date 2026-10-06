@@ -92,7 +92,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         return JSONResponse({"status": status, **providers})
 
     # Endpoints síncronos: FastAPI los ejecuta en un threadpool (OpenCV/boto3 son bloqueantes).
-    @app.post("/v1/room/analyze", dependencies=auth)
+    @app.post("/v1/room/analyze", dependencies=auth, response_model_exclude_none=True)
     def analyze_room(req: AnalyzeRoomRequest, c: Dep) -> AnalyzeRoomResponse:
         started = time.perf_counter()
         image = decode_rgb(c.storage.get_bytes(req.photoKey), c.settings.max_image_side)
@@ -113,7 +113,8 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         log.info("style_generated", provider=c.style_generator.name, style=req.styleId, ms=round(ms))
         return GenerateStyleResponse(imageKey=req.outputKey, provider=c.style_generator.name, durationMs=ms)
 
-    @app.post("/v1/layout/place", dependencies=auth)
+    # exclude_none: los campos opcionales ausentes no viajan como null (zod los rechazaría).
+    @app.post("/v1/layout/place", dependencies=auth, response_model_exclude_none=True)
     def place_furniture(req: PlaceFurnitureRequest, c: Dep) -> PlaceFurnitureResponse:
         result = c.layout_engine.place(req)
         log.info("layout", engine=result.engine, placed=len(result.placements), unplaced=result.unplaced, score=result.score)

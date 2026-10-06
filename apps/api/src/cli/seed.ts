@@ -119,6 +119,10 @@ async function main(): Promise<void> {
       license: 'cc0',
       attribution: built.attribution,
       source: built.source,
+      tags: entry.tags ?? [],
+      synonyms: entry.synonyms ?? [],
+      description: entry.description ?? null,
+      spec: entry.spec ?? null,
       active: true,
     });
     ok++;

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   STAGE_MESSAGES,
   STYLES,
+  resizeRoomShell,
   type FurniturePlacement,
   type JobKind,
   type JobProgressEvent,
@@ -81,7 +82,7 @@ export class PipelineService {
     if (!fresh) return; // borrado mientras se analizaba
     await this.projects.update(
       project.id,
-      { roomShell: analysis.roomShell },
+      { roomShell: this.withRequestedRoom(analysis.roomShell, fresh) },
       { expectedRevision: fresh.revision, bumpRevision: true },
     );
 
@@ -272,6 +273,20 @@ export class PipelineService {
     );
     const lockedIds = new Set(locked.map((p) => p.id));
     return [...locked, ...res.placements.filter((p) => !lockedIds.has(p.id))];
+  }
+
+  /**
+   * Las medidas que escribió el usuario son exactas y mandan sobre la estimación de la foto: se
+   * conserva lo detectado (puertas, ventanas y su posición relativa) con el tamaño real.
+   */
+  private withRequestedRoom(estimated: RoomShell, project: ProjectRecord): RoomShell {
+    if (!project.requestedRoom) return estimated;
+    try {
+      return resizeRoomShell(estimated, project.requestedRoom);
+    } catch (err) {
+      this.logger.warn({ err, projectId: project.id }, 'No se pudieron aplicar las medidas del usuario; se usa la estimación');
+      return estimated;
+    }
   }
 
   private aiCtx(ctx: JobContext) {

@@ -9,7 +9,7 @@
  *
  * El "link de compra" es una búsqueda de producto similar (capa de afiliados de la Fase 4).
  */
-import type { CatalogCategory, Mount, RoomType, StyleId } from '@interiores/shared-types';
+import type { CatalogCategory, CatalogSpec, Mount, RoomType, StyleId } from '@interiores/shared-types';
 
 export type ProceduralKind =
   | 'bed-platform'
@@ -32,6 +32,12 @@ export interface ManifestEntry {
   styleTags: StyleId[];
   roomTypes: RoomType[];
   mount?: Mount;
+  /** Palabras clave y sinónimos (es/en) para la búsqueda del catálogo. */
+  tags?: string[];
+  synonyms?: string[];
+  description?: string;
+  /** Personalización: rangos de tamaño, slots de material, receta, altura de pared... */
+  spec?: CatalogSpec;
   price: number;
   searchQuery: string;
   source: { type: 'polyhaven'; asset: string } | { type: 'procedural'; kind: ProceduralKind; size: [number, number, number]; colors: string[] };

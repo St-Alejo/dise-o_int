@@ -9,14 +9,18 @@ import type {
   AnalyzeRoomResponse,
   CatalogCategory,
   CatalogQuery,
+  CatalogSpec,
   FurniturePlacement,
   GenerateStyleRequest,
   GenerateStyleResponse,
   JobKind,
   JobProgressEvent,
+  Mount,
   PlaceFurnitureRequest,
   PlaceFurnitureResponse,
   ProjectStatus,
+  RoomDimensions,
+  RoomFinishes,
   RoomShell,
   RoomType,
   StyleId,
@@ -37,6 +41,9 @@ export interface ProjectRecord {
   thumbKey: string | null;
   roomShell: RoomShell | null;
   placements: FurniturePlacement[];
+  finishes: RoomFinishes | null;
+  /** Medidas que escribió el usuario al crear el proyecto (mandan sobre la estimación). */
+  requestedRoom: RoomDimensions | null;
   selectedStyleId: StyleId | null;
   requestedStyles: StyleId[];
   saved: boolean;
@@ -52,6 +59,7 @@ export interface VersionRecord {
   note: string | null;
   roomShell: RoomShell | null;
   placements: FurniturePlacement[];
+  finishes: RoomFinishes | null;
   selectedStyleId: StyleId | null;
   createdAt: Date;
 }
@@ -79,7 +87,7 @@ export interface CatalogRecord {
   widthM: number;
   heightM: number;
   depthM: number;
-  mount: 'floor' | 'ceiling';
+  mount: Mount;
   modelKey: string;
   thumbnailKey: string | null;
   price: number | null;
@@ -88,6 +96,11 @@ export interface CatalogRecord {
   license: 'cc0' | 'cc-by' | 'proprietary' | 'affiliate';
   attribution: string | null;
   source: string;
+  tags: string[];
+  synonyms: string[];
+  description: string | null;
+  /** Receta, slots de material, rangos de tamaño, montaje... (null = mueble no personalizable). */
+  spec: CatalogSpec | null;
   active: boolean;
 }
 
@@ -102,6 +115,8 @@ export type ProjectPatch = Partial<
     | 'thumbKey'
     | 'roomShell'
     | 'placements'
+    | 'finishes'
+    | 'requestedRoom'
     | 'selectedStyleId'
     | 'requestedStyles'
     | 'saved'

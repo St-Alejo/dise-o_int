@@ -5,6 +5,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from interiores_ai.contracts import (
+    Dimensions,
     FurniturePlacement,
     LayoutCandidate,
     PlaceFurnitureRequest,
@@ -169,6 +170,58 @@ def test_invariante_sin_solapes_y_todo_dentro(w, d, room):
     assert_valid(shell, result, catalog)
     for p in result.placements:
         assert math.isfinite(p.position.x) and math.isfinite(p.position.z)
+
+
+def test_objetos_de_pared_y_superficie_no_se_autocolocan(catalog):
+    extra = [
+        *catalog,
+        LayoutCandidate(id="cuadro", category="wall-decor", styleTags=["moderno"], dimensionsM=Vector3(x=0.8, y=0.6, z=0.04), mount="wall"),
+        LayoutCandidate(
+            id="lampara-mesa",
+            category="lighting",
+            subcategory="table-lamp",
+            styleTags=["moderno"],
+            dimensionsM=Vector3(x=0.3, y=0.5, z=0.3),
+            mount="surface",
+        ),
+    ]
+    shell, result = run(extra, "living")
+    ids = {p.catalogItemId for p in result.placements}
+    assert "cuadro" not in ids
+    assert "lampara-mesa" not in ids
+    assert result.unplaced == []
+    assert_valid(shell, result, extra)
+
+
+def test_respeta_las_medidas_propias_de_un_mueble_fijado(catalog):
+    sofa = next(c for c in catalog if c.category == "sofa")
+    big = FurniturePlacement(
+        id="u1",
+        catalogItemId=sofa.id,
+        position=Vector3(x=2.25, y=0, z=2.0),
+        rotationY=0,
+        lockedByUser=True,
+        dimensionsM=Dimensions(x=3.0, y=0.8, z=1.6),
+        materials={"tapizado": "fabric-wool-grey"},
+        origin="user",
+    )
+    _, result = run(catalog, "living", locked=[big])
+    big_fp = Footprint.of(2.25, 2.0, 3.0, 1.6, 0)
+    by_id = {c.id: c for c in catalog}
+    for p in result.placements:
+        item = by_id[p.catalogItemId]
+        if p.id == "u1" or layer_of(item) != "floor":
+            continue
+        fp = Footprint.of(p.position.x, p.position.z, item.dimensionsM.x, item.dimensionsM.z, p.rotationY)
+        assert not overlaps(fp, big_fp), f"{p.catalogItemId} invade el sofá agrandado"
+
+
+def test_la_respuesta_no_envia_nulls_de_campos_opcionales(catalog):
+    _, result = run(catalog, "bedroom")
+    dumped = result.model_dump(mode="json", exclude_none=True)
+    for p in dumped["placements"]:
+        assert "dimensionsM" not in p
+        assert "origin" not in p
 
 
 def test_el_cascaron_descarta_ventanas_duplicadas_o_solapadas():

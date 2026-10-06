@@ -70,13 +70,86 @@ export const CATALOG_CATEGORIES = [
   'storage',
   'lighting',
   'decor',
+  'kitchen',
+  'bathroom',
+  'wall-decor',
+  'textile',
+  'electronics',
 ] as const;
 export const CatalogCategorySchema = z.enum(CATALOG_CATEGORIES);
 export type CatalogCategory = z.infer<typeof CatalogCategorySchema>;
 
-/** Dónde se apoya el objeto: el motor de layout y el editor lo usan para calcular `position.y`. */
-export const MountSchema = z.enum(['floor', 'ceiling']);
+/**
+ * Dónde se apoya el objeto: el motor de layout y el editor lo usan para calcular `position.y`.
+ * - `floor` / `ceiling`: piso o techo.
+ * - `wall`: colgado de una pared (cuadros, repisas, TV) a `elevationM` del piso.
+ * - `surface`: apoyado sobre otro mueble (lámpara de mesa, jarrón), referenciado por `supportId`.
+ */
+export const MOUNTS = ['floor', 'ceiling', 'wall', 'surface'] as const;
+export const MountSchema = z.enum(MOUNTS);
 export type Mount = z.infer<typeof MountSchema>;
+
+/** Familias de material: un slot de un mueble solo acepta ciertas familias (una tela no puede ser vidrio). */
+export const MATERIAL_KINDS = [
+  'fabric',
+  'leather',
+  'wood',
+  'metal',
+  'stone',
+  'ceramic',
+  'glass',
+  'paint',
+  'plastic',
+  'plant',
+] as const;
+export const MaterialKindSchema = z.enum(MATERIAL_KINDS);
+export type MaterialKind = z.infer<typeof MaterialKindSchema>;
+
+const MaterialIdSchema = z.string().min(1).max(64);
+const SlotIdSchema = z.string().min(1).max(32);
+
+/** Rango [mín, máx] en metros que el usuario puede dar a una dimensión del mueble. */
+export const SizeRangeSchema = z
+  .tuple([positiveMeters, positiveMeters])
+  .refine(([min, max]) => min <= max, 'El mínimo no puede superar al máximo');
+export type SizeRange = z.infer<typeof SizeRangeSchema>;
+
+export const ResizeRangesSchema = z.object({
+  x: SizeRangeSchema.optional(),
+  y: SizeRangeSchema.optional(),
+  z: SizeRangeSchema.optional(),
+});
+export type ResizeRanges = z.infer<typeof ResizeRangesSchema>;
+
+/** Parte del mueble que se puede re-materializar (tapizado, patas, cubierta...). */
+export const MaterialSlotSchema = z.object({
+  slot: SlotIdSchema,
+  label: z.string().min(1).max(60),
+  default: MaterialIdSchema,
+  allowedKinds: z.array(MaterialKindSchema).min(1),
+});
+export type MaterialSlot = z.infer<typeof MaterialSlotSchema>;
+
+/** Receta paramétrica: el cliente reconstruye la geometría con estas medidas y parámetros. */
+export const RecipeSchema = z.object({
+  kind: z.string().min(1).max(40),
+  params: z.record(z.string().max(40), z.union([finite, z.string().max(60), z.boolean()])).default({}),
+});
+export type Recipe = z.infer<typeof RecipeSchema>;
+
+/** Metadatos de personalización del ítem (en la base de datos viven en una sola columna JSON). */
+export const CatalogSpecSchema = z.object({
+  recipe: RecipeSchema.optional(),
+  materialSlots: z.array(MaterialSlotSchema).max(8).optional(),
+  resize: ResizeRangesSchema.optional(),
+  /** Altura por defecto de la base del objeto cuando va en la pared. */
+  elevationDefaultM: finite.min(0).max(10).optional(),
+  /** Puede meterse debajo de un mueble que lo permite (sillas bajo la mesa). */
+  tucksUnder: z.boolean().optional(),
+  /** Permite que otros (`tucksUnder`) entren debajo (mesas, escritorios). */
+  allowsUnder: z.boolean().optional(),
+});
+export type CatalogSpec = z.infer<typeof CatalogSpecSchema>;
 
 export const CatalogItemSchema = z.object({
   id: z.string().min(1).max(64),
@@ -96,8 +169,21 @@ export const CatalogItemSchema = z.object({
   productUrl: z.string().url().optional(),
   license: z.enum(['cc0', 'cc-by', 'proprietary', 'affiliate']),
   attribution: z.string().max(200).optional(),
-});
+  /** Palabras clave para la búsqueda (es/en): "lámpara", "lamp", "luz"... */
+  tags: z.array(z.string().min(1).max(40)).max(40).default([]),
+  synonyms: z.array(z.string().min(1).max(40)).max(40).default([]),
+  description: z.string().max(400).optional(),
+  /** Origen del modelo: GLB de Poly Haven, receta paramétrica o caja procedural de respaldo. */
+  source: z.enum(['polyhaven', 'parametric', 'procedural']).optional(),
+}).extend(CatalogSpecSchema.shape);
 export type CatalogItem = z.infer<typeof CatalogItemSchema>;
+
+/** Quién puso el mueble en la escena (la UI lo distingue; el layout automático respeta los del usuario). */
+export const PlacementOriginSchema = z.enum(['user', 'layout', 'detected', 'chat']);
+export type PlacementOrigin = z.infer<typeof PlacementOriginSchema>;
+
+export const DimensionsSchema = z.object({ x: positiveMeters, y: positiveMeters, z: positiveMeters });
+export type Dimensions = z.infer<typeof DimensionsSchema>;
 
 export const FurniturePlacementSchema = z.object({
   id: z.string().min(1).max(64),
@@ -105,8 +191,28 @@ export const FurniturePlacementSchema = z.object({
   position: Vector3Schema,
   rotationY: finite,
   lockedByUser: z.boolean(),
+  // --- v3: todo opcional para que los proyectos guardados antes sigan siendo válidos ---
+  /** Medidas propias de esta pieza (si faltan, se usan las del catálogo). */
+  dimensionsM: DimensionsSchema.optional(),
+  /** Material elegido por slot: { tapizado: 'fabric-linen-sand', patas: 'wood-oak' }. */
+  materials: z.record(SlotIdSchema, MaterialIdSchema).optional(),
+  /** Altura de la base sobre el piso (objetos de pared). */
+  elevationM: finite.min(0).max(10).optional(),
+  /** Pared a la que está colgado (mount = wall). */
+  wallId: z.string().min(1).max(64).optional(),
+  /** Mueble sobre el que se apoya (mount = surface). */
+  supportId: z.string().min(1).max(64).optional(),
+  origin: PlacementOriginSchema.optional(),
 });
 export type FurniturePlacement = z.infer<typeof FurniturePlacementSchema>;
+
+/** Acabados del cuarto: material del piso, de cada pared (o 'all') y del techo. */
+export const RoomFinishesSchema = z.object({
+  floor: MaterialIdSchema,
+  walls: z.record(z.string().min(1).max(64), MaterialIdSchema),
+  ceiling: MaterialIdSchema,
+});
+export type RoomFinishes = z.infer<typeof RoomFinishesSchema>;
 
 export const StylePreviewStatusSchema = z.enum(['pending', 'ready', 'failed']);
 export const StylePreviewSchema = z.object({
@@ -136,6 +242,7 @@ export const DesignProjectVersionSchema = DesignProjectVersionSummarySchema.exte
   roomShell: RoomShellSchema.nullable(),
   furniturePlacements: z.array(FurniturePlacementSchema),
   selectedStyleId: StyleIdSchema.nullable(),
+  finishes: RoomFinishesSchema.nullable().default(null),
 });
 export type DesignProjectVersion = z.infer<typeof DesignProjectVersionSchema>;
 
@@ -151,6 +258,8 @@ export const DesignProjectSchema = z.object({
   stylePreviews: z.array(StylePreviewSchema),
   selectedStyleId: StyleIdSchema.nullable(),
   furniturePlacements: z.array(FurniturePlacementSchema),
+  /** null = acabados por defecto (o la paleta del estilo elegido). */
+  finishes: RoomFinishesSchema.nullable().default(null),
   versions: z.array(DesignProjectVersionSummarySchema),
   visibility: z.enum(['private', 'shared-link']),
   /** Guardado explícito: los proyectos no guardados se borran a las 24 h (privacidad, §8.4). */

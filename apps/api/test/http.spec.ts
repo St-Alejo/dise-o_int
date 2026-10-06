@@ -113,17 +113,36 @@ describe('HTTP', () => {
 
   // Regresión: el pipe del controlador y el caso de uso parseaban dos veces el multipart y la
   // segunda pasada recibía `styles` ya convertido en lista → 422 con cualquier estilo elegido.
-  it('crea un proyecto con estilos elegidos en el multipart (201)', async () => {
+  it('crea un proyecto con estilos y medidas reales del multipart (201)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/projects')
       .set(alice)
       .field('name', 'Con estilos')
       .field('roomType', 'bedroom')
       .field('styles', 'escandinavo,industrial')
+      .field('widthM', '4.2')
+      .field('depthM', '3,5')
+      .field('heightM', '2.6')
       .attach('photo', await photo(), { filename: 'cuarto.jpg', contentType: 'image/jpeg' })
       .expect(201);
     const stored = await repo.findById(res.body.id);
     expect(stored!.requestedStyles).toEqual(['escandinavo', 'industrial']);
+    expect(stored!.requestedRoom).toEqual({ widthM: 4.2, depthM: 3.5, heightM: 2.6 });
+  });
+
+  it('PUT room valida en el borde (422) y aplica medidas exactas (200)', async () => {
+    const { id, revision } = await createReady();
+    await request(app.getHttpServer())
+      .put(`/api/projects/${id}/room`)
+      .set(alice)
+      .send({ revision, widthM: 4, depthM: 3, heightM: 12 })
+      .expect(422);
+    const ok = await request(app.getHttpServer())
+      .put(`/api/projects/${id}/room`)
+      .set(alice)
+      .send({ revision, widthM: 4.4, depthM: 3.1, heightM: 2.5 })
+      .expect(200);
+    expect(ok.body.roomShell).toMatchObject({ widthM: 4.4, depthM: 3.1, heightM: 2.5 });
   });
 
   it('crea un proyecto (201) y otro usuario recibe 404, no 403', async () => {

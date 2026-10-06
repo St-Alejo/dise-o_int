@@ -118,6 +118,24 @@ const calibrated = await api(`/projects/${id}/calibrate`, {
 if (calibrated.status !== 200 || calibrated.body.roomShell.needsCalibration) fail(`calibrar → ${calibrated.status}`);
 ok(`calibración: techo de 2.7 m → cuarto de ${calibrated.body.roomShell.widthM.toFixed(2)} m de ancho`);
 
+const resized = await api(`/projects/${id}/room`, {
+  method: 'PUT',
+  token,
+  headers: json,
+  body: JSON.stringify({ revision: calibrated.body.revision, widthM: 3.2, depthM: 2.9, heightM: 2.45 }),
+});
+const rs = resized.body.roomShell;
+if (resized.status !== 200 || rs.widthM !== 3.2 || rs.depthM !== 2.9 || rs.heightM !== 2.45) fail(`medidas exactas → ${resized.status} ${resized.body.detail ?? ''}`);
+if (resized.body.furniturePlacements.length !== calibrated.body.furniturePlacements.length) fail('cambiar el cuarto no debe borrar muebles');
+const badRoom = await api(`/projects/${id}/room`, {
+  method: 'PUT',
+  token,
+  headers: json,
+  body: JSON.stringify({ revision: resized.body.revision, widthM: 3.2, depthM: 2.9, heightM: 9 }),
+});
+if (badRoom.status !== 400 && badRoom.status !== 422) fail(`un techo de 9 m debería rechazarse, dio ${badRoom.status}`);
+ok('medidas exactas: 3.20 × 2.90 × 2.45 m sin perder muebles (techo de 9 m → rechazado)');
+
 const version = await api(`/projects/${id}/versions`, { method: 'POST', token, headers: json, body: JSON.stringify({ note: 'smoke' }) });
 if (version.status !== 201 || !version.body.saved) fail(`guardar versión → ${version.status}`);
 ok('versión guardada (el proyecto ya no se borra por retención)');

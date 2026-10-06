@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
   FurniturePlacementSchema,
+  RoomDimensionsSchema,
+  RoomFinishesSchema,
   RoomShellSchema,
   type FurniturePlacement,
+  type RoomDimensions,
+  type RoomFinishes,
   type RoomShell,
   type RoomType,
   type StyleId,
@@ -34,6 +38,16 @@ function parseShell(value: unknown): RoomShell | null {
 function parsePlacements(value: unknown): FurniturePlacement[] {
   return PlacementsSchema.parse(value ?? []);
 }
+function parseFinishes(value: unknown): RoomFinishes | null {
+  return value === null || value === undefined ? null : RoomFinishesSchema.parse(value);
+}
+function parseRoomDims(value: unknown): RoomDimensions | null {
+  return value === null || value === undefined ? null : RoomDimensionsSchema.parse(value);
+}
+/** null de dominio → NULL de SQL (Prisma distingue DbNull de JsonNull). */
+function nullableJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  return value === null || value === undefined ? Prisma.DbNull : (value as Prisma.InputJsonValue);
+}
 function toJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
@@ -51,6 +65,8 @@ function toProject(row: ProjectRow): ProjectRecord {
     thumbKey: row.thumbKey,
     roomShell: parseShell(row.roomShell),
     placements: parsePlacements(row.placements),
+    finishes: parseFinishes(row.finishes),
+    requestedRoom: parseRoomDims(row.requestedRoom),
     selectedStyleId: row.selectedStyleId as StyleId | null,
     requestedStyles: row.requestedStyles as StyleId[],
     saved: row.saved,
@@ -68,6 +84,7 @@ function toVersion(row: VersionRow): VersionRecord {
     note: row.note,
     roomShell: parseShell(row.roomShell),
     placements: parsePlacements(row.placements),
+    finishes: parseFinishes(row.finishes),
     selectedStyleId: row.selectedStyleId as StyleId | null,
     createdAt: row.createdAt,
   };
@@ -98,6 +115,8 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.thumbKey !== undefined) data.thumbKey = patch.thumbKey;
   if (patch.roomShell !== undefined) data.roomShell = patch.roomShell === null ? Prisma.DbNull : toJson(patch.roomShell);
   if (patch.placements !== undefined) data.placements = toJson(patch.placements);
+  if (patch.finishes !== undefined) data.finishes = nullableJson(patch.finishes);
+  if (patch.requestedRoom !== undefined) data.requestedRoom = nullableJson(patch.requestedRoom);
   if (patch.selectedStyleId !== undefined) data.selectedStyleId = patch.selectedStyleId;
   if (patch.requestedStyles !== undefined) data.requestedStyles = patch.requestedStyles;
   if (patch.saved !== undefined) data.saved = patch.saved;
@@ -121,6 +140,8 @@ export class PrismaProjectRepository implements IProjectRepository {
         thumbKey: data.thumbKey,
         roomShell: data.roomShell ? toJson(data.roomShell) : Prisma.DbNull,
         placements: toJson(data.placements),
+        finishes: nullableJson(data.finishes),
+        requestedRoom: nullableJson(data.requestedRoom),
         selectedStyleId: data.selectedStyleId,
         requestedStyles: data.requestedStyles,
         saved: data.saved,
@@ -174,6 +195,7 @@ export class PrismaProjectRepository implements IProjectRepository {
               note,
               roomShell: project.roomShell === null ? Prisma.DbNull : toJson(project.roomShell),
               placements: toJson(project.placements),
+              finishes: project.finishes === null ? Prisma.DbNull : toJson(project.finishes),
               selectedStyleId: project.selectedStyleId,
             },
           });
