@@ -64,8 +64,15 @@ export const ProjectListItemSchema = z.object({
 });
 export type ProjectListItem = z.infer<typeof ProjectListItemSchema>;
 
+/**
+ * `revision` es opcional en las operaciones que tocan el proyecto fuera del editor: si el
+ * cliente la envía, el servidor rechaza con 409 cuando el proyecto cambió desde que lo leyó.
+ */
+const OptionalRevision = z.number().int().nonnegative().optional();
+
 export const UpdateProjectRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  revision: OptionalRevision,
 });
 export type UpdateProjectRequest = z.infer<typeof UpdateProjectRequestSchema>;
 
@@ -80,6 +87,10 @@ export const SaveVersionRequestSchema = z.object({
   note: z.string().trim().max(200).optional(),
 });
 export type SaveVersionRequest = z.infer<typeof SaveVersionRequestSchema>;
+
+// El cuerpo es opcional (un POST sin body sigue funcionando).
+export const RestoreVersionRequestSchema = z.object({ revision: OptionalRevision }).default({});
+export type RestoreVersionRequest = z.infer<typeof RestoreVersionRequestSchema>;
 
 export const CALIBRATION_REFERENCES = [
   'door-height',
@@ -109,6 +120,7 @@ export type GenerateStylesRequest = z.infer<typeof GenerateStylesRequestSchema>;
 
 export const SelectStyleRequestSchema = z.object({
   styleId: StyleIdSchema.nullable(),
+  revision: OptionalRevision,
 });
 export type SelectStyleRequest = z.infer<typeof SelectStyleRequestSchema>;
 

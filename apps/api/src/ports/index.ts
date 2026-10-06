@@ -132,12 +132,16 @@ export interface IProjectRepository {
   findPreviewByCacheKey(projectId: string, cacheKey: string): Promise<PreviewRecord | null>;
 
   createShareLink(projectId: string, token: string): Promise<void>;
+  /** Revoca los enlaces activos, crea uno nuevo y marca el proyecto como guardado, todo atómico. */
+  replaceShareLink(projectId: string, token: string): Promise<void>;
   revokeShareLinks(projectId: string): Promise<void>;
   hasActiveShareLink(projectId: string): Promise<boolean>;
   findProjectIdByShareToken(token: string): Promise<string | null>;
 
   /** Proyectos no guardados cuya retención expiró (privacidad: §8.4). */
   listExpiredUnsaved(before: Date, limit: number): Promise<string[]>;
+  /** De los ids dados, devuelve los que existen en la base de datos (barrido de huérfanos). */
+  existingIds(ids: string[]): Promise<string[]>;
 
   auditJob(entry: {
     projectId: string;
@@ -176,6 +180,8 @@ export interface IFileStorage {
   exists(key: string): Promise<boolean>;
   /** Borrado real (no soft-delete) de todos los objetos bajo un prefijo. */
   deletePrefix(prefix: string): Promise<number>;
+  /** Recorre los objetos bajo un prefijo (clave + fecha de última modificación). */
+  listObjects(prefix: string): AsyncIterable<{ key: string; lastModified: Date }>;
   ensureBucket(): Promise<void>;
   ping(): Promise<void>;
 }

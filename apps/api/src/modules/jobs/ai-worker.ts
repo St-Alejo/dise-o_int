@@ -3,7 +3,7 @@ import type { JobKind } from '@interiores/shared-types';
 import { UnrecoverableError, Worker, type Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { AppConfig } from '../../config/env.js';
-import { AiServiceError } from '../../infrastructure/ai/http-ai-client.js';
+import { AiServiceError } from '../../common/errors.js';
 import { AI_QUEUE } from '../../infrastructure/queue/bullmq-job-queue.js';
 import { APP_CONFIG, PROJECT_REPOSITORY, REDIS, type IProjectRepository, type JobPayloads } from '../../ports/index.js';
 import { PipelineService, type JobContext } from './pipeline.service.js';
@@ -91,7 +91,10 @@ export class AiWorker implements OnApplicationBootstrap, OnApplicationShutdown {
         .catch(() => undefined);
     } catch (err) {
       // Errores que reintentar no arregla (entrada inválida) saltan los reintentos.
-      if (err instanceof AiServiceError && !err.retryable) throw new UnrecoverableError(err.message);
+      if (err instanceof AiServiceError && !err.retryable) {
+        // Se conserva el error original en `cause` para que markFailed pueda clasificarlo.
+        throw Object.assign(new UnrecoverableError(err.message), { cause: err });
+      }
       throw err;
     }
   }
@@ -103,7 +106,7 @@ export class AiWorker implements OnApplicationBootstrap, OnApplicationShutdown {
     const ctx: JobContext = { jobId: job.id ?? 'unknown', kind: job.name, requestId: job.data.requestId, isFinalAttempt: final };
     this.logger.warn({ jobId: ctx.jobId, kind: job.name, projectId: job.data.projectId, attemptsMade: job.attemptsMade, final, err: err.message }, 'Job fallido');
     if (final) {
-      await this.pipeline.markFailed(job.name, job.data.projectId, ctx, err.message);
+      await this.pipeline.markFailed(job.name, job.data.projectId, ctx, err);
       await this.projects
         .auditJob({ projectId: job.data.projectId, jobId: ctx.jobId, kind: job.name, status: 'failed', attempts: job.attemptsMade, error: err.message })
         .catch(() => undefined);

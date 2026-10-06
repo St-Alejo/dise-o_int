@@ -19,6 +19,8 @@ import { Throttle } from '@nestjs/throttler';
 import {
   AutoLayoutRequestSchema,
   CalibrateRequestSchema,
+  CreateProjectFieldsSchema,
+  RestoreVersionRequestSchema,
   GenerateStylesRequestSchema,
   SaveVersionRequestSchema,
   SelectStyleRequestSchema,
@@ -32,6 +34,7 @@ import {
   type JobAccepted,
   type JobProgressEvent,
   type ProjectListItem,
+  type RestoreVersionRequest,
   type SaveVersionRequest,
   type SelectStyleRequest,
   type ShareLink,
@@ -72,8 +75,7 @@ export class ProjectsController {
   create(
     @CurrentUser() user: AuthPrincipal,
     @RequestId() requestId: string | undefined,
-    // Los campos se validan con CreateProjectFieldsSchema dentro del caso de uso.
-    @Body() fields: CreateProjectFields,
+    @Body(new ZodPipe(CreateProjectFieldsSchema)) fields: CreateProjectFields,
     @UploadedFile() photo: Express.Multer.File | undefined,
   ): Promise<DesignProject> {
     return this.service.create(this.actor(user, requestId), fields, photo?.buffer);
@@ -91,7 +93,7 @@ export class ProjectsController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(UpdateProjectRequestSchema)) body: UpdateProjectRequest,
   ): Promise<DesignProject> {
-    return this.service.rename(this.actor(user), id, body.name);
+    return this.service.rename(this.actor(user), id, body.name, body.revision);
   }
 
   @Delete(':id')
@@ -143,7 +145,7 @@ export class ProjectsController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(SelectStyleRequestSchema)) body: SelectStyleRequest,
   ): Promise<DesignProject> {
-    return this.service.selectStyle(this.actor(user), id, body.styleId);
+    return this.service.selectStyle(this.actor(user), id, body.styleId, body.revision);
   }
 
   @Post(':id/styles')
@@ -183,12 +185,14 @@ export class ProjectsController {
 
   @Post(':id/versions/:versionId/restore')
   @HttpCode(200)
+  @ApiBody({ schema: openApiSchema(RestoreVersionRequestSchema), required: false })
   restoreVersion(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', uuid) id: string,
     @Param('versionId', uuid) versionId: string,
+    @Body(new ZodPipe(RestoreVersionRequestSchema)) body: RestoreVersionRequest,
   ): Promise<DesignProject> {
-    return this.service.restoreVersion(this.actor(user), id, versionId);
+    return this.service.restoreVersion(this.actor(user), id, versionId, body.revision);
   }
 
   @Post(':id/share')

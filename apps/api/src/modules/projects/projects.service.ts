@@ -26,7 +26,7 @@ import {
 } from '@interiores/shared-types';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { AppConfig } from '../../config/env.js';
-import { DependencyError, NotFoundError, ValidationError } from '../../common/errors.js';
+import { NotFoundError, ValidationError } from '../../common/errors.js';
 import { MediaUrlSigner } from '../../infrastructure/media/media-url-signer.js';
 import { PhotoProcessor } from '../../infrastructure/imaging/photo-processor.js';
 import {
@@ -53,7 +53,12 @@ export interface Actor {
   requestId?: string | undefined;
 }
 
-export const previewCacheKey = (photoHash: string, styleId: StyleId, strength: number) =>
+/** Una preview "pending" más vieja que esto se considera colgada y se puede volver a pedir. */
+export const STALE_PENDING_MS = 15 * 60_000;
+
+const revisionGuard = (revision?: number) => (revision === undefined ? {} : { expectedRevision: revision });
+
+export const previewCacheKey =(photoHash: string, styleId: StyleId, strength: number) =>
   createHash('sha256').update(`${photoHash}|${styleId}|${strength.toFixed(2)}|v1`).digest('hex');
 
 /**
@@ -64,6 +69,8 @@ export const previewCacheKey = (photoHash: string, styleId: StyleId, strength: n
 @Injectable()
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
+  /** Reloj inyectable (las pruebas lo fijan). */
+  clock: () => number = () => Date.now();
 
   constructor(
     @Inject(PROJECT_REPOSITORY) private readonly projects: IProjectRepository,
@@ -132,11 +139,9 @@ export class ProjectsService {
       return this.toDto(project);
     } catch (err) {
       await this.quota.refund(actor.userId, styles.length).catch(() => undefined);
-      await this.storage.deletePrefix(projectKeys.prefix(id)).catch(() => undefined);
       await this.projects.delete(id).catch(() => undefined);
-      if (err instanceof Error && /ECONNREFUSED|Connection is closed|ETIMEDOUT/.test(err.message)) {
-        throw new DependencyError('No se pudo encolar el análisis; intenta de nuevo en unos segundos');
-      }
+      await this.storage.deletePrefix(projectKeys.prefix(id)).catch(() => undefined);
+      // El adaptador de la cola ya traduce los fallos de Redis a DependencyError (503).
       throw err;
     }
   }
@@ -156,20 +161,28 @@ export class ProjectsService {
     return this.toDto(updated);
   }
 
-  async rename(actor: Actor, id: string, name: string): Promise<DesignProject> {
+  async rename(actor: Actor, id: string, name: string, revision?: number): Promise<DesignProject> {
     await this.own(actor, id);
-    return this.toDto(await this.projects.update(id, { name }));
+    return this.toDto(await this.projects.update(id, { name }, revisionGuard(revision)));
   }
 
-  /** Borrado REAL: primero los archivos en S3, luego la base de datos (§8.4 privacidad). */
+  /** Borrado REAL de base de datos y archivos (§8.4 privacidad). */
   async remove(actor: Actor, id: string): Promise<void> {
     await this.own(actor, id);
     await this.hardDelete(id);
   }
 
+  /**
+   * Primero la base de datos (así el proyecto deja de existir para la API de inmediato) y
+   * después S3. Si el borrado de archivos falla, el barrido de huérfanos de RetentionService
+   * los elimina más tarde: nunca queda una fila apuntando a archivos inexistentes.
+   */
   async hardDelete(id: string): Promise<void> {
-    const removed = await this.storage.deletePrefix(projectKeys.prefix(id));
     await this.projects.delete(id);
+    const removed = await this.storage.deletePrefix(projectKeys.prefix(id)).catch((err) => {
+      this.logger.warn({ err, projectId: id }, 'No se pudieron borrar los archivos; quedan para el barrido de huérfanos');
+      return 0;
+    });
     this.logger.log({ projectId: id, removedObjects: removed }, 'Proyecto eliminado definitivamente');
   }
 
@@ -208,9 +221,9 @@ export class ProjectsService {
     return this.toDto(updated);
   }
 
-  async selectStyle(actor: Actor, id: string, styleId: StyleId | null): Promise<DesignProject> {
+  async selectStyle(actor: Actor, id: string, styleId: StyleId | null, revision?: number): Promise<DesignProject> {
     await this.own(actor, id);
-    return this.toDto(await this.projects.update(id, { selectedStyleId: styleId }));
+    return this.toDto(await this.projects.update(id, { selectedStyleId: styleId }, revisionGuard(revision)));
   }
 
   // ------------------------------------------------------------------ versiones (paso 7)
@@ -220,14 +233,14 @@ export class ProjectsService {
     return this.get(actor, id);
   }
 
-  async restoreVersion(actor: Actor, id: string, versionId: string): Promise<DesignProject> {
+  async restoreVersion(actor: Actor, id: string, versionId: string, revision?: number): Promise<DesignProject> {
     await this.own(actor, id);
     const version = await this.projects.getVersion(id, versionId);
     if (!version) throw new NotFoundError('La versión no existe');
     const updated = await this.projects.update(
       id,
       { roomShell: version.roomShell, placements: version.placements, selectedStyleId: version.selectedStyleId },
-      { bumpRevision: true },
+      { ...revisionGuard(revision), bumpRevision: true },
     );
     return this.toDto(updated);
   }
@@ -237,11 +250,17 @@ export class ProjectsService {
     const project = await this.own(actor, id);
     if (!project.photoHash || !project.photoKey) throw new ValidationError('El proyecto no tiene foto');
 
-    const toGenerate: string[] = [];
+    // 1) Se decide qué hay que generar sin escribir nada todavía.
+    const toGenerate: { styleId: StyleId; cacheKey: string }[] = [];
+    const now = this.clock();
     for (const styleId of req.styles) {
       const cacheKey = previewCacheKey(project.photoHash, styleId, req.promptStrength);
       const cached = await this.projects.findPreviewByCacheKey(id, cacheKey);
-      if (cached?.status === 'pending') continue; // ya se está generando
+      if (cached?.status === 'pending') {
+        if (now - cached.createdAt.getTime() < STALE_PENDING_MS) continue; // ya se está generando
+        // Quedó colgada (p. ej. el worker murió): se da por fallida y se vuelve a pedir.
+        await this.projects.updatePreview(cached.id, { status: 'failed', error: 'La generación no terminó a tiempo' });
+      }
       if (cached?.status === 'ready') {
         // Misma foto + estilo + intensidad: se reutiliza el render (no se vuelve a pagar la
         // inferencia) y se registra como la generación más reciente de ese estilo.
@@ -256,28 +275,44 @@ export class ProjectsService {
         });
         continue;
       }
-      const preview = await this.projects.createPreview({
-        projectId: id,
-        styleId,
-        promptStrength: req.promptStrength,
-        status: 'pending',
-        imageKey: null,
-        cacheKey,
-        provider: null,
-      });
-      toGenerate.push(preview.id);
+      toGenerate.push({ styleId, cacheKey });
     }
     if (toGenerate.length === 0) return { jobId: 'cached', projectId: id };
 
+    // 2) Cuota antes de crear filas: si se excede (429) no queda ninguna preview "pending" huérfana.
     await this.quota.consume(actor.userId, toGenerate.length);
-    const digest = createHash('sha256').update(toGenerate.join(',')).digest('hex').slice(0, 16);
-    const jobId = await this.queue.enqueue('generate-styles', `styles.${id}.${digest}`, {
-      projectId: id,
-      previewIds: toGenerate,
-      ...(actor.requestId ? { requestId: actor.requestId } : {}),
-    });
-    await this.publishQueued(id, jobId, 'generate-styles');
-    return { jobId, projectId: id };
+    const created: string[] = [];
+    try {
+      for (const { styleId, cacheKey } of toGenerate) {
+        const preview = await this.projects.createPreview({
+          projectId: id,
+          styleId,
+          promptStrength: req.promptStrength,
+          status: 'pending',
+          imageKey: null,
+          cacheKey,
+          provider: null,
+        });
+        created.push(preview.id);
+      }
+      const digest = createHash('sha256').update(created.join(',')).digest('hex').slice(0, 16);
+      const jobId = await this.queue.enqueue('generate-styles', `styles.${id}.${digest}`, {
+        projectId: id,
+        previewIds: created,
+        ...(actor.requestId ? { requestId: actor.requestId } : {}),
+      });
+      await this.publishQueued(id, jobId, 'generate-styles');
+      return { jobId, projectId: id };
+    } catch (err) {
+      // 3) Compensación: las previews no se van a generar → fallidas (no bloquean reintentos) y cuota devuelta.
+      await Promise.all(
+        created.map((pid) =>
+          this.projects.updatePreview(pid, { status: 'failed', error: 'No se pudo encolar la generación' }).catch(() => undefined),
+        ),
+      );
+      await this.quota.refund(actor.userId, toGenerate.length).catch(() => undefined);
+      throw err;
+    }
   }
 
   // ------------------------------------------------------------------ Track B: layout automático
@@ -298,11 +333,9 @@ export class ProjectsService {
   // ------------------------------------------------------------------ compartir
   async share(actor: Actor, id: string): Promise<ShareLink> {
     await this.own(actor, id);
-    await this.projects.revokeShareLinks(id);
     const token = randomBytes(24).toString('base64url');
-    await this.projects.createShareLink(id, token);
-    // Compartir implica querer conservarlo: deja de estar sujeto a la limpieza de 24 h.
-    await this.projects.update(id, { saved: true });
+    // Atómico: revoca los anteriores, crea el nuevo y marca el proyecto como guardado.
+    await this.projects.replaceShareLink(id, token);
     return { token, path: `/p/${token}` };
   }
 

@@ -92,8 +92,11 @@ export class ProjectsApi {
     return firstValueFrom(this.http.post<DesignProject>(`${this.base}/${id}/versions`, { note }));
   }
 
-  restoreVersion(id: string, versionId: string): Promise<DesignProject> {
-    return firstValueFrom(this.http.post<DesignProject>(`${this.base}/${id}/versions/${versionId}/restore`, {}));
+  /** Con `revision`, el servidor responde 409 si el proyecto cambió en otra pestaña. */
+  restoreVersion(id: string, versionId: string, revision?: number): Promise<DesignProject> {
+    return firstValueFrom(
+      this.http.post<DesignProject>(`${this.base}/${id}/versions/${versionId}/restore`, revision === undefined ? {} : { revision }),
+    );
   }
 
   share(id: string): Promise<ShareLink> {

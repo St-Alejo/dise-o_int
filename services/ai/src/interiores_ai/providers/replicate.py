@@ -58,6 +58,12 @@ class CircuitBreaker:
                 raise ProviderError("Proveedor de IA temporalmente deshabilitado (circuit breaker abierto)")
             self._opened_at = None  # half-open: se permite un intento
 
+    @property
+    def is_open(self) -> bool:
+        """True mientras el breaker rechaza llamadas (el proveedor se considera caído)."""
+        with self._lock:
+            return self._opened_at is not None and time.monotonic() - self._opened_at < self.cooldown_s
+
     def success(self) -> None:
         with self._lock:
             self._failures = 0

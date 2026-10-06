@@ -56,7 +56,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.exception_handler(ObjectNotFoundError)
     async def not_found(_: Request, exc: ObjectNotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": f"No existe el objeto {exc}"})
+        return JSONResponse(status_code=404, content={"detail": f"No existe el objeto {exc}"})
 
     @app.exception_handler(ProviderError)
     async def provider_error(_: Request, exc: ProviderError) -> JSONResponse:
@@ -83,9 +83,13 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     def ready(c: Dep) -> JSONResponse:
         try:
             c.storage.ping()
-            return JSONResponse({"status": "ok", "room": c.room_analyzer.name, "style": c.style_generator.name})
         except Exception as err:
             return JSONResponse(status_code=503, content={"status": "error", "detail": str(err)})
+        # Si el proveedor externo está caído el servicio sigue sirviendo (layout y análisis
+        # básico), así que se reporta "degraded" con 200 en vez de sacarlo de rotación.
+        providers = c.provider_health()
+        status = "degraded" if providers["external"] == "down" else "ok"
+        return JSONResponse({"status": status, **providers})
 
     # Endpoints síncronos: FastAPI los ejecuta en un threadpool (OpenCV/boto3 son bloqueantes).
     @app.post("/v1/room/analyze", dependencies=auth)

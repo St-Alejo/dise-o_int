@@ -229,6 +229,15 @@ export class PrismaProjectRepository implements IProjectRepository {
     await this.prisma.shareLink.create({ data: { projectId, token } });
   }
 
+  async replaceShareLink(projectId: string, token: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.shareLink.updateMany({ where: { projectId, revokedAt: null }, data: { revokedAt: new Date() } }),
+      this.prisma.shareLink.create({ data: { projectId, token } }),
+      // Compartir implica querer conservarlo: deja de estar sujeto a la limpieza por retención.
+      this.prisma.project.update({ where: { id: projectId }, data: { saved: true } }),
+    ]);
+  }
+
   async revokeShareLinks(projectId: string): Promise<void> {
     await this.prisma.shareLink.updateMany({ where: { projectId, revokedAt: null }, data: { revokedAt: new Date() } });
   }
@@ -248,6 +257,12 @@ export class PrismaProjectRepository implements IProjectRepository {
       select: { id: true },
       take: limit,
     });
+    return rows.map((r) => r.id);
+  }
+
+  async existingIds(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.project.findMany({ where: { id: { in: ids } }, select: { id: true } });
     return rows.map((r) => r.id);
   }
 

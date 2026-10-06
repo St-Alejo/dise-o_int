@@ -11,20 +11,11 @@ import {
   type PlaceFurnitureResponse,
 } from '@interiores/shared-types';
 import type { z } from 'zod';
+import { AiServiceError } from '../../common/errors.js';
 import type { AppConfig } from '../../config/env.js';
 import { APP_CONFIG, type AiCallContext, type IAiClient } from '../../ports/index.js';
 
-export class AiServiceError extends Error {
-  constructor(
-    message: string,
-    readonly status: number | null,
-    /** Si es false, reintentar no tiene sentido (p. ej. 422: la entrada es inválida). */
-    readonly retryable: boolean,
-  ) {
-    super(message);
-    this.name = 'AiServiceError';
-  }
-}
+export { AiServiceError };
 
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -56,7 +47,7 @@ export class HttpAiClient implements IAiClient {
 
   async ping(): Promise<void> {
     const res = await fetch(`${this.baseUrl}/health/live`, { signal: AbortSignal.timeout(2000) });
-    if (!res.ok) throw new AiServiceError(`health ${res.status}`, res.status, true);
+    if (!res.ok) throw new AiServiceError(`health ${res.status}`, res.status, true, 'upstream');
   }
 
   private async post<S extends z.ZodType>(
@@ -83,13 +74,27 @@ export class HttpAiClient implements IAiClient {
         });
         if (!res.ok) {
           const text = (await res.text()).slice(0, 500);
-          throw new AiServiceError(`IA ${path} respondió ${res.status}: ${text}`, res.status, RETRYABLE_STATUS.has(res.status));
+          const retryable = RETRYABLE_STATUS.has(res.status);
+          throw new AiServiceError(
+            `IA ${path} respondió ${res.status}: ${text}`,
+            res.status,
+            retryable,
+            res.status === 408 || res.status === 504
+              ? 'timeout'
+              : retryable || res.status === 404 // 404: falta un objeto en S3, no es culpa de la foto
+                ? 'upstream'
+                : 'rejected',
+          );
         }
-        return schema.parse(await res.json());
+        const parsed = schema.safeParse(await res.json());
+        if (!parsed.success) {
+          // Respuesta fuera de contrato: reintentar no la arregla.
+          throw new AiServiceError(`IA ${path} devolvió una respuesta inválida: ${parsed.error.message.slice(0, 300)}`, res.status, false, 'upstream');
+        }
+        return parsed.data;
       } catch (err) {
         lastError = err;
-        const retryable =
-          err instanceof AiServiceError ? err.retryable : (err as Error).name !== 'ZodError' && !ctx.signal?.aborted;
+        const retryable = err instanceof AiServiceError ? err.retryable : !ctx.signal?.aborted;
         if (!retryable || attempt === maxAttempts) break;
         const delay = 500 * 2 ** (attempt - 1);
         this.logger.warn({ path, attempt, requestId: ctx.requestId, err: (err as Error).message }, `Reintentando IA en ${delay} ms`);
@@ -103,6 +108,7 @@ export class HttpAiClient implements IAiClient {
       isTimeout ? `La IA no respondió a tiempo (${path})` : `No se pudo contactar a la IA: ${e?.message ?? e}`,
       null,
       true,
+      isTimeout ? 'timeout' : 'unreachable',
     );
   }
 }

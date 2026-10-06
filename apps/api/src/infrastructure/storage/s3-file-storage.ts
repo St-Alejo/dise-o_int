@@ -100,6 +100,19 @@ export class S3FileStorage implements IFileStorage, OnModuleDestroy {
     return deleted;
   }
 
+  async *listObjects(prefix: string): AsyncIterable<{ key: string; lastModified: Date }> {
+    let token: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: token }),
+      );
+      for (const o of page.Contents ?? []) {
+        if (o.Key) yield { key: o.Key, lastModified: o.LastModified ?? new Date(0) };
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+  }
+
   async ensureBucket(): Promise<void> {
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));

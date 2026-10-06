@@ -78,9 +78,38 @@ def test_generate_no_escribe_fuera_del_espacio_de_proyectos(client):
     assert r.status_code == 422
 
 
-def test_foto_inexistente_es_error_no_reintentable(client):
+def test_foto_inexistente_es_404_no_reintentable(client):
     r = client.post("/v1/room/analyze", json={"photoKey": "projects/nope.jpg", "roomType": "living"}, headers=AUTH)
-    assert r.status_code == 422
+    assert r.status_code == 404
+
+
+def test_ready_reporta_degradado_si_el_breaker_esta_abierto(client):
+    container = client.app.state.container
+    assert client.get("/health/ready").json()["status"] == "ok"
+
+    class Abierto:
+        is_open = True
+
+    class Cliente:
+        breaker = Abierto()
+
+    container.replicate = Cliente()
+    try:
+        body = client.get("/health/ready")
+        assert body.status_code == 200
+        assert body.json()["status"] == "degraded"
+    finally:
+        container.replicate = None
+
+
+def test_breaker_reporta_abierto_tras_fallos():
+    breaker = CircuitBreaker(threshold=2, cooldown_s=60)
+    assert not breaker.is_open
+    breaker.failure()
+    breaker.failure()
+    assert breaker.is_open
+    breaker.success()
+    assert not breaker.is_open
 
 
 def test_estilo_mock_es_determinista_y_distinto_por_estilo():

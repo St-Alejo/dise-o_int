@@ -19,6 +19,12 @@ class Container:
     room_analyzer: RoomAnalyzer
     style_generator: StyleGenerator
     layout_engine: LayoutEngine
+    replicate: ReplicateClient | None = None
+
+    def provider_health(self) -> dict[str, str]:
+        """Estado de los proveedores sin gastar inferencias: se lee el circuit breaker."""
+        external = "down" if self.replicate is not None and self.replicate.breaker.is_open else "ok"
+        return {"room": self.room_analyzer.name, "style": self.style_generator.name, "external": external}
 
 
 def build_container(settings: Settings, storage: ObjectStorage | None = None) -> Container:
@@ -45,4 +51,5 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
         room_analyzer=room,
         style_generator=style,
         layout_engine=RulesLayoutEngine(),
+        replicate=client,
     )

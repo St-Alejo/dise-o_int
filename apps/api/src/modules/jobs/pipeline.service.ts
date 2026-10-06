@@ -10,11 +10,13 @@ import {
   type RoomShell,
   type StyleId,
 } from '@interiores/shared-types';
+import { StaleRevisionError, findAiFailure } from '../../common/errors.js';
 import {
   AI_CLIENT,
   CATALOG_REPOSITORY,
   PROGRESS_BROKER,
   PROJECT_REPOSITORY,
+  QUOTA,
   type AnalyzeRoomJob,
   type BuildSceneJob,
   type GenerateStylesJob,
@@ -22,6 +24,7 @@ import {
   type ICatalogRepository,
   type IProgressBroker,
   type IProjectRepository,
+  type IQuota,
   type PreviewRecord,
   type ProjectRecord,
 } from '../../ports/index.js';
@@ -51,7 +54,11 @@ export class PipelineService {
     @Inject(CATALOG_REPOSITORY) private readonly catalog: ICatalogRepository,
     @Inject(AI_CLIENT) private readonly ai: IAiClient,
     @Inject(PROGRESS_BROKER) private readonly progress: IProgressBroker,
+    @Inject(QUOTA) private readonly quota: IQuota,
   ) {}
+
+  /** Intentos de escribir la escena si el usuario la editó mientras se calculaba. */
+  static readonly LAYOUT_WRITE_ATTEMPTS = 3;
 
   // ---------------------------------------------------------------- analyze-room (pipeline completo)
   async analyzeRoom(data: AnalyzeRoomJob, ctx: JobContext): Promise<void> {
@@ -70,7 +77,13 @@ export class PipelineService {
       35,
       `Detectamos ${analysis.roomShell.walls.length} paredes, ${doors} puerta(s), ${windows} ventana(s) y ${analysis.detectedObjects.length} objeto(s)`,
     );
-    await this.projects.update(project.id, { roomShell: analysis.roomShell }, { bumpRevision: true });
+    const fresh = await this.projects.findById(project.id);
+    if (!fresh) return; // borrado mientras se analizaba
+    await this.projects.update(
+      project.id,
+      { roomShell: analysis.roomShell },
+      { expectedRevision: fresh.revision, bumpRevision: true },
+    );
 
     // Track A — nunca una sola opción: se generan todos los estilos pedidos.
     const previews = await this.ensurePreviews(project, data.styles, data.promptStrength);
@@ -80,12 +93,7 @@ export class PipelineService {
     const ready = (await this.projects.listPreviews(project.id)).filter((p) => p.status === 'ready');
     const selected: StyleId | null = ready.find((p) => data.styles.includes(p.styleId))?.styleId ?? data.styles[0] ?? null;
     await this.report(project.id, ctx, 'scene', 85);
-    const placements = await this.layout(project, analysis.roomShell, selected, [], ctx);
-    await this.projects.update(
-      project.id,
-      { placements, selectedStyleId: selected, status: 'ready', lastError: null },
-      { bumpRevision: true },
-    );
+    await this.writeLayout(project.id, selected, true, { status: 'ready', lastError: null }, ctx);
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 
@@ -105,29 +113,62 @@ export class PipelineService {
     const project = await this.projects.findById(data.projectId);
     if (!project?.roomShell) return;
     await this.report(project.id, ctx, 'scene', 20);
-    const locked = data.keepLocked ? project.placements.filter((p) => p.lockedByUser) : [];
-    const placements = await this.layout(project, project.roomShell, data.styleId, locked, ctx);
-    await this.projects.update(
-      project.id,
-      { placements, ...(data.styleId !== undefined ? { selectedStyleId: data.styleId } : {}) },
-      { bumpRevision: true },
-    );
+    await this.writeLayout(project.id, data.styleId, data.keepLocked, {}, ctx);
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 
+  /**
+   * Calcula y guarda la distribución con bloqueo optimista: si el usuario guardó la escena
+   * mientras la IA trabajaba, se vuelve a leer el proyecto (respetando sus muebles fijados)
+   * en lugar de pisar su cambio.
+   */
+  private async writeLayout(
+    projectId: string,
+    styleId: StyleId | null,
+    keepLocked: boolean,
+    extra: { status?: 'ready'; lastError?: null },
+    ctx: JobContext,
+  ): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      const project = await this.projects.findById(projectId);
+      if (!project?.roomShell) return; // borrado mientras se calculaba
+      const locked = keepLocked ? project.placements.filter((p) => p.lockedByUser) : [];
+      const placements = await this.layout(project, project.roomShell, styleId, locked, ctx);
+      try {
+        await this.projects.update(
+          projectId,
+          { placements, selectedStyleId: styleId, ...extra },
+          { expectedRevision: project.revision, bumpRevision: true },
+        );
+        return;
+      } catch (err) {
+        if (!(err instanceof StaleRevisionError) || attempt >= PipelineService.LAYOUT_WRITE_ATTEMPTS) throw err;
+        this.logger.warn({ projectId, attempt, jobId: ctx.jobId }, 'La escena cambió durante el layout; se recalcula');
+      }
+    }
+  }
+
   // ---------------------------------------------------------------- fallos definitivos
-  async markFailed(kind: JobKind, projectId: string, ctx: JobContext, error: string): Promise<void> {
+  async markFailed(kind: JobKind, projectId: string, ctx: JobContext, error: unknown): Promise<void> {
     const friendly = this.friendlyError(error);
     if (kind === 'analyze-room') {
       await this.projects.update(projectId, { status: 'failed', lastError: friendly }).catch(() => undefined);
     }
     if (kind === 'generate-styles' || kind === 'analyze-room') {
+      const project = await this.projects.findById(projectId).catch(() => null);
       const previews = await this.projects.listPreviews(projectId).catch(() => [] as PreviewRecord[]);
-      await Promise.all(
+      const results = await Promise.all(
         previews
           .filter((p) => p.status === 'pending')
-          .map((p) => this.projects.updatePreview(p.id, { status: 'failed', error: friendly }).catch(() => undefined)),
+          .map((p) =>
+            this.projects
+              .updatePreview(p.id, { status: 'failed', error: friendly })
+              .then(() => true)
+              .catch(() => false),
+          ),
       );
+      // Cada preview pendiente consumió una generación de la cuota: si no se produjo, se devuelve.
+      if (project) await this.refund(project.ownerId, results.filter(Boolean).length);
     }
     await this.report(projectId, ctx, 'done', 100, friendly, 'failed', friendly);
   }
@@ -196,7 +237,8 @@ export class PipelineService {
         // failSoft: un estilo que falla no tumba el pipeline (Track B sigue); en el job
         // dedicado se reintenta todo el job mientras queden intentos.
         if (opts.failSoft || ctx.isFinalAttempt) {
-          await this.projects.updatePreview(preview.id, { status: 'failed', error: this.friendlyError(String(err)) });
+          await this.projects.updatePreview(preview.id, { status: 'failed', error: this.friendlyError(err) });
+          await this.refund(project.ownerId, 1);
         }
       }
     }
@@ -236,11 +278,25 @@ export class PipelineService {
     return { ...(ctx.requestId ? { requestId: ctx.requestId } : {}), ...(ctx.signal ? { signal: ctx.signal } : {}) };
   }
 
-  private friendlyError(error: string): string {
-    if (/timeout|no respondió a tiempo/i.test(error)) return 'El servicio de IA tardó demasiado. Intenta de nuevo.';
-    if (/contactar|ECONNREFUSED|fetch failed/i.test(error)) return 'El servicio de IA no está disponible en este momento.';
-    if (/422|inválid/i.test(error)) return 'No pudimos interpretar la foto. Prueba con una foto de frente y bien iluminada.';
-    return 'Ocurrió un error procesando tu cuarto. Intenta de nuevo.';
+  private async refund(userId: string, amount: number): Promise<void> {
+    if (amount <= 0) return;
+    await this.quota
+      .refund(userId, amount)
+      .catch((err) => this.logger.warn({ err, userId, amount }, 'No se pudo reembolsar la cuota'));
+  }
+
+  /** Mensaje para el usuario según el TIPO de fallo (no según el texto del error). */
+  friendlyError(error: unknown): string {
+    switch (findAiFailure(error)?.kind) {
+      case 'timeout':
+        return 'El servicio de IA tardó demasiado. Intenta de nuevo.';
+      case 'unreachable':
+        return 'El servicio de IA no está disponible en este momento.';
+      case 'rejected':
+        return 'No pudimos interpretar la foto. Prueba con una foto de frente y bien iluminada.';
+      default:
+        return 'Ocurrió un error procesando tu cuarto. Intenta de nuevo.';
+    }
   }
 
   private async report(

@@ -2,6 +2,7 @@ import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import type { JobKind } from '@interiores/shared-types';
 import { Queue, type JobsOptions } from 'bullmq';
 import type { Redis } from 'ioredis';
+import { DependencyError } from '../../common/errors.js';
 import { REDIS, type IJobQueue, type JobPayloads } from '../../ports/index.js';
 
 export const AI_QUEUE = 'ai-jobs';
@@ -29,6 +30,15 @@ export class BullMqJobQueue implements IJobQueue, OnModuleDestroy {
   }
 
   async enqueue<K extends JobKind>(kind: K, jobId: string, data: JobPayloads[K]): Promise<string> {
+    try {
+      return await this.add(kind, jobId, data);
+    } catch (err) {
+      // Cualquier fallo hablando con Redis es una dependencia caída (503), no un error del cliente.
+      throw Object.assign(new DependencyError('No se pudo encolar el trabajo; intenta de nuevo en unos segundos'), { cause: err });
+    }
+  }
+
+  private async add<K extends JobKind>(kind: K, jobId: string, data: JobPayloads[K]): Promise<string> {
     // Idempotencia: si ya existe un job vivo con ese id, no se duplica. Si terminó
     // (completado o fallido) se elimina para permitir relanzarlo.
     const existing = await this.queue.getJob(jobId);

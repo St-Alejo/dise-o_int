@@ -21,11 +21,12 @@ const FALLBACK_COLORS: Record<string, string> = {
 export class FurnitureFactory {
   private readonly loader = new GLTFLoader();
   private readonly cache = new Map<string, Promise<GLTF | null>>();
-  private readonly fallbacks: THREE.Object3D[] = [];
+  /** Una caja de reemplazo por mueble; las instancias son clones que comparten geometría y material. */
+  private readonly fallbacks = new Map<string, THREE.Object3D>();
 
   async create(item: CatalogItem): Promise<THREE.Object3D> {
     const gltf = await this.load(item);
-    const object = gltf ? gltf.scene.clone(true) : this.fallback(item);
+    const object = (gltf ? gltf.scene : this.fallback(item)).clone(true);
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) {
@@ -49,6 +50,8 @@ export class FurnitureFactory {
   }
 
   private fallback(item: CatalogItem): THREE.Object3D {
+    const cached = this.fallbacks.get(item.id);
+    if (cached) return cached;
     const { x, y, z } = item.dimensionsM;
     const geom = new THREE.BoxGeometry(x, Math.max(y, 0.01), z);
     geom.translate(0, Math.max(y, 0.01) / 2, 0);
@@ -57,7 +60,7 @@ export class FurnitureFactory {
       new THREE.MeshStandardMaterial({ color: FALLBACK_COLORS[item.category] ?? '#999', roughness: 0.8 }),
     );
     mesh.userData['fallback'] = true;
-    this.fallbacks.push(mesh);
+    this.fallbacks.set(item.id, mesh);
     return mesh;
   }
 
@@ -65,8 +68,8 @@ export class FurnitureFactory {
   async dispose(): Promise<void> {
     const loaded = await Promise.all(this.cache.values());
     for (const gltf of loaded) if (gltf) disposeObject(gltf.scene);
-    for (const f of this.fallbacks) disposeObject(f);
+    for (const f of this.fallbacks.values()) disposeObject(f);
     this.cache.clear();
-    this.fallbacks.length = 0;
+    this.fallbacks.clear();
   }
 }

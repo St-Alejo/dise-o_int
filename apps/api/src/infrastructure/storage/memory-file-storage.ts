@@ -3,10 +3,10 @@ import type { IFileStorage, StoredObject } from '../../ports/index.js';
 
 /** Almacenamiento en memoria para tests (mismo contrato que S3FileStorage). */
 export class MemoryFileStorage implements IFileStorage {
-  readonly objects = new Map<string, { body: Buffer; contentType: string }>();
+  readonly objects = new Map<string, { body: Buffer; contentType: string; lastModified: Date }>();
 
   async put(key: string, body: Buffer, contentType: string): Promise<void> {
-    this.objects.set(key, { body: Buffer.from(body), contentType });
+    this.objects.set(key, { body: Buffer.from(body), contentType, lastModified: new Date() });
   }
 
   async get(key: string): Promise<StoredObject | null> {
@@ -32,6 +32,12 @@ export class MemoryFileStorage implements IFileStorage {
       }
     }
     return n;
+  }
+
+  async *listObjects(prefix: string): AsyncIterable<{ key: string; lastModified: Date }> {
+    for (const [key, obj] of this.objects.entries()) {
+      if (key.startsWith(prefix)) yield { key, lastModified: obj.lastModified };
+    }
   }
 
   async ensureBucket(): Promise<void> {}

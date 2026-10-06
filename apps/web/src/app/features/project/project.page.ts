@@ -322,7 +322,7 @@ export class ProjectPage implements OnInit {
   async restore(versionId: string): Promise<void> {
     await this.run(async (id) => {
       this.store.saveState.set('saved');
-      this.store.replaceFromServer(await this.api.restoreVersion(id, versionId));
+      this.store.replaceFromServer(await this.api.restoreVersion(id, versionId, this.store.project()?.revision));
       this.versionsDialog()?.nativeElement.close();
       this.toast.success('Versión restaurada');
     });

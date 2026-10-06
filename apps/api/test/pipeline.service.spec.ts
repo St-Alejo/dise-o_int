@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { AiServiceError } from '../src/common/errors.js';
 import { PipelineService, type JobContext } from '../src/modules/jobs/pipeline.service.js';
-import { FakeAi, FakeBroker, InMemoryCatalogRepository, InMemoryProjectRepository } from './fakes.js';
+import { FakeAi, FakeBroker, FakeQuota, InMemoryCatalogRepository, InMemoryProjectRepository } from './fakes.js';
 
 describe('PipelineService', () => {
   let repo: InMemoryProjectRepository;
@@ -13,7 +14,7 @@ describe('PipelineService', () => {
     repo = new InMemoryProjectRepository();
     ai = new FakeAi();
     broker = new FakeBroker();
-    pipeline = new PipelineService(repo, new InMemoryCatalogRepository(), ai, broker);
+    pipeline = new PipelineService(repo, new InMemoryCatalogRepository(), ai, broker, new FakeQuota(100));
     await repo.create({
       id: 'p1',
       ownerId: 'alice',
@@ -77,7 +78,12 @@ describe('PipelineService', () => {
   });
 
   it('markFailed deja el proyecto en estado fallido con un mensaje entendible', async () => {
-    await pipeline.markFailed('analyze-room', 'p1', ctx(true), 'La IA no respondió a tiempo (/v1/room/analyze)');
+    await pipeline.markFailed(
+      'analyze-room',
+      'p1',
+      ctx(true),
+      new AiServiceError('La IA no respondió a tiempo (/v1/room/analyze)', null, true, 'timeout'),
+    );
     const project = (await repo.findById('p1'))!;
     expect(project.status).toBe('failed');
     expect(project.lastError).toMatch(/tardó demasiado/);

@@ -113,6 +113,12 @@ export class InMemoryProjectRepository implements IProjectRepository {
   async createShareLink(projectId: string, token: string) {
     this.shares.push({ projectId, token, revoked: false });
   }
+  async replaceShareLink(projectId: string, token: string) {
+    if (!this.projects.has(projectId)) throw new NotFoundError('no existe');
+    await this.revokeShareLinks(projectId);
+    await this.createShareLink(projectId, token);
+    this.projects.get(projectId)!.saved = true;
+  }
   async revokeShareLinks(projectId: string) {
     this.shares.filter((s) => s.projectId === projectId).forEach((s) => (s.revoked = true));
   }
@@ -124,6 +130,9 @@ export class InMemoryProjectRepository implements IProjectRepository {
   }
   async listExpiredUnsaved(before: Date, limit: number) {
     return [...this.projects.values()].filter((p) => !p.saved && p.createdAt < before).slice(0, limit).map((p) => p.id);
+  }
+  async existingIds(ids: string[]) {
+    return ids.filter((id) => this.projects.has(id));
   }
   async auditJob(entry: unknown) {
     this.audits.push(entry);

@@ -76,3 +76,31 @@ export class DependencyError extends DomainError {
   readonly code = 'dependency_unavailable';
   readonly title = 'Servicio dependiente no disponible';
 }
+
+/**
+ * Fallo al hablar con el servicio de IA. No es un DomainError (no llega a HTTP): lo usan el
+ * adaptador y el pipeline para decidir reintentos y el mensaje que ve el usuario, sin
+ * depender del texto del error.
+ */
+export type AiFailureKind = 'timeout' | 'unreachable' | 'rejected' | 'upstream';
+
+export class AiServiceError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    /** Si es false, reintentar no tiene sentido (p. ej. 422: la entrada es inválida). */
+    readonly retryable: boolean,
+    readonly kind: AiFailureKind = 'upstream',
+  ) {
+    super(message);
+    this.name = 'AiServiceError';
+  }
+}
+
+/** Busca un AiServiceError en el error o en su cadena de `cause` (BullMQ envuelve errores). */
+export function findAiFailure(err: unknown): AiServiceError | null {
+  for (let e = err, depth = 0; e && depth < 5; e = (e as { cause?: unknown }).cause, depth++) {
+    if (e instanceof AiServiceError) return e;
+  }
+  return null;
+}
