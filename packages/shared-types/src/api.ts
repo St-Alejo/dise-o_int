@@ -43,11 +43,17 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 export const CreateProjectFieldsSchema = z.object({
   name: z.string().trim().min(1).max(120).default('Mi cuarto'),
   roomType: RoomTypeSchema.default('living'),
-  /** Lista separada por comas; si falta se usan los estilos por defecto. */
+  /**
+   * Lista separada por comas (o ya convertida en lista); si falta se usan los estilos por defecto.
+   * Idempotente: el pipe del controlador y el caso de uso aplican el schema en serie.
+   */
   styles: z
-    .string()
+    .union([z.string(), z.array(z.string())])
     .optional()
-    .transform((v) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined))
+    .transform((v) => {
+      if (Array.isArray(v)) return v;
+      return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+    })
     .pipe(z.array(StyleIdSchema).min(1).max(4).optional()),
 });
 export type CreateProjectFields = z.input<typeof CreateProjectFieldsSchema>;

@@ -111,6 +111,21 @@ describe('HTTP', () => {
     expect(quota.used.get('alice') ?? 0).toBe(before);
   });
 
+  // Regresión: el pipe del controlador y el caso de uso parseaban dos veces el multipart y la
+  // segunda pasada recibía `styles` ya convertido en lista → 422 con cualquier estilo elegido.
+  it('crea un proyecto con estilos elegidos en el multipart (201)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/projects')
+      .set(alice)
+      .field('name', 'Con estilos')
+      .field('roomType', 'bedroom')
+      .field('styles', 'escandinavo,industrial')
+      .attach('photo', await photo(), { filename: 'cuarto.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    const stored = await repo.findById(res.body.id);
+    expect(stored!.requestedStyles).toEqual(['escandinavo', 'industrial']);
+  });
+
   it('crea un proyecto (201) y otro usuario recibe 404, no 403', async () => {
     const { id } = await createReady();
     await request(app.getHttpServer()).get(`/api/projects/${id}`).set(alice).expect(200);
