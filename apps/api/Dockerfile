@@ -12,8 +12,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared-types/package.json packages/shared-types/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --workspace api --workspace @interiores/shared-types --include-workspace-root --no-audit --no-fund
+RUN npm ci --workspace api --workspace @interiores/shared-types --include-workspace-root --no-audit --no-fund
 
 # ---- desarrollo: hot reload con el código montado como volumen
 FROM deps AS dev
@@ -41,8 +40,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared-types/package.json packages/shared-types/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev --workspace api --workspace @interiores/shared-types --no-audit --no-fund
+RUN npm ci --omit=dev --workspace api --workspace @interiores/shared-types --no-audit --no-fund
 
 # ---- imagen final: sin compiladores ni devDeps, usuario no-root, tini como PID 1
 FROM base AS prod

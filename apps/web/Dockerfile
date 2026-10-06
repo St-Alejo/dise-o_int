@@ -9,8 +9,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared-types/package.json packages/shared-types/
 COPY apps/web/package.json apps/web/
 COPY apps/api/package.json apps/api/
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --workspace web --workspace @interiores/shared-types --include-workspace-root --no-audit --no-fund
+RUN npm ci --workspace web --workspace @interiores/shared-types --include-workspace-root --no-audit --no-fund
 
 FROM deps AS dev
 COPY packages/shared-types packages/shared-types
