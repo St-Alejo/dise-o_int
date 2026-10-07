@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { STYLES, clampToRoom, type CatalogItem } from '@interiores/shared-types';
+import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
@@ -261,7 +262,7 @@ export class EditorComponent {
   }
 
   add(item: CatalogItem): void {
-    const id = `u-${crypto.randomUUID().slice(0, 12)}`;
+    const id = newPlacementId();
     const pos = this.store.findFreeSpot(id, item, this.scene.roomCenterFor(item));
     if (!pos) {
       this.toast.error('No hay espacio libre para este mueble. Quita o mueve algo primero.');
