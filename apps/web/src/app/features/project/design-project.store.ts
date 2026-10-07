@@ -1,13 +1,14 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import {
+  bodiesCollide,
+  bodyOf,
   clampToRoom,
   effectiveDimensions,
-  footprint,
-  footprintsOverlap,
   mountY,
   type CatalogItem,
   type DesignProject,
   type FurniturePlacement,
+  type RoomFinishes,
   type StyleId,
   type UpdateRoomRequest,
   type Vector3,
@@ -15,7 +16,7 @@ import {
 import { ApiError } from '../../core/api/api-error';
 import { CatalogApi, ProjectsApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
-import { CommandHistory, type Placements, type SceneCommand } from '../viewport-3d/commands';
+import { CommandHistory, type Placements, type SceneCommand, type SceneState } from '../viewport-3d/commands';
 import { planPlacement, type PlacementPlan } from './placement-planner';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'conflict' | 'error';
@@ -40,6 +41,8 @@ export class DesignProjectStore {
 
   readonly project = signal<DesignProject | null>(null);
   readonly placements = signal<Placements>([]);
+  /** Acabados del cuarto en edición (null = por defecto / paleta del estilo). */
+  readonly finishes = signal<RoomFinishes | null>(null);
   readonly catalog = signal<ReadonlyMap<string, CatalogItem>>(new Map());
   readonly selectedId = signal<string | null>(null);
   readonly saveState = signal<SaveState>('saved');
@@ -55,6 +58,10 @@ export class DesignProjectStore {
   readonly canRedo = computed(() => (this.historyVersion(), this.history.canRedo));
   readonly undoLabel = computed(() => (this.historyVersion(), this.history.nextUndoLabel));
   readonly redoLabel = computed(() => (this.historyVersion(), this.history.nextRedoLabel));
+  readonly selectedDimensions = computed(() => {
+    const sel = this.selected();
+    return sel ? this.placementDimensions(sel) : null;
+  });
   readonly totalPrice = computed(() =>
     this.placements().reduce((acc, p) => acc + (this.catalog().get(p.catalogItemId)?.price ?? 0), 0),
   );
@@ -106,6 +113,7 @@ export class DesignProjectStore {
     this.project.set(project);
     if (!localEdits) {
       this.placements.set(project.furniturePlacements);
+      this.finishes.set(project.finishes ?? null);
       this.history.clear();
       this.bumpHistory();
       this.saveState.set('saved');
@@ -119,21 +127,35 @@ export class DesignProjectStore {
   }
 
   // ------------------------------------------------------------------ edición (Command)
+  private get sceneState(): SceneState {
+    return { placements: this.placements(), finishes: this.finishes() };
+  }
+
+  private setScene(state: SceneState): void {
+    this.placements.set(state.placements);
+    this.finishes.set(state.finishes);
+  }
+
   execute(cmd: SceneCommand): void {
-    this.placements.set(this.history.execute(cmd, this.placements()));
+    this.setScene(this.history.execute(cmd, this.sceneState));
     this.afterEdit();
   }
 
   undo(): void {
     if (!this.history.canUndo) return;
-    this.placements.set(this.history.undo(this.placements()));
+    this.setScene(this.history.undo(this.sceneState));
     this.afterEdit();
   }
 
   redo(): void {
     if (!this.history.canRedo) return;
-    this.placements.set(this.history.redo(this.placements()));
+    this.setScene(this.history.redo(this.sceneState));
     this.afterEdit();
+  }
+
+  /** Piezas apoyadas sobre `supportId` (se mueven, giran o caen con él). */
+  dependentsOf(supportId: string): FurniturePlacement[] {
+    return this.placements().filter((p) => p.supportId === supportId);
   }
 
   select(id: string | null): void {
@@ -151,10 +173,9 @@ export class DesignProjectStore {
   }
 
   /**
-   * ¿Es válida esta pose? Dentro del cuarto y sin chocar con otros muebles de la misma
-   * "capa" (las alfombras no chocan con muebles; las lámparas de techo solo entre sí; lo que va
-   * en la pared o sobre una superficie no compite por el piso).
-   * `dimensionsM` permite validar un tamaño nuevo antes de aplicarlo.
+   * ¿Es válida esta pose? Dentro del cuarto y sin chocar en 3D con otras piezas de su capa
+   * (alfombras, techo, pared y superficie tienen sus propias reglas; una silla cabe bajo la mesa).
+   * `dimensionsM` permite validar un tamaño nuevo y `extra` otros campos (soporte) antes de aplicarlos.
    */
   isPoseValid(
     placementId: string,
@@ -162,27 +183,23 @@ export class DesignProjectStore {
     position: Vector3,
     rotationY: number,
     dimensionsM?: Vector3,
+    extra: Pick<FurniturePlacement, 'supportId'> = {},
   ): boolean {
     const shell = this.shell();
     const item = this.catalog().get(catalogItemId);
     if (!shell || !item) return false;
     const own = this.placements().find((p) => p.id === placementId);
     const dims = dimensionsM ?? (own && own.catalogItemId === catalogItemId ? effectiveDimensions(item.dimensionsM, own) : item.dimensionsM);
-    const fp = footprint(position, dims, rotationY);
     const clamped = clampToRoom(position, dims, rotationY, shell);
     if (Math.abs(clamped.x - position.x) > 1e-3 || Math.abs(clamped.z - position.z) > 1e-3) return false;
-    const layer = this.layerOf(item);
+    if (position.y + dims.y > shell.heightM + 1e-3) return false; // no atraviesa el techo
+    const supportId = 'supportId' in extra ? extra.supportId : own?.supportId;
+    const me = bodyOf({ id: placementId, position, rotationY, dimensionsM: dims, ...(supportId ? { supportId } : {}) }, item);
     return !this.placements().some((other) => {
       if (other.id === placementId) return false;
       const otherItem = this.catalog().get(other.catalogItemId);
-      if (!otherItem || this.layerOf(otherItem) !== layer) return false;
-      return footprintsOverlap(fp, footprint(other.position, effectiveDimensions(otherItem.dimensionsM, other), other.rotationY));
+      return !!otherItem && bodiesCollide(me, bodyOf(other, otherItem));
     });
-  }
-
-  layerOf(item: CatalogItem): 'floor' | 'rug' | 'ceiling' | 'wall' | 'surface' {
-    if (item.mount !== 'floor') return item.mount;
-    return item.subcategory === 'rug' ? 'rug' : 'floor';
   }
 
   /** Busca un hueco libre cerca de `near` (espiral) para añadir o cambiar un mueble. */
@@ -238,6 +255,7 @@ export class DesignProjectStore {
       const saved = await this.api.saveScene(project.id, {
         revision: project.revision,
         furniturePlacements: [...sent],
+        finishes: this.finishes(),
       });
       this.project.set(saved);
       if (this.placements() === sent) {
