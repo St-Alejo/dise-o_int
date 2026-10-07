@@ -4,6 +4,7 @@ import {
   createRectangularShell,
   footprint,
   footprintsOverlap,
+  wallFrames,
   type CatalogItem,
   type FurniturePlacement,
   type Vector3,
@@ -91,9 +92,12 @@ describe('planPlacement', () => {
       placements.push(at(`a${i}`, 'art', plan!.position.x, plan!.position.z, { rotationY: plan!.rotationY, wallId: plan!.wallId! }));
     }
     expect(new Set(placements.map((p) => p.wallId)).size).toBeGreaterThan(1);
-    const left = placements.find((p) => p.wallId === 'w-left')!;
-    expect(left.position.x).toBeCloseTo(0.015, 2);
-    expect(left.rotationY).toBeCloseTo(Math.PI / 2);
+    // El que pasó a otra pared queda pegado a ella y mirando al cuarto.
+    const other = placements.find((p) => p.wallId !== 'w-back')!;
+    const frame = wallFrames(shell).find((w) => w.id === other.wallId)!;
+    expect(other.rotationY).toBeCloseTo(frame.rotationY);
+    const perpendicular = frame.along === 'x' ? other.position.z : other.position.x;
+    expect(Math.abs(perpendicular - frame.fixed)).toBeCloseTo(0.015, 2);
   });
 
   it('si no cabe derecho, lo prueba girado 90°', () => {

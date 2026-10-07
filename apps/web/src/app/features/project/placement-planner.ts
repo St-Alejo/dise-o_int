@@ -7,6 +7,7 @@
 import {
   effectiveDimensions,
   mountY,
+  wallFrames,
   type CatalogItem,
   type FurniturePlacement,
   type RoomShell,
@@ -29,16 +30,6 @@ export interface PlannerContext {
   isPoseValid: (id: string, item: CatalogItem, position: Vector3, rotationY: number) => boolean;
   /** Hueco libre en el piso o el techo (espiral desde el centro). */
   findFreeSpot: (id: string, item: CatalogItem, near: Vector3, rotationY: number) => Vector3 | null;
-}
-
-/** Cara interior de cada pared: hacia dónde mira un objeto colgado en ella. */
-function wallFrames(shell: RoomShell): { id: string; rotationY: number; along: 'x' | 'z'; fixed: number; length: number; inward: number }[] {
-  return [
-    { id: 'w-back', rotationY: 0, along: 'x', fixed: 0, length: shell.widthM, inward: 1 },
-    { id: 'w-left', rotationY: Math.PI / 2, along: 'z', fixed: 0, length: shell.depthM, inward: 1 },
-    { id: 'w-right', rotationY: -Math.PI / 2, along: 'z', fixed: shell.widthM, length: shell.depthM, inward: -1 },
-    { id: 'w-front', rotationY: Math.PI, along: 'x', fixed: shell.depthM, length: shell.widthM, inward: -1 },
-  ];
 }
 
 /** Qué soportes prefiere cada tipo de objeto (de más a menos apropiado). */
