@@ -2,6 +2,7 @@ import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import {
   clampToRoom,
   effectiveDimensions,
+  finishesForStyle,
   footprint,
   mountY,
   rotateXZ,
@@ -18,7 +19,7 @@ import { DesignProjectStore } from '../project/design-project.store';
 import { MacroCommand, MoveCommand, RemountCommand, RemoveCommand, RotateCommand } from './commands';
 import { MOUNT_STRATEGIES, type MountPose, type MountStrategy, type SupportCandidate } from './mounts/mount-strategies';
 import { FurnitureFactory } from './furniture-factory';
-import { buildRoom, disposeObject, type BuiltRoom } from './room-builder';
+import { applyFinishes, buildRoom, disposeObject, type BuiltRoom } from './room-builder';
 
 interface FurnitureNode {
   group: THREE.Group;
@@ -121,6 +122,16 @@ export class SceneService {
       this.store.selectedId();
       this.store.placements();
       untracked(() => this.updateSelectionOutline());
+    });
+    // Acabados propios o, si no hay, la paleta del estilo elegido.
+    effect(() => {
+      const finishes = this.store.finishes() ?? finishesForStyle(this.store.project()?.selectedStyleId ?? null);
+      this.store.shell(); // reaplicar al reconstruir el cuarto
+      untracked(() => {
+        if (!this.room) return;
+        applyFinishes(this.room, finishes);
+        this.invalidate();
+      });
     });
   }
 

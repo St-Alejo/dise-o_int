@@ -5,6 +5,7 @@ import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
+import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
 import { InspectorComponent } from '../inspector/inspector.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
 import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
@@ -27,6 +28,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
     CalibrationDialogComponent,
     RoomDimensionsDialogComponent,
     InspectorComponent,
+    FinishesPanelComponent,
     ArViewerComponent,
     CurrencyPipe,
   ],
@@ -95,7 +97,20 @@ import { ThreeViewportComponent } from './three-viewport.component';
             <span class="spacer"></span>
             <div>Total aprox. <strong>{{ store.totalPrice() | currency: 'USD' : 'symbol' : '1.0-0' }}</strong></div>
           </div>
-          <app-catalog-panel mode="add" [items]="catalogItems()" [styleId]="styleId()" [roomType]="roomType()" (picked)="add($event)" />
+          <div class="tabs" role="tablist" aria-label="Panel del editor">
+            <button type="button" role="tab" id="tab-add" aria-controls="panel-add" [attr.aria-selected]="panelTab() === 'add'" (click)="panelTab.set('add')">Añadir muebles</button>
+            <button type="button" role="tab" id="tab-room" aria-controls="panel-room" [attr.aria-selected]="panelTab() === 'room'" (click)="panelTab.set('room')">Cuarto y acabados</button>
+          </div>
+          @if (panelTab() === 'add') {
+            <div role="tabpanel" id="panel-add" aria-labelledby="tab-add">
+              <app-catalog-panel mode="add" [items]="catalogItems()" [styleId]="styleId()" [roomType]="roomType()" (picked)="add($event)" />
+            </div>
+          } @else {
+            <div role="tabpanel" id="panel-room" aria-labelledby="tab-room" class="stack">
+              <button type="button" class="btn btn-sm" (click)="roomDims.open()">📏 Medidas, puertas y ventanas</button>
+              <app-finishes-panel />
+            </div>
+          }
         }
       </aside>
     </div>
@@ -196,6 +211,28 @@ import { ThreeViewportComponent } from './three-viewport.component';
       padding: 6px 10px;
       min-width: 0;
     }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tabs button {
+      flex: 1;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 8px 4px;
+      font: inherit;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .tabs button[aria-selected='true'] {
+      color: var(--text);
+      font-weight: 600;
+      border-bottom-color: var(--primary);
+    }
     .summary {
       padding-bottom: 12px;
       margin-bottom: 12px;
@@ -223,6 +260,7 @@ export class EditorComponent {
   readonly autoLayout = output<void>();
 
   protected readonly swapMode = signal(false);
+  protected readonly panelTab = signal<'add' | 'room'>('add');
   protected readonly shell = this.store.shell;
   protected readonly selectedItem = this.store.selectedItem;
   protected readonly catalogItems = computed(() => [...this.store.catalog().values()]);

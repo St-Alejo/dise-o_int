@@ -3,7 +3,7 @@
  * partir del RoomShell. Sin CSG: cada pared se parte en tramos (izquierda, bajo/sobre cada
  * abertura, derecha). Es código puro de Three.js: no necesita WebGL y se prueba en jsdom.
  */
-import type { Opening, RoomShell, WallSegment } from '@interiores/shared-types';
+import { getMaterial, wallMaterialId, type Opening, type RoomFinishes, type RoomShell, type WallSegment } from '@interiores/shared-types';
 import * as THREE from 'three';
 
 export const WALL_THICKNESS = 0.12;
@@ -164,6 +164,26 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
   }
 
   return { group, walls, floor };
+}
+
+/**
+ * Pinta el cuarto con sus acabados: material del piso y de cada pared (o el de 'all').
+ * Cambia color y rugosidad de los materiales existentes: no reconstruye geometría.
+ */
+export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes): void {
+  const paint = (mat: THREE.MeshStandardMaterial, id: string) => {
+    const def = getMaterial(id);
+    if (!def) return;
+    mat.color.set(def.color);
+    mat.roughness = def.roughness;
+    mat.metalness = def.metalness;
+    mat.needsUpdate = true;
+  };
+  paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor);
+  for (const wall of room.walls) {
+    const wallMat = wall.materials[0];
+    if (wallMat) paint(wallMat, wallMaterialId(finishes, { id: wall.wallId }));
+  }
 }
 
 /** Libera TODA la memoria GPU de un subárbol (Three.js no tiene GC de recursos GPU). */
