@@ -47,6 +47,7 @@ jobs:
         run: |
           npm run build:types
           npm test -w @interiores/shared-types
+          npm test -w @interiores/furniture-kit
       - name: El JSON Schema del contrato con la IA está actualizado
         run: |
           npm run schema -w @interiores/shared-types

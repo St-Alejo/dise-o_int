@@ -12,7 +12,7 @@
   },
   "packageManager": "npm@11.19.0",
   "scripts": {
-    "build:types": "npm run build -w @interiores/shared-types",
+    "build:types": "npm run build -w @interiores/shared-types && npm run build -w @interiores/furniture-kit",
     "build": "npm run build:types && npm run build -w api && npm run build -w web",
     "typecheck": "npm run build:types && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
