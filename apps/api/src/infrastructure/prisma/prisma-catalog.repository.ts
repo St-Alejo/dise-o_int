@@ -3,7 +3,7 @@ import {
   CatalogSpecSchema,
   MountSchema,
   type CatalogCategory,
-  type CatalogQuery,
+  type CatalogFilters,
   type CatalogSpec,
   type RoomType,
   type StyleId,
@@ -51,7 +51,12 @@ function toRecord(row: CatalogRow): CatalogRecord {
 export class PrismaCatalogRepository implements ICatalogRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(query: CatalogQuery): Promise<CatalogRecord[]> {
+  async listActive(): Promise<CatalogRecord[]> {
+    const rows = await this.prisma.catalogItem.findMany({ where: { active: true }, orderBy: [{ category: 'asc' }, { name: 'asc' }] });
+    return rows.map(toRecord);
+  }
+
+  async search(query: CatalogFilters): Promise<CatalogRecord[]> {
     const where: Prisma.CatalogItemWhereInput = { active: true };
     if (query.category) where.category = query.category;
     if (query.style) where.styleTags = { has: query.style };

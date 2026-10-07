@@ -1,55 +1,16 @@
 import { Controller, Get, Inject, Param, Query, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
-import { CatalogQuerySchema, type CatalogItem, type CatalogQuery } from '@interiores/shared-types';
+import { CatalogQuerySchema, type CatalogItem, type CatalogQuery, type CatalogSearchResponse } from '@interiores/shared-types';
 import type { Request, Response } from 'express';
 import { pipeline } from 'node:stream/promises';
 import { NotFoundError } from '../../common/errors.js';
 import { ZodPipe } from '../../common/zod.js';
-import {
-  CATALOG_REPOSITORY,
-  FILE_STORAGE,
-  type CatalogRecord,
-  type ICatalogRepository,
-  type IFileStorage,
-} from '../../ports/index.js';
+import { CATALOG_REPOSITORY, FILE_STORAGE, type ICatalogRepository, type IFileStorage } from '../../ports/index.js';
 import { Public } from '../auth/auth.decorators.js';
+import { CatalogService, toCatalogItem } from './catalog.service.js';
 
-/** La clave del modelo incluye un hash de contenido → la URL es inmutable y cacheable 1 año. */
-function modelVersion(modelKey: string): string {
-  return modelKey.match(/\.([0-9a-f]{8,})\.glb$/)?.[1] ?? '0';
-}
-
-export function toCatalogItem(r: CatalogRecord): CatalogItem {
-  return {
-    id: r.id,
-    name: r.name,
-    category: r.category,
-    ...(r.subcategory ? { subcategory: r.subcategory } : {}),
-    styleTags: r.styleTags,
-    roomTypes: r.roomTypes,
-    dimensionsM: { x: r.widthM, y: r.heightM, z: r.depthM },
-    mount: r.mount,
-    modelUrl: `/api/catalog/${encodeURIComponent(r.id)}/model.glb?v=${modelVersion(r.modelKey)}`,
-    ...(r.thumbnailKey ? { thumbnailUrl: `/api/catalog/${encodeURIComponent(r.id)}/thumbnail?v=${modelVersion(r.modelKey)}` } : {}),
-    ...(r.price !== null ? { price: r.price } : {}),
-    currency: r.currency,
-    ...(r.productUrl ? { productUrl: r.productUrl } : {}),
-    license: r.license,
-    ...(r.attribution ? { attribution: r.attribution } : {}),
-    tags: r.tags,
-    synonyms: r.synonyms,
-    ...(r.description ? { description: r.description } : {}),
-    source: catalogSource(r.source),
-    ...r.spec,
-  };
-}
-
-/** En la base de datos `source` es "polyhaven:asset" o "procedural:kind"; la API expone solo la familia. */
-export function catalogSource(source: string): CatalogItem['source'] {
-  const family = source.split(':')[0];
-  return family === 'polyhaven' || family === 'parametric' ? family : 'procedural';
-}
+export { catalogSource, toCatalogItem } from './catalog.service.js';
 
 @ApiTags('catalog')
 @Controller('catalog')
@@ -57,13 +18,25 @@ export class CatalogController {
   constructor(
     @Inject(CATALOG_REPOSITORY) private readonly catalog: ICatalogRepository,
     @Inject(FILE_STORAGE) private readonly storage: IFileStorage,
+    @Inject(CatalogService) private readonly service: CatalogService,
   ) {}
 
   @Public()
   @Get()
-  async search(@Query(new ZodPipe(CatalogQuerySchema)) query: CatalogQuery, @Res({ passthrough: true }) res: Response): Promise<CatalogItem[]> {
+  async list(@Query(new ZodPipe(CatalogQuerySchema)) query: CatalogQuery, @Res({ passthrough: true }) res: Response): Promise<CatalogItem[]> {
     res.setHeader('cache-control', 'public, max-age=60');
-    return (await this.catalog.search(query)).map(toCatalogItem);
+    return this.service.list(query);
+  }
+
+  /** Búsqueda paginada (texto sin acentos, sinónimos es/en, tolerante a errores) + filtros. */
+  @Public()
+  @Get('search')
+  async search(
+    @Query(new ZodPipe(CatalogQuerySchema)) query: CatalogQuery,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<CatalogSearchResponse> {
+    res.setHeader('cache-control', 'public, max-age=60');
+    return this.service.search(query);
   }
 
   @Public()

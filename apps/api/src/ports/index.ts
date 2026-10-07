@@ -8,7 +8,7 @@ import type {
   AnalyzeRoomRequest,
   AnalyzeRoomResponse,
   CatalogCategory,
-  CatalogQuery,
+  CatalogFilters,
   CatalogSpec,
   FurniturePlacement,
   GenerateStyleRequest,
@@ -171,7 +171,10 @@ export interface IProjectRepository {
 }
 
 export interface ICatalogRepository {
-  search(query: CatalogQuery): Promise<CatalogRecord[]>;
+  /** Filtros simples en la base de datos (el pipeline elige candidatos por tipo de cuarto). */
+  search(query: CatalogFilters): Promise<CatalogRecord[]>;
+  /** Todos los ítems activos (la búsqueda de texto se hace en memoria con `searchCatalog`). */
+  listActive(): Promise<CatalogRecord[]>;
   findById(id: string): Promise<CatalogRecord | null>;
   findByIds(ids: string[]): Promise<CatalogRecord[]>;
   upsert(item: CatalogRecord): Promise<void>;

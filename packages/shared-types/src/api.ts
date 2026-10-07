@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import {
   CatalogCategorySchema,
+  CatalogItemSchema,
   DesignProjectSchema,
   FurniturePlacementSchema,
   MountSchema,
@@ -218,8 +219,22 @@ export const CatalogQuerySchema = z.object({
   roomType: RoomTypeSchema.optional(),
   q: z.string().trim().max(60).optional(),
   mount: MountSchema.optional(),
+  /** Solo muebles que quepan en este ancho (m). */
+  maxWidthM: z.coerce.number().positive().max(30).optional(),
+  maxPrice: z.coerce.number().nonnegative().optional(),
+  /** Paginación (solo `GET /catalog/search`). */
+  limit: z.coerce.number().int().min(1).max(100).default(24),
+  cursor: z.string().max(20).optional(),
 });
 export type CatalogQuery = z.infer<typeof CatalogQuerySchema>;
+export type CatalogQueryInput = z.input<typeof CatalogQuerySchema>;
+
+export const CatalogSearchResponseSchema = z.object({
+  items: z.array(CatalogItemSchema),
+  nextCursor: z.string().nullable(),
+  total: z.number().int().nonnegative(),
+});
+export type CatalogSearchResponse = z.infer<typeof CatalogSearchResponseSchema>;
 
 // ---------- Errores (RFC 7807) ----------
 export const ProblemDetailsSchema = z.object({

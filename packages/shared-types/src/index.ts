@@ -5,3 +5,4 @@ export * from './progress.js';
 export * from './styles.js';
 export * from './geometry.js';
 export * from './materials.js';
+export * from './catalog-search.js';

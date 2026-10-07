@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   AnalyzeRoomRequest,
   AnalyzeRoomResponse,
-  CatalogQuery,
+  CatalogFilters,
   GenerateStyleRequest,
   GenerateStyleResponse,
   JobKind,
@@ -171,7 +171,10 @@ export function catalogItem(overrides: Partial<CatalogRecord> = {}): CatalogReco
 
 export class InMemoryCatalogRepository implements ICatalogRepository {
   constructor(public items: CatalogRecord[] = [catalogItem(), catalogItem({ id: 'lamp', name: 'Lámpara', category: 'lighting', mount: 'ceiling', widthM: 0.4, heightM: 0.9, depthM: 0.4, price: 100 })]) {}
-  async search(q: CatalogQuery) {
+  async listActive() {
+    return this.items.filter((i) => i.active);
+  }
+  async search(q: CatalogFilters) {
     return this.items.filter((i) => (!q.category || i.category === q.category) && (!q.roomType || i.roomTypes.includes(q.roomType)));
   }
   async findById(id: string) {

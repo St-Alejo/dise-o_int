@@ -18,6 +18,7 @@ import { MediaUrlSigner } from '../src/infrastructure/media/media-url-signer.js'
 import { MemoryFileStorage } from '../src/infrastructure/storage/memory-file-storage.js';
 import { IS_PUBLIC, type AuthenticatedRequest } from '../src/modules/auth/auth.decorators.js';
 import { CatalogController } from '../src/modules/catalog/catalog.controller.js';
+import { CatalogService } from '../src/modules/catalog/catalog.service.js';
 import { ProjectsController } from '../src/modules/projects/projects.controller.js';
 import { ProjectsService } from '../src/modules/projects/projects.service.js';
 import { PublicController } from '../src/modules/public/public.controller.js';
@@ -64,6 +65,7 @@ describe('HTTP', () => {
         { provide: MediaUrlSigner, useValue: signer },
         { provide: PROJECT_REPOSITORY, useValue: repo },
         { provide: CATALOG_REPOSITORY, useValue: catalog },
+        { provide: CatalogService, useValue: new CatalogService(catalog) },
         { provide: FILE_STORAGE, useValue: storage },
         { provide: APP_CONFIG, useValue: { ...testConfig, PUBLIC_WEB_URL: 'http://localhost' } },
         { provide: APP_GUARD, useFactory: (r: Reflector) => new TestAuthGuard(r), inject: [Reflector] },
@@ -195,5 +197,18 @@ describe('HTTP', () => {
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.headers['cache-control']).toMatch(/max-age/);
     await request(app.getHttpServer()).get('/api/catalog?category=nave-espacial').expect(422);
+  });
+
+  it('búsqueda paginada del catálogo: texto sin acentos, cursor y validación', async () => {
+    const res = await request(app.getHttpServer()).get('/api/catalog/search?q=LAMPARAS&limit=5').expect(200);
+    expect(res.body.items.map((i: { id: string }) => i.id)).toContain('lamp');
+    expect(res.body).toMatchObject({ total: 1, nextCursor: null });
+    const page = await request(app.getHttpServer()).get('/api/catalog/search?limit=1').expect(200);
+    expect(page.body.items).toHaveLength(1);
+    expect(page.body.nextCursor).toEqual(expect.any(String));
+    const next = await request(app.getHttpServer()).get(`/api/catalog/search?limit=1&cursor=${page.body.nextCursor}`).expect(200);
+    expect(next.body.items[0].id).not.toBe(page.body.items[0].id);
+    await request(app.getHttpServer()).get('/api/catalog/search?cursor=hack').expect(422);
+    await request(app.getHttpServer()).get('/api/catalog/search?limit=1000').expect(422);
   });
 });
