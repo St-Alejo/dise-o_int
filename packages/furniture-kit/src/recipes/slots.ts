@@ -12,9 +12,11 @@ export const SLOTS = {
   upholstery: slot('tapizado', 'Tapizado', 'fabric-linen-sand', ['fabric', 'leather']),
   legs: slot('patas', 'Patas', 'wood-oak', ['wood', 'metal']),
   frame: slot('estructura', 'Estructura', 'wood-oak', ['wood', 'metal']),
+  bedFrame: slot('estructura', 'Estructura', 'wood-oak', ['wood', 'metal', 'fabric', 'leather']),
   seat: slot('asiento', 'Asiento', 'wood-oak', ['wood', 'fabric', 'leather', 'plastic']),
   body: slot('cuerpo', 'Cuerpo', 'wood-oak', ['wood', 'plastic', 'metal']),
-  fronts: slot('frentes', 'Frentes', 'wood-oak', ['wood', 'plastic', 'metal', 'glass']),
+  // `paint`: frentes lacados en cualquier color de la paleta.
+  fronts: slot('frentes', 'Frentes', 'wood-oak', ['wood', 'plastic', 'metal', 'glass', 'paint']),
   handles: slot('tiradores', 'Tiradores', 'metal-black', ['metal', 'wood']),
   top: slot('cubierta', 'Cubierta', 'wood-oak', ['wood', 'stone', 'glass', 'ceramic']),
   countertop: slot('encimera', 'Encimera', 'stone-marble-white', ['stone', 'wood', 'ceramic']),

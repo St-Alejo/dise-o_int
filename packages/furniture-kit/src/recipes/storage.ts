@@ -7,7 +7,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export const bed: FurnitureRecipe = {
   kind: 'bed',
   label: 'Cama',
-  slots: [SLOTS.frame, SLOTS.headboard, SLOTS.bedding],
+  slots: [SLOTS.bedFrame, SLOTS.headboard, SLOTS.bedding],
   defaultDims: { x: 1.6, y: 1.05, z: 2.1 },
   build: (ctx) => {
     const { w, h, d, b } = ctx;
@@ -16,9 +16,9 @@ export const bed: FurnitureRecipe = {
     const frameH = 0.22;
     const mattressH = 0.22;
     const frameTop = legH + frameH;
-    b.box(SLOTS.frame.slot, w, frameH, d - headT, [0, legH, headT / 2], 0.01);
+    b.box(SLOTS.bedFrame.slot, w, frameH, d - headT, [0, legH, headT / 2], 0.01);
     for (const sx of [-1, 1]) {
-      for (const z of [-d / 2 + headT + 0.05, d / 2 - 0.05]) b.box(SLOTS.frame.slot, 0.05, legH, 0.05, [sx * (w / 2 - 0.05), 0, z]);
+      for (const z of [-d / 2 + headT + 0.05, d / 2 - 0.05]) b.box(SLOTS.bedFrame.slot, 0.05, legH, 0.05, [sx * (w / 2 - 0.05), 0, z]);
     }
     const style = ctx.str('headboard', 'upholstered');
     b.box(SLOTS.headboard.slot, w, h, headT, [0, 0, -d / 2 + headT / 2], style === 'upholstered' ? 0.03 : 0.004);
