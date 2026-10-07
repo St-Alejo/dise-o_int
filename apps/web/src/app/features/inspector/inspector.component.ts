@@ -358,15 +358,30 @@ export class InspectorComponent {
       it,
       dims,
     );
-    this.error.set(proposal.error);
-    if (proposal.error) return;
-    const resize = new ResizeCommand(p, sameAsCatalog(it, dims) ? undefined : dims, proposal.position);
-    // Si cambia el alto de un soporte, lo que tiene encima sube o baja con su tapa.
-    const top = proposal.position.y + dims.y;
+    let position = proposal.position;
+    if (proposal.reason === 'collision' && (it.mount === 'floor' || it.mount === 'ceiling')) {
+      // En su sitio no cabe con el tamaño nuevo: se busca el hueco libre más cercano.
+      const free = this.store.findFreeSpot(p.id, it, proposal.position, p.rotationY, dims);
+      if (free) {
+        position = free;
+        this.error.set(null);
+        this.toast.show(`Para que quepa con ${cm(dims.x)} × ${cm(dims.z)}, lo movimos un poco.`);
+      } else {
+        this.error.set('Con esas medidas no cabe en ningún lugar libre del cuarto.');
+        return;
+      }
+    } else {
+      this.error.set(proposal.error);
+      if (proposal.error) return;
+    }
+    const resize = new ResizeCommand(p, sameAsCatalog(it, dims) ? undefined : dims, position);
+    // Si cambia el alto o el sitio de un soporte, lo que tiene encima lo acompaña.
+    const top = position.y + dims.y;
+    const shift = { x: position.x - p.position.x, z: position.z - p.position.z };
     const followers: SceneCommand[] = this.store
       .dependentsOf(p.id)
-      .filter((d) => Math.abs(d.position.y - top) > 1e-4)
-      .map((d) => new MoveCommand(d.id, d.position, { ...d.position, y: top }));
+      .filter((d) => Math.abs(d.position.y - top) > 1e-4 || Math.abs(shift.x) > 1e-4 || Math.abs(shift.z) > 1e-4)
+      .map((d) => new MoveCommand(d.id, d.position, { x: d.position.x + shift.x, y: top, z: d.position.z + shift.z }));
     this.store.execute(followers.length ? new MacroCommand('Cambiar medidas', [resize, ...followers]) : resize);
   }
 

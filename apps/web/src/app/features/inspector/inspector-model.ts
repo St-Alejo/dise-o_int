@@ -58,6 +58,8 @@ export interface ResizeProposal {
   dims: Vector3;
   position: Vector3;
   error: string | null;
+  /** Por qué no cabe: en su lugar choca (se puede buscar otro hueco) o no pasa bajo el techo. */
+  reason: 'collision' | 'ceiling' | null;
 }
 
 /**
@@ -80,12 +82,12 @@ export function proposeResize(ctx: ResizeContext, p: FurniturePlacement, item: C
       : mountY(item.mount, dims, shell, { elevationM: p.elevationM ?? p.position.y, elevationDefaultM: item.elevationDefaultM });
   position = { ...position, y };
   if (position.y + dims.y > shell.heightM + 1e-6) {
-    return { dims, position, error: `Con ${cm(dims.y)} de alto no cabe bajo el techo (${cm(shell.heightM)}).` };
+    return { dims, position, error: `Con ${cm(dims.y)} de alto no cabe bajo el techo (${cm(shell.heightM)}).`, reason: 'ceiling' };
   }
   if (!ctx.isPoseValid(p.id, p.catalogItemId, position, p.rotationY, dims)) {
-    return { dims, position, error: 'Con esas medidas choca con otro mueble o se sale del cuarto.' };
+    return { dims, position, error: 'Con esas medidas choca con otro mueble o se sale del cuarto.', reason: 'collision' };
   }
-  return { dims, position, error: null };
+  return { dims, position, error: null, reason: null };
 }
 
 /** Altura máxima de la base de un objeto de pared (que no atraviese el techo). */

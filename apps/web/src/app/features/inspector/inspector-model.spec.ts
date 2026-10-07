@@ -68,7 +68,7 @@ describe('proposeResize', () => {
   });
 
   it('explica por qué no se puede: choque o techo', () => {
-    expect(proposeResize(ctx(false), at(), sofa, sofa.dimensionsM).error).toMatch(/choca/);
+    expect(proposeResize(ctx(false), at(), sofa, sofa.dimensionsM)).toMatchObject({ reason: 'collision', error: expect.stringMatching(/choca/) });
     const tall = { ...sofa, resize: { y: [0.5, 5] } } as CatalogItem;
     expect(proposeResize(ctx(), at(), tall, { x: 2, y: 3, z: 0.9 }).error).toMatch(/techo/);
   });
