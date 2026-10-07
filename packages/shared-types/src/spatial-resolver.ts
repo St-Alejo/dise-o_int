@@ -118,6 +118,16 @@ export class SpatialResolver {
     return null;
   }
 
+  /**
+   * Acomoda una pieza que cambió (de tamaño o de giro) donde está: si ya no cabe, la corre lo
+   * mínimo; si ni así, busca otro hueco. null = no cabe en ningún sitio.
+   */
+  settle(selfId: string, item: CatalogItem, dims: Vector3, pose: ResolvedPose): ResolvedPose | null {
+    if (pose.supportId || item.mount === 'wall') return this.fits(selfId, item, dims, pose) ? pose : null;
+    const clamped = { ...pose, position: clampToRoom(pose.position, dims, pose.rotationY, this.scene.shell) };
+    return this.firstFit(selfId, item, dims, [clamped]) ?? this.anywhere(selfId, item, dims);
+  }
+
   /** Hueco libre en el piso o el techo desde el centro, derecho o girado 90°. */
   private anywhere(selfId: string, item: CatalogItem, dims: Vector3): ResolvedPose | null {
     const { shell } = this.scene;
