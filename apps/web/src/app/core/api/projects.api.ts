@@ -5,6 +5,8 @@ import type {
   CalibrateRequest,
   CatalogItem,
   CatalogQuery,
+  ChatRequest,
+  ChatResponse,
   DesignProject,
   GenerateStylesRequest,
   JobAccepted,
@@ -80,6 +82,11 @@ export class ProjectsApi {
 
   saveScene(id: string, body: UpdateSceneRequest): Promise<DesignProject> {
     return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/scene`, body));
+  }
+
+  /** Mensaje al asistente de diseño: devuelve la respuesta y las operaciones (no guarda nada). */
+  chat(id: string, body: ChatRequest): Promise<ChatResponse> {
+    return firstValueFrom(this.http.post<ChatResponse>(`${this.base}/${id}/chat`, body));
   }
 
   updateRoom(id: string, body: UpdateRoomRequest): Promise<DesignProject> {

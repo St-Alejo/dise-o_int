@@ -261,6 +261,23 @@ export class SetLockCommand extends PlacementCommand {
   }
 }
 
+/** Sustituye una pieza entera por su nuevo estado (las operaciones del chat traen la pieza final). */
+export class ReplacePlacementCommand extends PlacementCommand {
+  readonly label = 'Editar mueble';
+  constructor(
+    private readonly before: FurniturePlacement,
+    private readonly after: FurniturePlacement,
+  ) {
+    super();
+  }
+  protected applyTo(s: Placements) {
+    return replace(s, this.after.id, () => ({ ...this.after }));
+  }
+  protected revertTo(s: Placements) {
+    return replace(s, this.before.id, () => ({ ...this.before }));
+  }
+}
+
 /** Acabados del cuarto (piso, paredes, techo). Consecutivos se fusionan. */
 export class SetFinishesCommand implements SceneCommand {
   readonly label = 'Cambiar acabados';

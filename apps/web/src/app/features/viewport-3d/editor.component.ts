@@ -9,6 +9,8 @@ import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
 import { InspectorComponent } from '../inspector/inspector.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
 import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
+import { ChatPanelComponent } from '../chat/chat-panel.component';
+import { DesignChatService } from '../chat/design-chat.service';
 import { DesignProjectStore } from '../project/design-project.store';
 import { AddCommand, SwapCommand } from './commands';
 import { SceneService } from './scene.service';
@@ -21,7 +23,8 @@ import { ThreeViewportComponent } from './three-viewport.component';
 @Component({
   selector: 'app-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [SceneService],
+  // La conversación del asistente vive con el editor (no se pierde al cambiar de pestaña).
+  providers: [SceneService, DesignChatService],
   imports: [
     ThreeViewportComponent,
     CatalogPanelComponent,
@@ -29,6 +32,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
     RoomDimensionsDialogComponent,
     InspectorComponent,
     FinishesPanelComponent,
+    ChatPanelComponent,
     ArViewerComponent,
     CurrencyPipe,
   ],
@@ -100,8 +104,13 @@ import { ThreeViewportComponent } from './three-viewport.component';
           <div class="tabs" role="tablist" aria-label="Panel del editor">
             <button type="button" role="tab" id="tab-add" aria-controls="panel-add" [attr.aria-selected]="panelTab() === 'add'" (click)="panelTab.set('add')">Añadir muebles</button>
             <button type="button" role="tab" id="tab-room" aria-controls="panel-room" [attr.aria-selected]="panelTab() === 'room'" (click)="panelTab.set('room')">Cuarto y acabados</button>
+            <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
           </div>
-          @if (panelTab() === 'add') {
+          @if (panelTab() === 'chat') {
+            <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat">
+              <app-chat-panel />
+            </div>
+          } @else if (panelTab() === 'add') {
             <div role="tabpanel" id="panel-add" aria-labelledby="tab-add">
               <app-catalog-panel mode="add" [items]="catalogItems()" [styleId]="styleId()" [roomType]="roomType()" (picked)="add($event)" />
             </div>
@@ -260,7 +269,7 @@ export class EditorComponent {
   readonly autoLayout = output<void>();
 
   protected readonly swapMode = signal(false);
-  protected readonly panelTab = signal<'add' | 'room'>('add');
+  protected readonly panelTab = signal<'add' | 'room' | 'chat'>('add');
   protected readonly shell = this.store.shell;
   protected readonly selectedItem = this.store.selectedItem;
   protected readonly catalogItems = computed(() => [...this.store.catalog().values()]);
