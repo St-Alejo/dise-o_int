@@ -202,11 +202,18 @@ export class DesignProjectStore {
     });
   }
 
-  /** Busca un hueco libre cerca de `near` (espiral) para añadir o cambiar un mueble. */
-  findFreeSpot(placementId: string, item: CatalogItem, near: Vector3, rotationY = 0): Vector3 | null {
+  /** Tope (y) del soporte de una pieza apoyada, o null si no tiene. */
+  supportTopOf(p: Pick<FurniturePlacement, 'supportId'>): number | null {
+    const support = p.supportId ? this.placements().find((x) => x.id === p.supportId) : undefined;
+    const dims = support ? this.placementDimensions(support) : null;
+    return support && dims ? support.position.y + dims.y : null;
+  }
+
+  /** Busca un hueco libre cerca de `near` (espiral) para añadir, cambiar o duplicar un mueble. */
+  findFreeSpot(placementId: string, item: CatalogItem, near: Vector3, rotationY = 0, dimensionsM?: Vector3): Vector3 | null {
     const shell = this.shell();
     if (!shell) return null;
-    const dims = item.dimensionsM;
+    const dims = dimensionsM ?? item.dimensionsM;
     const y = mountY(item.mount, dims, shell, { elevationDefaultM: item.elevationDefaultM });
     for (let r = 0; r <= 4; r += 0.2) {
       const steps = r === 0 ? 1 : Math.ceil((2 * Math.PI * r) / 0.25);

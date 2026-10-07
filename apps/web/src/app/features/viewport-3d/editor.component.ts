@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
-import { STYLES, clampToRoom, type CatalogItem } from '@interiores/shared-types';
+import { clampToRoom, type CatalogItem } from '@interiores/shared-types';
 import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
+import { InspectorComponent } from '../inspector/inspector.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
-import { CATEGORY_ICONS, CatalogPanelComponent } from '../catalog/catalog-panel.component';
+import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { AddCommand, SwapCommand } from './commands';
 import { SceneService } from './scene.service';
@@ -25,6 +26,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
     CatalogPanelComponent,
     CalibrationDialogComponent,
     RoomDimensionsDialogComponent,
+    InspectorComponent,
     ArViewerComponent,
     CurrencyPipe,
   ],
@@ -83,35 +85,8 @@ import { ThreeViewportComponent } from './three-viewport.component';
             (picked)="swap($event)"
             (cancel)="swapMode.set(false)"
           />
-        } @else if (store.selected() && selectedItem(); as item) {
-          <div class="stack">
-            <div class="row">
-              <span class="big-icon" aria-hidden="true">{{ icons[item.category] }}</span>
-              <div class="grow">
-                <h3 style="margin: 0">{{ item.name }}</h3>
-                <p class="muted small" style="margin: 0">{{ tags(item) }}</p>
-              </div>
-              <button type="button" class="icon-btn" aria-label="Deseleccionar" (click)="store.select(null)">×</button>
-            </div>
-            <dl class="facts">
-              <div><dt>Precio</dt><dd>{{ item.price | currency: item.currency : 'symbol' : '1.0-0' }}</dd></div>
-              <div><dt>Medidas</dt><dd>{{ item.dimensionsM.x.toFixed(2) }} × {{ item.dimensionsM.z.toFixed(2) }} × {{ item.dimensionsM.y.toFixed(2) }} m</dd></div>
-              <div><dt>Licencia 3D</dt><dd>{{ item.license.toUpperCase() }}{{ item.attribution ? ' · ' + item.attribution : '' }}</dd></div>
-            </dl>
-            @if (store.selected()!.lockedByUser) {
-              <p class="small muted">🔒 Lo moviste a mano: "Reacomodar" no lo cambiará de sitio.</p>
-            }
-            <div class="actions">
-              <button type="button" class="btn" (click)="scene.rotateSelected(-pi / 12)" aria-label="Rotar a la izquierda 15 grados">⟲ Rotar</button>
-              <button type="button" class="btn" (click)="scene.rotateSelected(pi / 12)" aria-label="Rotar a la derecha 15 grados">⟳ Rotar</button>
-              <button type="button" class="btn" (click)="swapMode.set(true)">🔁 Cambiar</button>
-              <button type="button" class="btn" (click)="ar.open(item)">📱 Ver en mi cuarto</button>
-              @if (item.productUrl) {
-                <a class="btn" [href]="item.productUrl" target="_blank" rel="noopener noreferrer">🛒 Buscar similar</a>
-              }
-              <button type="button" class="btn btn-danger" (click)="scene.removeSelected()">🗑 Quitar</button>
-            </div>
-          </div>
+        } @else if (store.selected() && selectedItem()) {
+          <app-inspector (swap)="swapMode.set(true)" (ar)="ar.open($event)" />
         } @else {
           <div class="summary row">
             <div>
@@ -247,8 +222,6 @@ export class EditorComponent {
   readonly busy = input(false);
   readonly autoLayout = output<void>();
 
-  protected readonly pi = Math.PI;
-  protected readonly icons = CATEGORY_ICONS;
   protected readonly swapMode = signal(false);
   protected readonly shell = this.store.shell;
   protected readonly selectedItem = this.store.selectedItem;
@@ -256,10 +229,6 @@ export class EditorComponent {
   protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);
   protected readonly roomType = computed(() => this.store.project()?.roomType ?? null);
   protected readonly confidence = computed(() => Math.round((this.shell()?.scaleConfidence ?? 0) * 100));
-
-  tags(item: CatalogItem): string {
-    return item.styleTags.map((s) => STYLES[s].label).join(', ');
-  }
 
   add(item: CatalogItem): void {
     const id = newPlacementId();
