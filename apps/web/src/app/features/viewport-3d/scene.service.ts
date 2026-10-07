@@ -1,8 +1,10 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import {
   clampToRoom,
+  effectiveDimensions,
   footprint,
   mountY,
+  rotateXZ,
   snapAngle,
   type CatalogItem,
   type FurniturePlacement,
@@ -13,7 +15,8 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { DesignProjectStore } from '../project/design-project.store';
-import { MoveCommand, RemoveCommand, RotateCommand } from './commands';
+import { MacroCommand, MoveCommand, RemountCommand, RemoveCommand, RotateCommand } from './commands';
+import { MOUNT_STRATEGIES, type MountPose, type MountStrategy, type SupportCandidate } from './mounts/mount-strategies';
 import { FurnitureFactory } from './furniture-factory';
 import { buildRoom, disposeObject, type BuiltRoom } from './room-builder';
 
@@ -28,7 +31,6 @@ interface FurnitureNode {
 /** Lo que define la forma visible de una pieza (además de su mueble del catálogo). */
 const shapeKeyOf = (p: FurniturePlacement) => JSON.stringify([p.dimensionsM ?? null, p.materials ?? null]);
 
-const WALL_SNAP_M = 0.15;
 const COLORS = { select: new THREE.Color('#d49a79'), invalid: new THREE.Color('#e53935') };
 
 /**
@@ -67,11 +69,15 @@ export class SceneService {
   private drag: {
     id: string;
     catalogItemId: string;
-    start: Vector3;
-    offset: THREE.Vector3;
-    last: Vector3;
-    lastValid: Vector3;
+    /** La pieza tal como estaba al empezar (para deshacer y para el montaje). */
+    start: FurniturePlacement;
+    strategy: MountStrategy;
+    grabOffset: { x: number; z: number };
+    last: MountPose;
+    lastValid: MountPose;
     moved: boolean;
+    /** Lo que estaba apoyado encima al empezar: se mueve con el soporte. */
+    dependents: FurniturePlacement[];
   } | null = null;
   private pointerDownAt: { x: number; y: number } | null = null;
 
@@ -238,7 +244,8 @@ export class SceneService {
           this.invalidate();
         });
       }
-      if (this.drag?.id !== p.id) this.applyTransform(node.group, p.position, p.rotationY);
+      const draggingThis = this.drag && (this.drag.id === p.id || this.drag.dependents.some((d) => d.id === p.id));
+      if (!draggingThis) this.applyTransform(node.group, p.position, p.rotationY);
     }
     this.invalidate();
   }
@@ -256,9 +263,11 @@ export class SceneService {
       this.invalidate();
       return;
     }
-    const pos = this.drag?.id === sel.id ? this.drag.last : sel.position;
-    const fp = footprint(pos, item.dimensionsM, sel.rotationY);
-    const y = item.mount === 'ceiling' ? 0.02 : 0.015;
+    const dragging = this.drag?.id === sel.id ? this.drag.last : null;
+    const pos = dragging?.position ?? sel.position;
+    const fp = footprint(pos, effectiveDimensions(item.dimensionsM, sel), dragging?.rotationY ?? sel.rotationY);
+    // El contorno va a la base de la pieza: en el piso, en la pared o sobre su soporte.
+    const y = item.mount === 'ceiling' ? 0.02 : item.mount === 'floor' ? 0.015 : pos.y + 0.005;
     const attr = this.selection.geometry.getAttribute('position') as THREE.BufferAttribute;
     fp.corners.forEach((c, i) => attr.setXYZ(i, c.x, y, c.z));
     attr.needsUpdate = true;
@@ -318,20 +327,50 @@ export class SceneService {
     this.store.select(id);
     if (this.readOnly()) return;
     const placement = this.store.placements().find((p) => p.id === id);
+    const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
+    if (!placement || !item) return;
+    const strategy = MOUNT_STRATEGIES[item.mount];
+    // En piso y techo se conserva el punto agarrado; en pared o superficie el cursor manda.
     const hit = this.floorPoint(event);
-    if (!placement || !hit) return;
+    const grabOffset =
+      hit && (item.mount === 'floor' || item.mount === 'ceiling')
+        ? { x: placement.position.x - hit.x, z: placement.position.z - hit.z }
+        : { x: 0, z: 0 };
+    const pose: MountPose = {
+      position: { ...placement.position },
+      rotationY: placement.rotationY,
+      ...(placement.wallId ? { wallId: placement.wallId } : {}),
+      ...(placement.supportId ? { supportId: placement.supportId } : {}),
+    };
     this.drag = {
       id,
       catalogItemId: placement.catalogItemId,
-      start: { ...placement.position },
-      offset: new THREE.Vector3(placement.position.x - hit.x, 0, placement.position.z - hit.z),
-      last: { ...placement.position },
-      lastValid: { ...placement.position },
+      start: structuredClone(placement),
+      strategy,
+      grabOffset,
+      last: pose,
+      lastValid: pose,
       moved: false,
+      dependents: this.store.dependentsOf(id).map((d) => structuredClone(d)),
     };
     if (this.controls) this.controls.enabled = false;
     this.canvas?.setPointerCapture(event.pointerId);
     this.dragging.set(true);
+  }
+
+  /** Muebles de piso donde se puede apoyar algo (menos la pieza arrastrada y lo que lleva encima). */
+  private supportsFor(placementId: string): SupportCandidate[] {
+    const shell = this.store.shell();
+    return this.store
+      .placements()
+      .filter((p) => p.id !== placementId && p.supportId !== placementId)
+      .flatMap((p) => {
+        const item = this.store.catalog().get(p.catalogItemId);
+        if (!item || item.mount !== 'floor' || item.subcategory === 'rug') return [];
+        const dims = effectiveDimensions(item.dimensionsM, p);
+        if (shell && dims.y > shell.heightM - 0.3) return []; // un armario hasta el techo no es una mesa
+        return [{ id: p.id, position: p.position, rotationY: p.rotationY, dims }];
+      });
   }
 
   onPointerMove(event: PointerEvent): void {
@@ -344,26 +383,34 @@ export class SceneService {
     // Umbral de 4 px: un clic con un leve temblor del mouse no es un arrastre.
     const down = this.pointerDownAt;
     if (!this.drag.moved && down && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 4) return;
-    const hit = this.floorPoint(event);
     const item = this.store.catalog().get(this.drag.catalogItemId);
-    const placement = this.store.placements().find((p) => p.id === this.drag!.id);
     const shell = this.store.shell();
-    if (!hit || !item || !placement || !shell) return;
-
-    let pos = clampToRoom(
-      { x: hit.x + this.drag.offset.x, y: this.drag.start.y, z: hit.z + this.drag.offset.z },
-      item.dimensionsM,
-      placement.rotationY,
-      shell,
+    if (!item || !shell) return;
+    const dims = effectiveDimensions(item.dimensionsM, this.drag.start);
+    this.raycaster.setFromCamera(this.ndc(event), this.camera);
+    const { origin, direction } = this.raycaster.ray;
+    const pose = this.drag.strategy.poseFor(
+      { origin: { x: origin.x, y: origin.y, z: origin.z }, direction: { x: direction.x, y: direction.y, z: direction.z } },
+      { shell, dims, rotationY: this.drag.start.rotationY, grabOffset: this.drag.grabOffset, supports: this.supportsFor(this.drag.id) },
     );
-    pos = this.snapToWalls(pos, item, placement.rotationY, shell);
-    this.drag.last = pos;
+    if (!pose) return;
+    this.drag.last = pose;
     this.drag.moved = true;
-    const valid = this.store.isPoseValid(placement.id, placement.catalogItemId, pos, placement.rotationY);
-    if (valid) this.drag.lastValid = pos;
+    const valid =
+      !pose.blockedBy &&
+      this.store.isPoseValid(this.drag.id, this.drag.catalogItemId, pose.position, pose.rotationY, dims, {
+        ...(pose.supportId ? { supportId: pose.supportId } : {}),
+      });
+    if (valid) this.drag.lastValid = pose;
     this.invalidDrop.set(!valid);
-    const node = this.nodes.get(placement.id);
-    if (node) this.applyTransform(node.group, pos, placement.rotationY);
+    const node = this.nodes.get(this.drag.id);
+    if (node) this.applyTransform(node.group, pose.position, pose.rotationY);
+    // Lo que está encima acompaña al soporte mientras se arrastra.
+    const delta = this.delta(this.drag.start.position, pose.position);
+    for (const dep of this.drag.dependents) {
+      const depNode = this.nodes.get(dep.id);
+      if (depNode) this.applyTransform(depNode.group, this.shifted(dep.position, delta), dep.rotationY);
+    }
     if (this.canvas) this.canvas.style.cursor = 'grabbing';
     this.updateSelectionOutline(!valid);
   }
@@ -372,20 +419,41 @@ export class SceneService {
     const down = this.pointerDownAt;
     this.pointerDownAt = null;
     if (this.drag) {
-      const { id, start, lastValid, moved } = this.drag;
+      const { start, lastValid, moved, dependents } = this.drag;
       this.drag = null;
       this.dragging.set(false);
       this.invalidDrop.set(false);
       if (this.controls) this.controls.enabled = true;
       if (this.canvas?.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
-      const changed = moved && (Math.abs(start.x - lastValid.x) > 1e-3 || Math.abs(start.z - lastValid.z) > 1e-3);
+      const changed =
+        moved &&
+        (Math.hypot(start.position.x - lastValid.position.x, start.position.y - lastValid.position.y, start.position.z - lastValid.position.z) > 1e-3 ||
+          start.rotationY !== lastValid.rotationY ||
+          start.wallId !== lastValid.wallId ||
+          start.supportId !== lastValid.supportId);
       if (changed) {
-        this.store.execute(new MoveCommand(id, start, lastValid));
+        const item = this.store.catalog().get(start.catalogItemId);
+        const simpleMove =
+          (item?.mount === 'floor' || item?.mount === 'ceiling') && start.rotationY === lastValid.rotationY;
+        const main = simpleMove
+          ? new MoveCommand(start.id, start.position, lastValid.position)
+          : new RemountCommand(start, {
+              position: lastValid.position,
+              rotationY: lastValid.rotationY,
+              wallId: lastValid.wallId,
+              supportId: lastValid.supportId,
+              elevationM: lastValid.elevationM,
+            });
+        const delta = this.delta(start.position, lastValid.position);
+        const followers = dependents.map((d) => new MoveCommand(d.id, d.position, this.shifted(d.position, delta)));
+        this.store.execute(followers.length ? new MacroCommand('Mover mueble', [main, ...followers]) : main);
       } else {
         // Si terminó en una pose inválida, vuelve a la última válida (la del store).
-        const p = this.store.placements().find((x) => x.id === id);
-        const node = this.nodes.get(id);
-        if (p && node) this.applyTransform(node.group, p.position, p.rotationY);
+        for (const id of [start.id, ...dependents.map((d) => d.id)]) {
+          const p = this.store.placements().find((x) => x.id === id);
+          const node = this.nodes.get(id);
+          if (p && node) this.applyTransform(node.group, p.position, p.rotationY);
+        }
       }
       this.updateSelectionOutline();
       return;
@@ -396,46 +464,63 @@ export class SceneService {
     }
   }
 
-  /** Pega el mueble a la pared si está a menos de 15 cm (colocar contra la pared es lo habitual). */
-  private snapToWalls(pos: Vector3, item: CatalogItem, rotationY: number, shell: RoomShell): Vector3 {
-    const fp = footprint(pos, item.dimensionsM, rotationY);
-    const xs = fp.corners.map((c) => c.x);
-    const zs = fp.corners.map((c) => c.z);
-    const [minX, maxX, minZ, maxZ] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
-    const out = { ...pos };
-    if (minX < WALL_SNAP_M) out.x -= minX;
-    else if (shell.widthM - maxX < WALL_SNAP_M) out.x += shell.widthM - maxX;
-    if (minZ < WALL_SNAP_M) out.z -= minZ;
-    else if (shell.depthM - maxZ < WALL_SNAP_M) out.z += shell.depthM - maxZ;
-    return out;
+  private delta(from: Vector3, to: Vector3): Vector3 {
+    return { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
+  }
+
+  private shifted(p: Vector3, d: Vector3): Vector3 {
+    return { x: p.x + d.x, y: p.y + d.y, z: p.z + d.z };
   }
 
   // ------------------------------------------------------------------ acciones (teclado / toolbar)
+  /** Girar: lo que está encima gira con el soporte alrededor de su centro. Lo de pared no gira. */
   rotateSelected(deltaRad: number): void {
     const p = this.store.selected();
     const item = this.store.selectedItem();
     const shell = this.store.shell();
-    if (!p || !item || !shell || this.readOnly()) return;
+    if (!p || !item || !shell || this.readOnly() || item.mount === 'wall') return;
     const to = snapAngle(p.rotationY + deltaRad);
+    const turn = to - p.rotationY;
     // Al girar, un mueble junto a la pared podría salirse: se reajusta la posición.
-    const pos = clampToRoom(p.position, item.dimensionsM, to, shell);
-    this.store.execute(new RotateCommand(p.id, p.rotationY, to, p.position, pos));
+    const pos = clampToRoom(p.position, effectiveDimensions(item.dimensionsM, p), to, shell);
+    const main = new RotateCommand(p.id, p.rotationY, to, p.position, pos);
+    const followers = this.store.dependentsOf(p.id).map((d) => {
+      const local = rotateXZ(d.position.x - p.position.x, d.position.z - p.position.z, turn);
+      const np = { x: pos.x + local.x, y: d.position.y, z: pos.z + local.z };
+      return new RotateCommand(d.id, d.rotationY, snapAngle(d.rotationY + turn), d.position, np);
+    });
+    this.store.execute(followers.length ? new MacroCommand('Rotar mueble', [main, ...followers]) : main);
   }
 
+  /** Flechas: mueve 5 cm (25 con Shift). Lo de pared solo se desliza a lo largo de su pared. */
   nudgeSelected(dx: number, dz: number): void {
     const p = this.store.selected();
     const item = this.store.selectedItem();
     const shell = this.store.shell();
     if (!p || !item || !shell || this.readOnly()) return;
-    const to = clampToRoom({ x: p.position.x + dx, y: p.position.y, z: p.position.z + dz }, item.dimensionsM, p.rotationY, shell);
-    if (!this.store.isPoseValid(p.id, p.catalogItemId, to, p.rotationY)) return;
-    this.store.execute(new MoveCommand(p.id, p.position, to));
+    if (item.mount === 'wall') {
+      const alongX = Math.abs(Math.sin(p.rotationY)) < 0.5; // pared del fondo o del frente
+      if (alongX) dz = 0;
+      else dx = 0;
+    }
+    const dims = effectiveDimensions(item.dimensionsM, p);
+    const to = clampToRoom({ x: p.position.x + dx, y: p.position.y, z: p.position.z + dz }, dims, p.rotationY, shell);
+    if (!this.store.isPoseValid(p.id, p.catalogItemId, to, p.rotationY, dims)) return;
+    const d = this.delta(p.position, to);
+    const followers = this.store.dependentsOf(p.id).map((dep) => new MoveCommand(dep.id, dep.position, this.shifted(dep.position, d)));
+    const main = new MoveCommand(p.id, p.position, to);
+    this.store.execute(followers.length ? new MacroCommand('Mover mueble', [main, ...followers]) : main);
   }
 
+  /** Quitar: lo que estaba encima cae al piso (no desaparece con el soporte). */
   removeSelected(): void {
     const p = this.store.selected();
     if (!p || this.readOnly()) return;
-    this.store.execute(new RemoveCommand(p));
+    const drops = this.store
+      .dependentsOf(p.id)
+      .map((d) => new RemountCommand(d, { position: { ...d.position, y: 0 }, rotationY: d.rotationY, supportId: undefined }));
+    const remove = new RemoveCommand(p);
+    this.store.execute(drops.length ? new MacroCommand('Quitar mueble', [...drops, remove]) : remove);
     this.store.select(null);
   }
 

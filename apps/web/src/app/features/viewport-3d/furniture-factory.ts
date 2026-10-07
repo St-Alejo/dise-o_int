@@ -46,6 +46,15 @@ export class FurnitureFactory {
     }
     const gltf = await this.load(item);
     const object = (gltf ? gltf.scene : this.fallback(item)).clone(true);
+    const dims = placement.dimensionsM;
+    if (dims) {
+      // Un GLB no se puede reconstruir: se escala por eje (el catálogo lo limita a ±15 %).
+      const base = item.dimensionsM;
+      const wrapper = new THREE.Group();
+      wrapper.add(object);
+      wrapper.scale.set(dims.x / base.x, dims.y / base.y, dims.z / base.z);
+      return this.withShadows(item, wrapper);
+    }
     return this.withShadows(item, object);
   }
 
