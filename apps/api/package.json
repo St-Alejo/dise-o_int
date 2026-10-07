@@ -28,6 +28,7 @@
     "@gltf-transform/core": "^4.5.1",
     "@gltf-transform/extensions": "^4.5.1",
     "@gltf-transform/functions": "^4.5.1",
+    "@interiores/furniture-kit": "*",
     "@interiores/shared-types": "*",
     "@nestjs/common": "^12.1.1",
     "@nestjs/core": "^12.1.1",

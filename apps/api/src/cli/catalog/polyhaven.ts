@@ -5,7 +5,7 @@
 import { NodeIO, type Document } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { center, dedup, getBounds, prune, textureCompress, weld } from '@gltf-transform/functions';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 
@@ -80,4 +80,23 @@ export async function downloadPolyHaven(asset: string, workDir: string, yawDeg =
     throw new Error(`${asset}: dimensiones fuera de escala real (${largest.toFixed(2)} m)`);
   }
   return { glb: await io.writeBinary(doc), dimensions };
+}
+
+/**
+ * Miniatura oficial del modelo (CDN de Poly Haven) convertida a WebP 256 px. Se cachea en disco
+ * para no volver a pedirla en cada seed.
+ */
+export async function downloadPolyHavenThumbnail(asset: string, workDir: string): Promise<Buffer> {
+  const cached = join(workDir, `${asset}.webp`);
+  try {
+    return await readFile(cached);
+  } catch {
+    /* no está en caché */
+  }
+  const url = `https://cdn.polyhaven.com/asset_img/thumbs/${encodeURIComponent(asset)}.png?width=256&height=256`;
+  const png = Buffer.from(await (await fetchOk(url)).arrayBuffer());
+  const webp = await sharp(png).resize(256, 256, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).webp({ quality: 80 }).toBuffer();
+  await mkdir(workDir, { recursive: true });
+  await writeFile(cached, webp);
+  return webp;
 }

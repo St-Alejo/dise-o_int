@@ -10,6 +10,8 @@
  * El "link de compra" es una búsqueda de producto similar (capa de afiliados de la Fase 4).
  */
 import type { CatalogCategory, CatalogSpec, Mount, RoomType, StyleId } from '@interiores/shared-types';
+import type { ParametricSource } from './parametric.js';
+import { PARAMETRIC_MANIFEST } from './parametric-manifest.js';
 
 export type ProceduralKind =
   | 'bed-platform'
@@ -40,7 +42,10 @@ export interface ManifestEntry {
   spec?: CatalogSpec;
   price: number;
   searchQuery: string;
-  source: { type: 'polyhaven'; asset: string } | { type: 'procedural'; kind: ProceduralKind; size: [number, number, number]; colors: string[] };
+  source:
+    | { type: 'polyhaven'; asset: string }
+    | { type: 'procedural'; kind: ProceduralKind; size: [number, number, number]; colors: string[] }
+    | ParametricSource;
   /**
    * Giro (grados, eje Y) para que el frente del modelo mire a +Z como exige la convención.
    * Algunos modelos de Poly Haven vienen con el frente hacia ±X (ancho y profundidad cruzados).
@@ -122,5 +127,8 @@ export const CATALOG_MANIFEST: ManifestEntry[] = [
   { id: 'alfombra-industrial', name: 'Alfombra gris oscuro', category: 'decor', subcategory: 'rug', styleTags: ['industrial', 'moderno'], roomTypes: ['living', 'office', 'bedroom'], price: 120, searchQuery: 'alfombra gris oscuro', source: proc('rug', [2.0, 0.01, 1.4], ['#4a4a4a']) },
   { id: 'alfombra-moderna', name: 'Alfombra azul petróleo', category: 'decor', subcategory: 'rug', styleTags: ['moderno'], roomTypes: ['living', 'bedroom', 'dining'], price: 150, searchQuery: 'alfombra azul petróleo', source: proc('rug', [2.3, 0.01, 1.6], ['#2f4858']) },
 ];
+
+/** Catálogo completo: modelos reales de Poly Haven + muebles paramétricos (≈ 130 ítems). */
+export const FULL_MANIFEST: ManifestEntry[] = [...CATALOG_MANIFEST, ...PARAMETRIC_MANIFEST];
 
 export const shoppingUrl = (q: string) => `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(q)}`;

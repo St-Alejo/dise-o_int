@@ -17,8 +17,10 @@ import { loadConfig } from '../config/env.js';
 import { PrismaCatalogRepository } from '../infrastructure/prisma/prisma-catalog.repository.js';
 import { PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { S3FileStorage } from '../infrastructure/storage/s3-file-storage.js';
-import { CATALOG_MANIFEST, shoppingUrl, type ManifestEntry } from './catalog/manifest.js';
-import { downloadPolyHaven } from './catalog/polyhaven.js';
+import { catalogSpecFor, searchTermsFor } from './catalog/entry-metadata.js';
+import { FULL_MANIFEST, shoppingUrl, type ManifestEntry } from './catalog/manifest.js';
+import { buildParametricGlb } from './catalog/parametric.js';
+import { downloadPolyHaven, downloadPolyHavenThumbnail } from './catalog/polyhaven.js';
 import { buildProceduralGlb } from './catalog/procedural.js';
 
 const log = (msg: string) => process.stdout.write(`[seed] ${msg}\n`);
@@ -51,6 +53,11 @@ async function buildEntry(entry: ManifestEntry, cacheDir: string, offline: boole
   }
 
   let built: Built | null = null;
+  if (entry.source.type === 'parametric') {
+    // Paramétricos: siempre disponibles, sin red. Se cachean igual (la clave incluye el origen).
+    const model = await buildParametricGlb(entry.id, entry.source);
+    built = { ...model, source: `parametric:${entry.source.kind}`, attribution: null };
+  }
   if (entry.source.type === 'polyhaven' && !offline) {
     try {
       const model = await downloadPolyHaven(entry.source.asset, join(cacheDir, 'raw'), entry.yawDeg ?? 0);
@@ -88,7 +95,7 @@ async function main(): Promise<void> {
 
   let ok = 0;
   let skipped = 0;
-  for (const entry of CATALOG_MANIFEST) {
+  for (const entry of FULL_MANIFEST) {
     const built = await buildEntry(entry, cacheDir, offline);
     if (!built) {
       skipped++;
@@ -99,7 +106,23 @@ async function main(): Promise<void> {
     const modelKey = `catalog/${entry.id}.${hash}.glb`;
     if (!(await storage.exists(modelKey))) await storage.put(modelKey, Buffer.from(built.glb), 'model/gltf-binary');
 
+    // Miniatura oficial de Poly Haven (best-effort: la web genera las de los paramétricos).
+    let thumbnailKey: string | null = null;
+    if (entry.source.type === 'polyhaven' && built.source.startsWith('polyhaven') && !offline) {
+      thumbnailKey = await downloadPolyHavenThumbnail(entry.source.asset, join(cacheDir, 'thumbs'))
+        .then(async (webp) => {
+          const key = `catalog/thumbs/${entry.id}.${createHash('sha256').update(webp).digest('hex').slice(0, 12)}.webp`;
+          if (!(await storage.exists(key))) await storage.put(key, webp, 'image/webp');
+          return key;
+        })
+        .catch((err: unknown) => {
+          log(`⚠ ${entry.id}: sin miniatura (${(err as Error).message})`);
+          return null;
+        });
+    }
+
     const round = (v: number) => Math.round(v * 1000) / 1000;
+    const terms = searchTermsFor(entry);
     await catalog.upsert({
       id: entry.id,
       name: entry.name,
@@ -112,17 +135,17 @@ async function main(): Promise<void> {
       depthM: round(built.dimensions.z),
       mount: entry.mount ?? 'floor',
       modelKey,
-      thumbnailKey: null,
+      thumbnailKey,
       price: entry.price,
       currency: 'USD',
       productUrl: shoppingUrl(entry.searchQuery),
       license: 'cc0',
       attribution: built.attribution,
       source: built.source,
-      tags: entry.tags ?? [],
-      synonyms: entry.synonyms ?? [],
+      tags: terms.tags,
+      synonyms: terms.synonyms,
       description: entry.description ?? null,
-      spec: entry.spec ?? null,
+      spec: catalogSpecFor(entry, built.dimensions),
       active: true,
     });
     ok++;
