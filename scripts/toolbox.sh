@@ -12,6 +12,6 @@ exec docker run --rm ${TOOLBOX_FLAGS:-} \
   -v interiores_nm_web:/w/apps/web/node_modules \
   -v interiores_nm_api:/w/apps/api/node_modules \
   -v interiores_nm_types:/w/packages/shared-types/node_modules \
-  -v interiores_nm_kit:/w/packages/furniture-kit/node_modules 
+  -v interiores_nm_kit:/w/packages/furniture-kit/node_modules \
   -v interiores_npm_cache:/root/.npm \
   -w /w node:24-alpine sh -c "$*"
