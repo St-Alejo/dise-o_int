@@ -193,6 +193,8 @@ export const ShoppingListLineSchema = z.object({
   catalogItemId: z.string(),
   name: z.string(),
   category: CatalogCategorySchema,
+  /** Medidas o materiales propios ("210 × 95 × 84 cm · Tapizado: Cuero coñac"); null = como el catálogo. */
+  variant: z.string().nullable().default(null),
   quantity: z.number().int().positive(),
   unitPrice: z.number().nullable(),
   subtotal: z.number().nullable(),

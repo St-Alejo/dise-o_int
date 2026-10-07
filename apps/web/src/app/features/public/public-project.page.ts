@@ -53,13 +53,16 @@ import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component'
           <table class="card list">
             <thead><tr><th scope="col">Mueble</th><th scope="col">Cant.</th><th scope="col">Subtotal</th></tr></thead>
             <tbody>
-              @for (line of l.lines; track line.catalogItemId) {
+              @for (line of l.lines; track line.catalogItemId + '|' + (line.variant ?? '')) {
                 <tr>
                   <td>
                     @if (line.productUrl) {
                       <a [href]="line.productUrl" target="_blank" rel="noopener noreferrer">{{ line.name }}</a>
                     } @else {
                       {{ line.name }}
+                    }
+                    @if (line.variant) {
+                      <br /><small class="muted">A medida: {{ line.variant }}</small>
                     }
                   </td>
                   <td>{{ line.quantity }}</td>

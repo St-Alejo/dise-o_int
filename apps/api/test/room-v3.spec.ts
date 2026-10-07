@@ -259,3 +259,34 @@ describe('Fase 1 — cuarto a medida y piezas personalizables', () => {
     });
   });
 });
+
+describe('lista de compras con variantes (Fase 3)', () => {
+  it('agrupa por producto y variante: el sofá a medida en cuero es otra línea', async () => {
+    const repo = new InMemoryProjectRepository();
+    const catalog = new InMemoryCatalogRepository([
+      catalogItem({
+        spec: {
+          materialSlots: [{ slot: 'tapizado', label: 'Tapizado', default: 'fabric-linen-sand', allowedKinds: ['fabric', 'leather'] }],
+          resize: { x: [1.4, 2.6] },
+        },
+      }),
+    ]);
+    const service = new ProjectsService(repo, catalog, new MemoryFileStorage(), new FakeQueue(), new FakeBroker(), new FakeQuota(10), testConfig, new PhotoProcessor(), new MediaUrlSigner(testConfig));
+    const created = await service.create({ userId: 'u' }, { name: 'x' }, await photo());
+    await repo.update(created.id, {
+      roomShell: createRectangularShell(6, 5, 2.6),
+      placements: [
+        place('a', 'sofa-test', 1.2, 1),
+        place('b', 'sofa-test', 3.5, 1),
+        place('c', 'sofa-test', 1.5, 3, { dimensionsM: { x: 2.4, y: 0.8, z: 0.9 }, materials: { tapizado: 'leather-cognac' } }),
+      ],
+    });
+    const list = await service.shoppingList({ userId: 'u' }, created.id);
+    expect(list.lines).toHaveLength(2);
+    const plain = list.lines.find((l) => l.variant === null)!;
+    const custom = list.lines.find((l) => l.variant !== null)!;
+    expect(plain.quantity).toBe(2);
+    expect(custom).toMatchObject({ quantity: 1, variant: '240 × 90 × 80 cm · Tapizado: Cuero coñac' });
+    expect(list.total).toBe(1500);
+  });
+});

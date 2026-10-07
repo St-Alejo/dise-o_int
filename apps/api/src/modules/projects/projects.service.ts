@@ -9,6 +9,7 @@ import {
   assertValidFinishes,
   calibrateRoomShell,
   clampDimensions,
+  describeVariant,
   clampToRoom,
   defaultResizeRanges,
   effectiveDimensions,
@@ -396,16 +397,29 @@ export class ProjectsService {
 
   async buildShoppingList(project: ProjectRecord): Promise<ShoppingList> {
     const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
-    const counts = new Map<string, number>();
-    for (const p of project.placements) counts.set(p.catalogItemId, (counts.get(p.catalogItemId) ?? 0) + 1);
+    // Una línea por producto Y variante: un sofá de catálogo y otro a medida en cuero son distintos.
+    const groups = new Map<string, { itemId: string; variant: string | null; quantity: number }>();
+    for (const p of project.placements) {
+      const item = items.get(p.catalogItemId);
+      if (!item) continue;
+      const variant = describeVariant(
+        { dimensionsM: { x: item.widthM, y: item.heightM, z: item.depthM }, materialSlots: item.spec?.materialSlots },
+        p,
+      );
+      const key = `${p.catalogItemId}|${variant ?? ''}`;
+      const g = groups.get(key) ?? { itemId: p.catalogItemId, variant, quantity: 0 };
+      g.quantity++;
+      groups.set(key, g);
+    }
 
-    const lines = [...counts.entries()].flatMap(([itemId, quantity]) => {
+    const lines = [...groups.values()].flatMap(({ itemId, variant, quantity }) => {
       const item = items.get(itemId);
       if (!item) return [];
       return [
         {
           catalogItemId: item.id,
           name: item.name,
+          variant,
           category: item.category,
           quantity,
           unitPrice: item.price,
@@ -417,7 +431,7 @@ export class ProjectsService {
         },
       ];
     });
-    lines.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    lines.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name) || (a.variant ?? '').localeCompare(b.variant ?? ''));
     const total = Math.round(lines.reduce((acc, l) => acc + (l.subtotal ?? 0), 0) * 100) / 100;
     return { projectId: project.id, projectName: project.name, lines, total, currency: lines[0]?.currency ?? 'USD' };
   }

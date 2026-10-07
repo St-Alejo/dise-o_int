@@ -1,15 +1,7 @@
-import type { ShoppingList } from '@interiores/shared-types';
+import { CATEGORY_LABELS_ES, type ShoppingList } from '@interiores/shared-types';
 import PDFDocument from 'pdfkit';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  sofa: 'Sofás',
-  table: 'Mesas',
-  chair: 'Sillas',
-  bed: 'Camas',
-  storage: 'Almacenamiento',
-  lighting: 'Iluminación',
-  decor: 'Decoración',
-};
+const CATEGORY_LABELS: Record<string, string> = CATEGORY_LABELS_ES;
 
 const money = (value: number | null, currency: string) =>
   value === null ? '—' : new Intl.NumberFormat('es', { style: 'currency', currency }).format(value);
@@ -62,6 +54,7 @@ export function renderShoppingListPdf(list: ShoppingList, publicUrl?: string): P
       doc.text(money(line.unitPrice, line.currency), cols.unit, y);
       doc.text(money(line.subtotal, line.currency), cols.subtotal, y);
       doc.y = Math.max(afterName, doc.y);
+      if (line.variant) doc.fontSize(8).fillColor('#444').text(`A medida: ${line.variant}`, cols.name, doc.y, { width: 270 });
       if (line.attribution) doc.fontSize(7).fillColor('#777').text(`Modelo 3D: ${line.attribution} (${line.license.toUpperCase()})`, cols.name);
       doc.fillColor('#000').moveDown(0.4);
     }
