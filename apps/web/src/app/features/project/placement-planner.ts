@@ -113,7 +113,11 @@ export function planPlacement(id: string, item: CatalogItem, ctx: PlannerContext
     // Sin soporte: va al piso (luego el usuario lo sube a un mueble).
   }
   const near = { x: ctx.shell.widthM / 2, y: mountY(item.mount, item.dimensionsM, ctx.shell), z: ctx.shell.depthM / 2 };
-  const position = ctx.findFreeSpot(id, item, near, 0);
-  return position ? { position, rotationY: 0 } : null;
+  // Derecho primero; si no hay hueco así, girado 90° (un sofá largo cabe a lo ancho de otra pared).
+  for (const rotationY of [0, Math.PI / 2]) {
+    const position = ctx.findFreeSpot(id, item, near, rotationY);
+    if (position) return { position, rotationY };
+  }
+  return null;
 }
 

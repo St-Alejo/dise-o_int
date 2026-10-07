@@ -95,4 +95,19 @@ describe('planPlacement', () => {
     expect(left.position.x).toBeCloseTo(0.015, 2);
     expect(left.rotationY).toBeCloseTo(Math.PI / 2);
   });
+
+  it('si no cabe derecho, lo prueba girado 90°', () => {
+    const sofa = item({ id: 'sofa', category: 'sofa', dimensionsM: { x: 2, y: 0.8, z: 0.9 } });
+    const tried: number[] = [];
+    const c: PlannerContext = {
+      ...ctx([], [sofa]),
+      findFreeSpot: (_id, _it, near, rot) => {
+        tried.push(rot);
+        return rot === 0 ? null : near; // derecho no cabe; girado sí
+      },
+    };
+    const plan = planPlacement('new', sofa, c)!;
+    expect(tried).toEqual([0, Math.PI / 2]);
+    expect(plan.rotationY).toBeCloseTo(Math.PI / 2);
+  });
 });
