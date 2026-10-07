@@ -9,6 +9,7 @@ import { CoreModule } from './infrastructure/core.module.js';
 import { RedisThrottlerStorage } from './infrastructure/throttler/redis-throttler.storage.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
+import { ChatModule } from './modules/chat/chat.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { ProgressModule } from './modules/progress/progress.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
@@ -28,6 +29,7 @@ import { APP_CONFIG, REDIS } from './ports/index.js';
     AuthModule,
     ProjectsModule,
     CatalogModule,
+    ChatModule,
     HealthModule,
     ProgressModule,
   ],
