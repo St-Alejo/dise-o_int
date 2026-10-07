@@ -2,42 +2,19 @@ import { ChangeDetectionStrategy, Component, computed, input, linkedSignal, outp
 import { CurrencyPipe } from '@angular/common';
 import {
   CATALOG_CATEGORIES,
+  MOUNTS,
   STYLES,
+  searchCatalog,
   type CatalogCategory,
   type CatalogItem,
+  type Mount,
   type RoomType,
   type StyleId,
 } from '@interiores/shared-types';
+import { CATEGORY_ICONS, CATEGORY_LABELS, MOUNT_LABELS } from './catalog-labels';
+import { CatalogThumbComponent } from './catalog-thumb.component';
 
-export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
-  sofa: 'Sofás',
-  table: 'Mesas',
-  chair: 'Sillas',
-  bed: 'Camas',
-  storage: 'Almacenaje',
-  lighting: 'Luz',
-  decor: 'Deco',
-  kitchen: 'Cocina',
-  bathroom: 'Baño',
-  'wall-decor': 'Pared',
-  textile: 'Textiles',
-  electronics: 'Electrónica',
-};
-
-export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
-  sofa: '🛋️',
-  table: '🪵',
-  chair: '🪑',
-  bed: '🛏️',
-  storage: '🗄️',
-  lighting: '💡',
-  decor: '🪴',
-  kitchen: '🍳',
-  bathroom: '🛁',
-  'wall-decor': '🖼️',
-  textile: '🧶',
-  electronics: '📺',
-};
+export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
 
 /**
  * Catálogo contextual (progressive disclosure): en modo "cambiar" solo muestra muebles
@@ -46,7 +23,7 @@ export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
 @Component({
   selector: 'app-catalog-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe],
+  imports: [CurrencyPipe, CatalogThumbComponent],
   template: `
     <div class="stack">
       <div class="row">
@@ -56,7 +33,7 @@ export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
           <button type="button" class="btn btn-sm btn-ghost" (click)="cancel.emit()">Cancelar</button>
         }
       </div>
-      <input class="input" type="search" placeholder="Buscar…" aria-label="Buscar en el catálogo" [value]="query()" (input)="query.set($any($event.target).value)" />
+      <input class="input" type="search" placeholder="Buscar: lámpara de mesa, closet, cuadro…" aria-label="Buscar en el catálogo" [value]="query()" (input)="query.set($any($event.target).value)" />
       @if (mode() === 'add') {
         <div class="chips" role="group" aria-label="Categoría">
           <button type="button" class="chip" [attr.aria-pressed]="category() === null" (click)="category.set(null)">Todo</button>
@@ -64,19 +41,27 @@ export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
             <button type="button" class="chip" [attr.aria-pressed]="category() === c" (click)="category.set(c)">{{ icons[c] }} {{ labels[c] }}</button>
           }
         </div>
+        <div class="chips" role="group" aria-label="Dónde va">
+          <button type="button" class="chip" [attr.aria-pressed]="mount() === null" (click)="mount.set(null)">Cualquier lugar</button>
+          @for (m of mounts; track m) {
+            <button type="button" class="chip" [attr.aria-pressed]="mount() === m" (click)="mount.set(m)">{{ mountLabels[m] }}</button>
+          }
+        </div>
       }
       <label class="row small">
         <input type="checkbox" [checked]="onlyStyle()" (change)="onlyStyle.set($any($event.target).checked)" [disabled]="!styleId()" />
         Solo estilo {{ styleId() ? styles[styleId()!].label : '' }}
+        <span class="spacer"></span>
+        <span class="muted" aria-live="polite">{{ filtered().length }} resultado(s)</span>
       </label>
       <ul class="list" role="list">
         @for (item of filtered(); track item.id) {
           <li>
             <button type="button" class="item" (click)="picked.emit(item)" [class.current]="item.id === currentItemId()" [disabled]="item.id === currentItemId()">
-              <span class="icon" aria-hidden="true">{{ icons[item.category] }}</span>
+              <app-catalog-thumb [item]="item" />
               <span class="info">
                 <strong>{{ item.name }}</strong>
-                <span class="muted">{{ item.dimensionsM.x.toFixed(2) }}×{{ item.dimensionsM.z.toFixed(2) }} m · {{ tags(item) }}</span>
+                <span class="muted">{{ item.dimensionsM.x.toFixed(2) }} × {{ item.dimensionsM.z.toFixed(2) }} × {{ item.dimensionsM.y.toFixed(2) }} m · {{ tags(item) }}</span>
               </span>
               <span class="price">{{ item.price | currency: item.currency : 'symbol' : '1.0-0' }}</span>
             </button>
@@ -167,20 +152,29 @@ export class CatalogPanelComponent {
   protected readonly labels = CATEGORY_LABELS;
   protected readonly icons = CATEGORY_ICONS;
   protected readonly styles = STYLES;
+  protected readonly mounts = MOUNTS;
+  protected readonly mountLabels = MOUNT_LABELS;
   protected readonly query = signal('');
   protected readonly category = signal<CatalogCategory | null>(null);
+  protected readonly mount = signal<Mount | null>(null);
   protected readonly onlyStyle = linkedSignal(() => !!this.styleId());
 
+  /**
+   * Misma búsqueda que el servidor (`searchCatalog`): sin acentos, sinónimos es/en y tolerante
+   * a errores. Sin texto, primero lo que corresponde al tipo de cuarto.
+   */
   protected readonly filtered = computed(() => {
-    const q = this.query().trim().toLowerCase();
-    const cat = this.mode() === 'swap' ? this.swapCategory() : this.category();
-    const style = this.onlyStyle() ? this.styleId() : null;
+    const swap = this.mode() === 'swap';
+    const q = this.query().trim();
     const room = this.roomType();
-    return this.items()
-      .filter((i) => !cat || i.category === cat)
-      .filter((i) => !style || i.styleTags.includes(style))
-      .filter((i) => !q || i.name.toLowerCase().includes(q))
-      .sort((a, b) => Number(room ? !a.roomTypes.includes(room) : 0) - Number(room ? !b.roomTypes.includes(room) : 0) || a.name.localeCompare(b.name));
+    const results = searchCatalog(this.items(), {
+      ...(q ? { q } : {}),
+      ...((swap ? this.swapCategory() : this.category()) ? { category: (swap ? this.swapCategory() : this.category())! } : {}),
+      ...(this.onlyStyle() && this.styleId() ? { style: this.styleId()! } : {}),
+      ...(!swap && this.mount() ? { mount: this.mount()! } : {}),
+    }).map((r) => r.item);
+    if (q || !room) return results;
+    return [...results].sort((a, b) => Number(!a.roomTypes.includes(room)) - Number(!b.roomTypes.includes(room)));
   });
 
   tags(item: CatalogItem): string {
