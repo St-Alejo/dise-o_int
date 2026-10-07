@@ -6,6 +6,7 @@
 import type { CatalogItem } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { ParametricRenderer, type ParametricPlacement } from './parametric-renderer';
 import { disposeObject } from './room-builder';
 
 const FALLBACK_COLORS: Record<string, string> = {
@@ -16,6 +17,11 @@ const FALLBACK_COLORS: Record<string, string> = {
   storage: '#8d6e63',
   lighting: '#f5e6c8',
   decor: '#7da37a',
+  kitchen: '#d8d6d0',
+  bathroom: '#f1f1ef',
+  'wall-decor': '#c8a97e',
+  textile: '#b9a88f',
+  electronics: '#222222',
 };
 
 export class FurnitureFactory {
@@ -24,9 +30,26 @@ export class FurnitureFactory {
   /** Una caja de reemplazo por mueble; las instancias son clones que comparten geometría y material. */
   private readonly fallbacks = new Map<string, THREE.Object3D>();
 
-  async create(item: CatalogItem): Promise<THREE.Object3D> {
+  private readonly parametric = new ParametricRenderer();
+
+  /**
+   * Muebles paramétricos: se construyen en vivo con su receta y las medidas/materiales propios
+   * de la pieza (reconstruir, no estirar). Resto: GLB cacheado y clonado.
+   */
+  async create(item: CatalogItem, placement: ParametricPlacement = {}): Promise<THREE.Object3D> {
+    if (ParametricRenderer.supports(item)) {
+      try {
+        return this.withShadows(item, this.parametric.create(item, placement));
+      } catch (err) {
+        console.warn(`[3D] Receta inválida para ${item.id}; se usa el GLB`, err);
+      }
+    }
     const gltf = await this.load(item);
     const object = (gltf ? gltf.scene : this.fallback(item)).clone(true);
+    return this.withShadows(item, object);
+  }
+
+  private withShadows(item: CatalogItem, object: THREE.Object3D): THREE.Object3D {
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) {
@@ -71,5 +94,6 @@ export class FurnitureFactory {
     for (const f of this.fallbacks.values()) disposeObject(f);
     this.cache.clear();
     this.fallbacks.clear();
+    this.parametric.dispose();
   }
 }

@@ -18,6 +18,7 @@
     "@angular/platform-browser": "^22.2.0",
     "@angular/router": "^22.2.0",
     "@google/model-viewer": "^4.3.1",
+    "@interiores/furniture-kit": "*",
     "@interiores/shared-types": "*",
     "rxjs": "~7.8.0",
     "socket.io-client": "^4.8.4",

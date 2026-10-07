@@ -21,7 +21,12 @@ interface FurnitureNode {
   group: THREE.Group;
   catalogItemId: string;
   loading: boolean;
+  /** Medidas y materiales con los que se construyó: si cambian, se reconstruye el objeto. */
+  shapeKey: string;
 }
+
+/** Lo que define la forma visible de una pieza (además de su mueble del catálogo). */
+const shapeKeyOf = (p: FurniturePlacement) => JSON.stringify([p.dimensionsM ?? null, p.materials ?? null]);
 
 const WALL_SNAP_M = 0.15;
 const COLORS = { select: new THREE.Color('#d49a79'), invalid: new THREE.Color('#e53935') };
@@ -209,7 +214,7 @@ export class SceneService {
     const wanted = new Set(placements.map((p) => p.id));
     for (const [id, node] of this.nodes) {
       const p = placements.find((x) => x.id === id);
-      if (!wanted.has(id) || (p && p.catalogItemId !== node.catalogItemId)) {
+      if (!wanted.has(id) || (p && (p.catalogItemId !== node.catalogItemId || shapeKeyOf(p) !== node.shapeKey))) {
         this.furnitureRoot.remove(node.group);
         this.nodes.delete(id);
       }
@@ -221,11 +226,11 @@ export class SceneService {
       if (!node) {
         const group = new THREE.Group();
         group.userData['placementId'] = p.id;
-        node = { group, catalogItemId: p.catalogItemId, loading: true };
+        node = { group, catalogItemId: p.catalogItemId, loading: true, shapeKey: shapeKeyOf(p) };
         this.nodes.set(p.id, node);
         this.furnitureRoot.add(group);
         const created = node;
-        void this.factory.create(item).then((object) => {
+        void this.factory.create(item, p).then((object) => {
           if (this.disposed || this.nodes.get(p.id) !== created) return;
           created.group.add(object);
           created.loading = false;
