@@ -16,6 +16,7 @@ import { ApiError } from '../../core/api/api-error';
 import { CatalogApi, ProjectsApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
 import { CommandHistory, type Placements, type SceneCommand } from '../viewport-3d/commands';
+import { planPlacement, type PlacementPlan } from './placement-planner';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'conflict' | 'error';
 
@@ -199,6 +200,19 @@ export class DesignProjectStore {
       }
     }
     return null;
+  }
+
+  /** Dónde poner un mueble nuevo según su montaje (piso, pared, techo o encima de otro). */
+  planPlacement(id: string, item: CatalogItem): PlacementPlan | null {
+    const shell = this.shell();
+    if (!shell) return null;
+    return planPlacement(id, item, {
+      shell,
+      placements: this.placements(),
+      catalog: this.catalog(),
+      isPoseValid: (pid, it, pos, rot) => this.isPoseValid(pid, it.id, pos, rot, it.dimensionsM),
+      findFreeSpot: (pid, it, near, rot) => this.findFreeSpot(pid, it, near, rot),
+    });
   }
 
   // ------------------------------------------------------------------ guardado

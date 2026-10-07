@@ -263,13 +263,21 @@ export class EditorComponent {
 
   add(item: CatalogItem): void {
     const id = newPlacementId();
-    const pos = this.store.findFreeSpot(id, item, this.scene.roomCenterFor(item));
-    if (!pos) {
-      this.toast.error('No hay espacio libre para este mueble. Quita o mueve algo primero.');
+    const plan = this.store.planPlacement(id, item);
+    if (!plan) {
+      const where = item.mount === 'wall' ? 'en las paredes' : 'libre';
+      this.toast.error(`No hay espacio ${where} para "${item.name}". Quita o mueve algo primero.`);
       return;
     }
-    this.store.execute(new AddCommand({ id, catalogItemId: item.id, position: pos, rotationY: 0, lockedByUser: true }));
+    this.store.execute(
+      new AddCommand({ id, catalogItemId: item.id, lockedByUser: true, origin: 'user', ...plan }),
+    );
     this.store.select(id);
+    if (plan.supportId) {
+      const support = this.store.placements().find((p) => p.id === plan.supportId);
+      const name = support ? this.store.catalog().get(support.catalogItemId)?.name : null;
+      if (name) this.toast.success(`"${item.name}" quedó sobre ${name}.`);
+    }
   }
 
   swap(item: CatalogItem): void {
