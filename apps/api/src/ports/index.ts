@@ -274,5 +274,6 @@ export const AI_CLIENT = Symbol('IAiClient');
 export const JOB_QUEUE = Symbol('IJobQueue');
 export const PROGRESS_BROKER = Symbol('IProgressBroker');
 export const QUOTA = Symbol('IQuota');
+export const CHAT_QUOTA = Symbol('IChatQuota');
 export const APP_CONFIG = Symbol('AppConfig');
 export const REDIS = Symbol('Redis');

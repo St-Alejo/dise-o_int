@@ -49,6 +49,11 @@ export const EnvSchema = z
     UPLOAD_MAX_MB: z.coerce.number().positive().max(50).default(15),
     GENERATIONS_PER_DAY: z.coerce.number().int().min(1).default(40),
     RETENTION_HOURS: z.coerce.number().int().min(1).default(24),
+    /** Chat de diseño: sin API key responde el agente por reglas (gratis). */
+    ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+    CHAT_MODEL: z.string().min(1).default('claude-opus-5-5'),
+    CHAT_PER_DAY: z.coerce.number().int().min(1).default(60),
+    CHAT_MAX_TOOL_TURNS: z.coerce.number().int().min(1).max(20).default(8),
     THROTTLE_LIMIT_PER_MIN: z.coerce.number().int().min(10).default(240),
 
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
