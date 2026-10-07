@@ -5,6 +5,7 @@ Sube una foto de tu cuarto y obtén:
 - **Track A — propuestas 2D.** Varios estilos a la vez, con un comparador antes/después y un control de intensidad.
 - **Track B — escena 3D editable.** Muebles reales a escala (catálogo CC0) que puedes mover, rotar y cambiar, con deshacer y rehacer, realidad aumentada ("ver en mi cuarto"), versiones, un link público y una lista de compras en PDF.
 - **Catálogo de 147 muebles con búsqueda.** Sofás, mesas, camas, armarios, cocina, baño, lámparas de mesa, de pie y colgantes, cuadros, espejos, TV, cortinas y más. La búsqueda entiende acentos, plurales, sinónimos ("closet", "velador") y errores de tipeo. Los cuadros se cuelgan solos en la pared y las lámparas se apoyan sobre la mesa de noche.
+- **Cada pieza a tu gusto.** Selecciona un mueble y cambia su ancho, alto y fondo (se reconstruye, no se estira), su tapizado, madera o metal, o su altura en la pared. Los cuadros se deslizan por las paredes, las lámparas se pasan de un mueble a otro y lo que está encima de una mesa se mueve con ella. Piso, paredes y techo se pintan con un clic o con la paleta del estilo. Todo se deshace con Ctrl+Z.
 - **Cuarto a tu medida.** Escribe ancho, largo y alto exactos (al subir la foto o después, en "Medidas del cuarto") y ubica puertas y ventanas; los muebles se reacomodan sin borrarse. Si no tienes metro, calibra con una sola medida conocida.
 
 La arquitectura y las decisiones de producto están en [`docs/README-interiores-ia.md`](docs/README-interiores-ia.md). Las decisiones técnicas tomadas al implementarlo están en [`docs/adr/`](docs/adr).
@@ -76,7 +77,9 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 |---|---|
 | Strategy | `services/ai/.../providers/*` (mock / Replicate) y `layout/rules_engine.py` (`LayoutEngine`) |
 | Facade | `apps/web/.../viewport-3d/scene.service.ts` |
-| Command | `apps/web/.../viewport-3d/commands.ts` + `CommandHistory` |
+| Command | `apps/web/.../viewport-3d/commands.ts` + `CommandHistory` (con fusión de ediciones continuas y `MacroCommand`) |
+| Template Method | `PlacementCommand` (los comandos de muebles solo definen la transformación) |
+| Strategy (montajes) | `apps/web/.../viewport-3d/mounts/mount-strategies.ts` (piso, techo, pared, superficie) |
 | Repository | `apps/api/src/ports` → `infrastructure/prisma/*.repository.ts` (y dobles en memoria en `test/fakes.ts`) |
 | Adapter | `HttpAiClient`, `S3FileStorage`, `BullMqJobQueue`, `ReplicateClient` |
 | Factory | `FurnitureFactory` (receta o GLB → Object3D), `RecipeRegistry` (`kind → receta`) y `cli/catalog/procedural.ts` |
