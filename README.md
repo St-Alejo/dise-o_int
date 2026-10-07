@@ -4,6 +4,7 @@ Sube una foto de tu cuarto y obtén:
 
 - **Track A — propuestas 2D.** Varios estilos a la vez, con un comparador antes/después y un control de intensidad.
 - **Track B — escena 3D editable.** Muebles reales a escala (catálogo CC0) que puedes mover, rotar y cambiar, con deshacer y rehacer, realidad aumentada ("ver en mi cuarto"), versiones, un link público y una lista de compras en PDF.
+- **Catálogo de 147 muebles con búsqueda.** Sofás, mesas, camas, armarios, cocina, baño, lámparas de mesa, de pie y colgantes, cuadros, espejos, TV, cortinas y más. La búsqueda entiende acentos, plurales, sinónimos ("closet", "velador") y errores de tipeo. Los cuadros se cuelgan solos en la pared y las lámparas se apoyan sobre la mesa de noche.
 - **Cuarto a tu medida.** Escribe ancho, largo y alto exactos (al subir la foto o después, en "Medidas del cuarto") y ubica puertas y ventanas; los muebles se reacomodan sin borrarse. Si no tienes metro, calibra con una sola medida conocida.
 
 La arquitectura y las decisiones de producto están en [`docs/README-interiores-ia.md`](docs/README-interiores-ia.md). Las decisiones técnicas tomadas al implementarlo están en [`docs/adr/`](docs/adr).
@@ -61,6 +62,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 
 | Carpeta | Qué es |
 |---|---|
+| `packages/furniture-kit` | Muebles **paramétricos**: recetas que generan geometría pura por slot de material (Builder + Composite + Factory + Flyweight). La web la dibuja en vivo y el seed la exporta a GLB. |
 | `packages/shared-types` | Modelo canónico (§7 del doc) con schemas **zod**, DTOs, contrato con la IA y geometría compartida (colisiones, calibración). Es la fuente única de tipos. |
 | `apps/api` | NestJS 12 **hexagonal**. Casos de uso contra *puertos* (`src/ports`); los adaptadores (Prisma, S3, BullMQ, Redis, HTTP a la IA) se enlazan en `CoreModule`. Incluye auth JWT, subida segura, versiones, compartir, PDF, progreso por WebSocket y el **worker** (`src/worker.ts`). |
 | `apps/web` | Angular 22 (standalone, signals, zoneless). `ThreeViewportComponent` aísla el render loop; `SceneService` es la **Facade** de Three.js; `DesignProjectStore` es la única fuente de verdad; edición con el patrón **Command** (deshacer/rehacer); AR con `<model-viewer>`. |
@@ -77,7 +79,9 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Command | `apps/web/.../viewport-3d/commands.ts` + `CommandHistory` |
 | Repository | `apps/api/src/ports` → `infrastructure/prisma/*.repository.ts` (y dobles en memoria en `test/fakes.ts`) |
 | Adapter | `HttpAiClient`, `S3FileStorage`, `BullMqJobQueue`, `ReplicateClient` |
-| Factory | `FurnitureFactory` (GLB → Object3D con respaldo) y `cli/catalog/procedural.ts` |
+| Factory | `FurnitureFactory` (receta o GLB → Object3D), `RecipeRegistry` (`kind → receta`) y `cli/catalog/procedural.ts` |
+| Builder + Composite | `packages/furniture-kit/src/builder.ts` (piezas y grupos anidados por slot de material) |
+| Flyweight | caché de modelos por medidas (`buildCached`) y de geometrías/materiales en GPU (`ParametricRenderer`) |
 
 ## Robustez (más allá del documento)
 
