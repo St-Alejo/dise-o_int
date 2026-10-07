@@ -9,3 +9,4 @@ export * from './catalog-search.js';
 export * from './collision.js';
 export * from './shopping.js';
 export * from './walls.js';
+export * from './spatial-resolver.js';

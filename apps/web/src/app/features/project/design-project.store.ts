@@ -3,6 +3,8 @@ import {
   bodiesCollide,
   bodyOf,
   clampToRoom,
+  footprint,
+  isInsideRoom,
   effectiveDimensions,
   mountY,
   type CatalogItem,
@@ -190,8 +192,8 @@ export class DesignProjectStore {
     if (!shell || !item) return false;
     const own = this.placements().find((p) => p.id === placementId);
     const dims = dimensionsM ?? (own && own.catalogItemId === catalogItemId ? effectiveDimensions(item.dimensionsM, own) : item.dimensionsM);
-    const clamped = clampToRoom(position, dims, rotationY, shell);
-    if (Math.abs(clamped.x - position.x) > 1e-3 || Math.abs(clamped.z - position.z) > 1e-3) return false;
+    // isInsideRoom además de clamp: una pieza más grande que el cuarto "se centra" al acotarla.
+    if (!isInsideRoom(footprint(position, dims, rotationY), shell)) return false;
     if (position.y + dims.y > shell.heightM + 1e-3) return false; // no atraviesa el techo
     const supportId = 'supportId' in extra ? extra.supportId : own?.supportId;
     const me = bodyOf({ id: placementId, position, rotationY, dimensionsM: dims, ...(supportId ? { supportId } : {}) }, item);
