@@ -1,7 +1,12 @@
 # Interiores IA — rediseña tu cuarto en 2D y edítalo en 3D
 
-Sube una foto de tu cuarto y obtén:
+Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 
+- **Un cuarto con su forma real.** Rectangular, en L, en T o en U, con piso y techo de esa forma, puertas y ventanas donde van. Se crea con un asistente que muestra el plano con cotas mientras escribes las medidas, con foto o sin ella.
+- **La foto decide.** Con un modelo de visión (opcional), cada foto aporta medidas aproximadas, la pared de cada puerta y ventana, los muebles que había y los colores. Sin él, el análisis local hace el trabajo. Detalle y resultados con seis fotos reales en [`docs/pruebas-vision/`](docs/pruebas-vision).
+- **Editor con plano y 3D a la vez.** Vista 3D, plano o los dos lado a lado. En el plano se arrastran los muebles con guías de alineación y cotas hasta las paredes, y se mueven paredes, esquinas, puertas y ventanas. Hay lista de objetos, duplicar, copiar y pegar, arrastrar del catálogo y exportar la imagen o el plano con medidas. Todo se deshace con Ctrl+Z.
+- **Recorrer el cuarto.** La cámara baja a la altura de los ojos y se camina con el teclado sin atravesar paredes ni muebles, también en el enlace público. De noche el cuarto lo alumbran sus lámparas.
+- **Otra distribución.** Un botón reacomoda los muebles de otra forma válida, sin tapar ventanas ni bloquear la puerta, respetando los que fijaste.
 - **Track A — propuestas 2D.** Varios estilos a la vez, con un comparador antes/después y un control de intensidad.
 - **Track B — escena 3D editable.** Muebles reales a escala (catálogo CC0) que puedes mover, rotar y cambiar, con deshacer y rehacer, realidad aumentada ("ver en mi cuarto"), versiones, un link público y una lista de compras en PDF.
 - **Catálogo de 147 muebles con búsqueda.** Sofás, mesas, camas, armarios, cocina, baño, lámparas de mesa, de pie y colgantes, cuadros, espejos, TV, cortinas y más. La búsqueda entiende acentos, plurales, sinónimos ("closet", "velador") y errores de tipeo. Los cuadros se cuelgan solos en la pared y las lámparas se apoyan sobre la mesa de noche.
@@ -64,10 +69,10 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Carpeta | Qué es |
 |---|---|
 | `packages/furniture-kit` | Muebles **paramétricos**: recetas que generan geometría pura por slot de material (Builder + Composite + Factory + Flyweight). La web la dibuja en vivo y el seed la exporta a GLB. |
-| `packages/shared-types` | Modelo canónico (§7 del doc) con schemas **zod**, DTOs, contrato con la IA y geometría compartida (colisiones, calibración). Es la fuente única de tipos. |
+| `packages/shared-types` | Modelo canónico (§7 del doc) con schemas **zod**, DTOs, contrato con la IA y geometría compartida: colisiones, calibración, planta poligonal (`RoomPlan`), edición de la planta, guías de alineación y caminar. Es la fuente única de tipos. |
 | `apps/api` | NestJS 12 **hexagonal**. Casos de uso contra *puertos* (`src/ports`); los adaptadores (Prisma, S3, BullMQ, Redis, HTTP a la IA) se enlazan en `CoreModule`. Incluye auth JWT, subida segura, versiones, compartir, PDF, progreso por WebSocket y el **worker** (`src/worker.ts`). |
-| `apps/web` | Angular 22 (standalone, signals, zoneless). `ThreeViewportComponent` aísla el render loop; `SceneService` es la **Facade** de Three.js; `DesignProjectStore` es la única fuente de verdad; edición con el patrón **Command** (deshacer/rehacer); AR con `<model-viewer>`. |
-| `services/ai` | FastAPI. Tiene proveedores **Strategy** (`mock` sin GPU ↔ `replicate`) para el análisis del cuarto y los estilos, más un **motor de layout por reglas** (minimización greedy de costo) listo para cambiarlo por ATISS. |
+| `apps/web` | Angular 22 (standalone, signals, zoneless). `ThreeViewportComponent` aísla el render loop; `SceneService` es la **Facade** de Three.js; `DesignProjectStore` es la única fuente de verdad; edición con el patrón **Command** (deshacer/rehacer), también de la planta; el plano editable (SVG) y el visor comparten ese estado; AR con `<model-viewer>`. |
+| `services/ai` | FastAPI. Tiene proveedores **Strategy** (`mock` sin GPU ↔ `vision` ↔ `replicate`) para el análisis del cuarto y los estilos, más un **motor de layout por reglas** (minimización greedy de costo, con semilla para dar variantes) listo para cambiarlo por ATISS. |
 | `infra/nginx` | Origen único, CSP estricta, caché de assets y resolución DNS dinámica del upstream. |
 | `e2e` | Prueba de humo del backend, Playwright + axe (UI y accesibilidad) y prueba de resiliencia. |
 
@@ -75,14 +80,17 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 
 | Patrón | Implementación |
 |---|---|
-| Strategy | `services/ai/.../providers/*` (mock / Replicate) y `layout/rules_engine.py` (`LayoutEngine`) |
+| Strategy | `services/ai/.../providers/*` (mock / visión / Replicate), `layout/rules_engine.py` (`LayoutEngine`) y los presets de luz (`lighting-rig.ts`) |
+| State | Modos de cámara (`camera/`: `OrbitMode`, `WalkMode` con `CameraDirector`), gestos del plano (`floor-plan/plan-gestures.ts`) y pasos del asistente (`wizard.store.ts`) |
+| Decorator | `FallbackRoomAnalyzer`: si la visión falla o se agota, responde el análisis local |
+| Objeto de valor | `RoomPlan` (`shared-types`): la planta sabe su área, dónde cabe un mueble y cuál es "la pared del fondo" |
 | Facade | `apps/web/.../viewport-3d/scene.service.ts` |
-| Command | `apps/web/.../viewport-3d/commands.ts` + `CommandHistory` (con fusión de ediciones continuas y `MacroCommand`) |
-| Template Method | `PlacementCommand` (los comandos de muebles solo definen la transformación) |
+| Command | `apps/web/.../viewport-3d/commands.ts` + `CommandHistory` (con fusión de ediciones continuas, `MacroCommand` y `SetRoomCommand` para la planta) |
+| Template Method | `PlacementCommand` (los comandos de muebles solo definen la transformación) y `VisionRoomAnalyzer` (preparar → preguntar → validar → construir) |
 | Strategy (montajes) | `apps/web/.../viewport-3d/mounts/mount-strategies.ts` (piso, techo, pared, superficie) |
 | Repository | `apps/api/src/ports` → `infrastructure/prisma/*.repository.ts` (y dobles en memoria en `test/fakes.ts`) |
 | Adapter | `HttpAiClient`, `S3FileStorage`, `BullMqJobQueue`, `ReplicateClient` |
-| Factory | `FurnitureFactory` (receta o GLB → Object3D), `RecipeRegistry` (`kind → receta`) y `cli/catalog/procedural.ts` |
+| Factory | `FurnitureFactory` (receta o GLB → Object3D), `RecipeRegistry` (`kind → receta`), plantillas de forma (`ROOM_TEMPLATES`), `room-factory.ts` y `cli/catalog/procedural.ts` |
 | Builder + Composite | `packages/furniture-kit/src/builder.ts` (piezas y grupos anidados por slot de material) |
 | Flyweight | caché de modelos por medidas (`buildCached`) y de geometrías/materiales en GPU (`ParametricRenderer`) |
 
@@ -127,13 +135,15 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 
 | Suite | Comando | Qué cubre |
 |---|---|---|
-| Tipos compartidos | `npm test -w @interiores/shared-types` | Geometría (SAT, clamp, calibración) y DTOs |
+| Tipos compartidos | `npm test -w @interiores/shared-types` | Geometría (SAT, clamp, calibración), planta poligonal y su edición, guías, caminar y DTOs |
 | API | `npm test -w api` | Casos de uso con adaptadores en memoria: EXIF, cuotas, 409, borrado real, caché, retención, pipeline |
-| Web | `npm test -w web` | Command/undo, construcción del cuarto sin WebGL, shell |
+| Web | `npm test -w web` | Command/undo, construcción del cuarto sin WebGL, gestos del plano, modos de cámara, asistente |
 | IA | `pytest` (`services/ai`) | Layout con **Hypothesis** (sin solapes, todo dentro, nunca bloquea puertas), API, Replicate simulado, **contrato zod ↔ Pydantic** |
 | Humo | `node e2e/smoke.mjs <url>` | Flujo completo del backend por nginx (17 comprobaciones) |
-| UI + a11y | `make e2e` | Playwright: flujo completo, sesión persistente, link público y **axe** (WCAG 2.1 AA) en desktop y móvil |
+| UI + a11y | `make e2e` | Playwright: flujo completo, asistente, formas de cuarto, recorrido, plano editable, link público y **axe** (WCAG 2.1 AA) en desktop y móvil |
 | Resiliencia | `node e2e/resilience.mjs <url> "<parar ia>" "<arrancar ia>"` | IA caída → 503 + reintentos + error claro → recuperación con "Reintentar" |
+
+Las E2E lanzan toda la suite desde una sola IP en menos de un minuto y esperan el análisis local: levanta el stack con `RATE_LIMIT_MULTIPLIER=20 ROOM_ANALYZER=mock docker compose up -d --wait` antes de correrlas.
 
 Las herramientas de Node corren en Docker con `./scripts/toolbox.sh <comando>` (Node 24, igual que las imágenes). CI (`.github/workflows/ci.yml`) ejecuta todas las suites, incluido el E2E sobre Docker Compose.
 
@@ -143,6 +153,15 @@ Por defecto todo corre **sin GPU ni costo**:
 
 - **Análisis del cuarto:** heurísticas de OpenCV. La escala queda marcada como aproximada y el usuario la calibra con un gesto (§8.1).
 - **Estilos:** gradación de color por paleta, marcada como "vista previa simulada".
+
+Para que la foto decida de verdad (medidas, aberturas, muebles y colores), con un modelo de visión:
+
+```env
+GROQ_API_KEY=gsk_...
+ROOM_ANALYZER=vision
+```
+
+Hace una llamada por foto, con caché y un tope diario (`VISION_PER_DAY`); si el modelo falla o se agota, responde el análisis local. Ver [ADR-0011](docs/adr/0011-analisis-de-la-foto-con-vision.md).
 
 Para usar difusión real:
 
