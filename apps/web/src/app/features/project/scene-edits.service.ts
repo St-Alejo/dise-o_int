@@ -1,7 +1,8 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   RoomGeometryError,
   addOpening,
+  checkDesign,
   alignDeltas,
   distributeDeltas,
   footprint,
@@ -17,6 +18,8 @@ import {
   type AlignMode,
   type ArrangeBox,
   type CatalogItem,
+  type DesignIssue,
+  type DesignPiece,
   type FurniturePlacement,
   type Opening,
   type Point2,
@@ -37,6 +40,33 @@ import { DesignProjectStore } from './design-project.store';
 export class SceneEditsService {
   private readonly store = inject(DesignProjectStore);
   private readonly toast = inject(ToastService);
+
+  /** Avisos de la revisión del diseño, recalculados con cada cambio del cuarto o de los muebles. */
+  readonly issues = computed<DesignIssue[]>(() => {
+    const shell = this.store.shell();
+    if (!shell) return [];
+    const catalog = this.store.catalog();
+    const pieces = this.store.placements().flatMap((p): DesignPiece[] => {
+      const item = catalog.get(p.catalogItemId);
+      if (!item) return [];
+      return [
+        {
+          id: p.id,
+          name: item.name,
+          mount: item.mount,
+          category: item.category,
+          ...(item.subcategory ? { subcategory: item.subcategory } : {}),
+          position: p.position,
+          rotationY: p.rotationY,
+          dims: effectiveDimensions(item.dimensionsM, p),
+          ...(p.supportId ? { supportId: p.supportId } : {}),
+        },
+      ];
+    });
+    return checkDesign(shell, pieces);
+  });
+  /** Avisos que conviene atender (las sugerencias no cuentan para el indicador). */
+  readonly issueCount = computed(() => this.issues().filter((i) => i.severity !== 'tip').length);
 
   /** Mueble del catálogo que se está arrastrando hacia el plano o el visor. */
   readonly dragged = signal<CatalogItem | null>(null);

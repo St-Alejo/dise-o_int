@@ -81,6 +81,18 @@ function initialView(): ViewMode {
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
       <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas"><app-icon name="ruler" /> Medidas del cuarto</button>
       <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están"><app-icon name="shuffle" /> Otra distribución</button>
+      <button
+        type="button"
+        class="btn btn-sm review"
+        [class.pending]="edits.issueCount() > 0"
+        (click)="showReview()"
+        [title]="edits.issueCount() ? 'Hay cosas que conviene corregir' : 'Revisa si se puede entrar, si se llega a cada mueble y si algo tapa las ventanas'"
+      >
+        Revisión
+        @if (edits.issueCount(); as n) {
+          <span class="count" [attr.aria-label]="n + ' avisos'">{{ n }}</span>
+        }
+      </button>
       <details class="menu" #exportMenu>
         <summary class="btn btn-sm"><app-icon name="download" /> Exportar</summary>
         <div class="menu-items card">
@@ -245,6 +257,21 @@ function initialView(): ViewMode {
       background: var(--surface);
       color: var(--text);
       box-shadow: var(--shadow-sm);
+    }
+    .review.pending {
+      border-color: var(--warning);
+    }
+    .count {
+      display: inline-grid;
+      place-items: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--warning);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
     }
     .menu {
       position: relative;
@@ -452,6 +479,13 @@ export class EditorComponent {
   protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);
   protected readonly roomType = computed(() => this.store.project()?.roomType ?? null);
   protected readonly confidence = computed(() => Math.round((this.shell()?.scaleConfidence ?? 0) * 100));
+
+  /** Abre la revisión del diseño (está en la pestaña de objetos). */
+  protected showReview(): void {
+    this.swapMode.set(false);
+    this.store.select(null);
+    this.panelTab.set('objects');
+  }
 
   protected ago(savedAt: number): string {
     return agoLabel(savedAt, Date.now());

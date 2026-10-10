@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import type { FurniturePlacement } from '@interiores/shared-types';
 import { CATEGORY_LABELS } from '../catalog/catalog-labels';
+import { DesignReviewComponent } from '../design-review/design-review.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { SceneService } from '../viewport-3d/scene.service';
@@ -20,8 +21,10 @@ interface OutlinerRow {
 @Component({
   selector: 'app-outliner',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DesignReviewComponent],
   template: `
     <div class="stack">
+      <app-design-review />
       <div class="row">
         <h3>Objetos del cuarto</h3>
         <span class="spacer"></span>
