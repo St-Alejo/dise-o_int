@@ -29,8 +29,12 @@ test('buscar y añadir: lámpara sobre la mesa de noche y cuadro en la pared', a
   await search.fill('lámpara de mesa');
   await expect(results.first()).toContainText(/Lámpara de mesa/);
   await results.first().click();
-  await expect(page.getByText(/quedó sobre/)).toBeVisible();
+  // La lámpara queda apoyada en la mesa de noche: la lista de objetos dice sobre qué está.
+  // (El aviso emergente dura unos segundos; con la máquina cargada puede pasar antes de mirarlo.)
   await page.getByRole('button', { name: 'Deseleccionar' }).click();
+  await page.getByRole('tab', { name: 'Objetos' }).click();
+  await expect(page.locator('app-outliner li.line').filter({ hasText: /Lámpara de mesa/ }).first()).toContainText(/Sobre /);
+  await page.getByRole('tab', { name: 'Añadir muebles' }).click();
 
   await search.fill('cuadro');
   await expect(results.first()).toContainText(/cuadro/i);

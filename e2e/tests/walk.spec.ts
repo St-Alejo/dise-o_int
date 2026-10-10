@@ -62,11 +62,16 @@ test('recorrer: baja a la altura de los ojos, camina sin atravesar paredes y vue
   expectInsideAtEyeLevel(start);
 
   // Caminar: el canvas tiene el foco tras pulsar "Recorrer".
+  // Se mantiene la tecla hasta haber avanzado: cuánto tarda depende de lo cargada que esté la máquina.
   await page.keyboard.down('KeyS');
-  await page.waitForTimeout(700);
+  await expect
+    .poll(async () => {
+      const now = (await scene(page)).camera;
+      return Math.hypot(now.x - start.x, now.z - start.z);
+    })
+    .toBeGreaterThan(0.3);
   await page.keyboard.up('KeyS');
   const walked = (await scene(page)).camera;
-  expect(Math.hypot(walked.x - start.x, walked.z - start.z)).toBeGreaterThan(0.3);
   expectInsideAtEyeLevel(walked);
 
   // Mantener una tecla contra la pared no la atraviesa.
