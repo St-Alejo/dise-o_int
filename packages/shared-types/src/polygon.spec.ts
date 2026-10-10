@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { footprint } from './geometry.js';
+import { createPolygonShell, footprint } from './geometry.js';
 import {
   ensureWinding,
   interiorAnchor,
@@ -16,6 +16,7 @@ import {
 interface Cases {
   polygons: Record<string, [number, number][]>;
   areas: Record<string, number>;
+  wallIds: Record<string, string[]>;
   convex: Record<string, boolean[]>;
   points: { polygon: string; p: [number, number]; inside: boolean; note?: string }[];
   quads: { polygon: string; center: [number, number]; size: [number, number]; rotationY: number; inside: boolean; note?: string }[];
@@ -28,6 +29,10 @@ const poly = (name: string): Point2[] => cases.polygons[name]!.map(([x, z]) => (
 describe('casos compartidos con el servicio de IA', () => {
   it.each(Object.entries(cases.areas))('área de %s', (name, area) => {
     expect(signedArea(poly(name))).toBeCloseTo(area);
+  });
+
+  it.each(Object.entries(cases.wallIds))('ids de las paredes de %s', (name, ids) => {
+    expect(createPolygonShell(poly(name), 2.6).walls.map((w) => w.id)).toEqual(ids);
   });
 
   it.each(Object.entries(cases.convex))('esquinas salientes y entrantes de %s', (name, expected) => {

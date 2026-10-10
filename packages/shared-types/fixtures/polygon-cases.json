@@ -6,6 +6,11 @@
     "U": [[0, 0], [6, 0], [6, 4], [4, 4], [4, 2], [2, 2], [2, 4], [0, 4]]
   },
   "areas": { "rect": 12, "L": 17, "U": 20 },
+  "wallIds": {
+    "rect": ["w-back", "w-right", "w-front", "w-left"],
+    "L": ["w-back", "w-right", "w-3", "w-4", "w-front", "w-left"],
+    "U": ["w-back", "w-right", "w-front", "w-4", "w-5", "w-6", "w-7", "w-left"]
+  },
   "convex": {
     "rect": [true, true, true, true],
     "L": [true, true, true, false, true, true],

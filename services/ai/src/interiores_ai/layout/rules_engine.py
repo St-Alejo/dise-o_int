@@ -31,7 +31,8 @@ from ..contracts import (
     Vector3,
     WallSegment,
 )
-from .geometry import Footprint, angle_facing, forward, inside, normalize_angle, overlaps, right
+from .geometry import Footprint, angle_facing, forward, normalize_angle, overlaps, right
+from .polygon import RoomGeometry
 
 # "wall" y "surface" no compiten por el piso: un cuadro o una lámpara de mesa no bloquean muebles.
 Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
@@ -138,6 +139,10 @@ class Pose:
 class Scene:
     shell: RoomShell
     placed: list[Placed] = field(default_factory=list)
+    room: RoomGeometry = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.room = RoomGeometry(self.shell)
 
     def by_role(self, role: str) -> list[Placed]:
         return [p for p in self.placed if p.role == role]
@@ -159,12 +164,9 @@ def wall_frame(
     ex, ez = wall.end.x, wall.end.z
     length = math.hypot(ex - sx, ez - sz) or 1.0
     ux, uz = (ex - sx) / length, (ez - sz) / length
-    # Normal candidata; se orienta hacia el centro del cuarto.
-    nx, nz = -uz, ux
-    cx, cz = shell.widthM / 2, shell.depthM / 2
-    mx, mz = (sx + ex) / 2, (sz + ez) / 2
-    if (cx - mx) * nx + (cz - mz) * nz < 0:
-        nx, nz = -nx, -nz
+    # La normal interior sale del sentido de giro de la planta: "hacia el centro de la caja" falla
+    # en un cuarto en L o en U, donde ese centro puede quedar fuera del cuarto.
+    nx, nz = RoomGeometry(shell).inward_normal(ux, uz)
     return (sx, sz), (ux, uz, nx, nz), length
 
 
@@ -278,7 +280,7 @@ class RulesLayoutEngine:
         d = item.dimensionsM
         for pose in self._poses(role, item, scene):
             fp = Footprint.of(pose.x, pose.z, d.x, d.z, pose.rot)
-            if not inside(fp, scene.shell.widthM, scene.shell.depthM):
+            if not scene.room.inside(fp):
                 continue
             if layer == "floor" and any(overlaps(fp, zone, 0.0) for zone in blocked):
                 continue
@@ -313,9 +315,9 @@ class RulesLayoutEngine:
         elif role.anchor in ("under", "over") and ref:
             yield from self._centered_on(ref, scene, item)
         elif role.anchor == "corner":
-            yield from self._corner_poses(item, shell, ref)
+            yield from self._corner_poses(item, scene.room, ref)
         elif role.anchor == "center" or (role.anchor in ("under", "over", "front-of", "beside", "around") and not ref):
-            cx, cz = shell.widthM / 2, shell.depthM / 2
+            cx, cz = scene.room.center
             rot = 0.0 if shell.widthM >= shell.depthM else math.pi / 2
             for dx in (0.0, -0.3, 0.3, -0.6, 0.6):
                 for dz in (0.0, -0.3, 0.3):
@@ -400,12 +402,12 @@ class RulesLayoutEngine:
             yield Pose(ref.x + dx, ref.z, rot, base_cost=abs(dx))
 
     @staticmethod
-    def _corner_poses(item: LayoutCandidate, shell: RoomShell, ref: Placed | None) -> Iterator[Pose]:
+    def _corner_poses(item: LayoutCandidate, room: RoomGeometry, ref: Placed | None) -> Iterator[Pose]:
         d = item.dimensionsM
         half = max(d.x, d.z) / 2 + 0.05
-        corners = [(half, half), (shell.widthM - half, half), (shell.widthM - half, shell.depthM - half), (half, shell.depthM - half)]
-        cx, cz = shell.widthM / 2, shell.depthM / 2
-        for x, z in corners:
+        cx, cz = room.center
+        # Los rincones son las esquinas salientes: en una L, la esquina de la muesca no lo es.
+        for x, z in room.corners(half):
             cost = 0.0 if ref is None else math.hypot(ref.x - x, ref.z - z) * 0.3
             yield Pose(x, z, angle_facing(cx - x, cz - z), base_cost=cost)
 

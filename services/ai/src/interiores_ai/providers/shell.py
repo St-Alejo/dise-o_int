@@ -1,6 +1,9 @@
-"""Construcción del RoomShell "Manhattan" (paredes en ángulo recto, §6.0 del documento)."""
+"""Construcción del RoomShell: el rectangular "Manhattan" (§6.0 del documento) y el de forma libre."""
 
-from ..contracts import Opening, RoomShell, Vector3, WallSegment
+import math
+
+from ..contracts import Opening, RoomShape, RoomShell, Vector3, WallSegment
+from ..layout.polygon import signed_area
 
 
 def rectangular_shell(
@@ -71,6 +74,80 @@ def rectangular_shell(
         widthM=round(width, 3),
         depthM=round(depth, 3),
         heightM=round(height, 3),
+        walls=walls,
+        openings=openings,
+        scaleConfidence=scale_confidence,
+        needsCalibration=True,
+    )
+
+
+_SIDE_IDS = {"back": "w-back", "right": "w-right", "front": "w-front", "left": "w-left"}
+
+
+def polygon_shell(
+    points: list[tuple[float, float]],
+    height: float,
+    *,
+    openings: list[Opening] | None = None,
+    shape: RoomShape | None = None,
+    scale_confidence: float = 0.3,
+    shell_id: str = "room",
+) -> RoomShell:
+    """Cuarto de forma libre a partir de su planta (espejo de `createPolygonShell` en TypeScript).
+
+    La planta se lleva al origen y al orden canónico, empezando por la pared del fondo (z = 0).
+    En cada lado de la caja, la pared más larga conserva el id histórico (`w-back`, `w-right`,
+    `w-front`, `w-left`); las demás se numeran `w-2`, `w-3`… según su posición.
+    """
+    if len(points) < 3:
+        raise ValueError("La planta del cuarto necesita al menos tres vértices")
+    if signed_area(points) < 0:
+        points = list(reversed(points))
+    min_x, min_z = min(p[0] for p in points), min(p[1] for p in points)
+    moved = [(round(x - min_x, 3), round(z - min_z, 3)) for x, z in points]
+    width, depth = max(p[0] for p in moved), max(p[1] for p in moved)
+    n = len(moved)
+    first = next((i for i in range(n) if abs(moved[i][1]) < 1e-6 and abs(moved[(i + 1) % n][1]) < 1e-6 and moved[(i + 1) % n][0] > moved[i][0]), 0)
+    poly = moved[first:] + moved[:first]
+
+    def side_of(a: tuple[float, float], c: tuple[float, float]) -> str | None:
+        if abs(a[1]) < 1e-6 and abs(c[1]) < 1e-6:
+            return "back"
+        if abs(a[0] - width) < 1e-6 and abs(c[0] - width) < 1e-6:
+            return "right"
+        if abs(a[1] - depth) < 1e-6 and abs(c[1] - depth) < 1e-6:
+            return "front"
+        if abs(a[0]) < 1e-6 and abs(c[0]) < 1e-6:
+            return "left"
+        return None
+
+    edges = [(poly[i], poly[(i + 1) % n]) for i in range(n)]
+    sides = [side_of(a, c) for a, c in edges]
+    lengths = [math.hypot(c[0] - a[0], c[1] - a[1]) for a, c in edges]
+    longest: dict[str, int] = {}
+    for i, side in enumerate(sides):
+        if side is not None and (side not in longest or lengths[i] > lengths[longest[side]] + 1e-9):
+            longest[side] = i
+
+    openings = openings or []
+    walls: list[WallSegment] = []
+    for i, ((ax, az), (cx, cz)) in enumerate(edges):
+        side = sides[i]
+        wall_id = _SIDE_IDS[side] if side is not None and longest[side] == i else f"w-{i + 1}"
+        walls.append(
+            WallSegment(
+                id=wall_id,
+                start=Vector3(x=ax, y=0, z=az),
+                end=Vector3(x=cx, y=0, z=cz),
+                hasWindow=any(o.wallId == wall_id and o.type == "window" for o in openings),
+            )
+        )
+    return RoomShell(
+        id=shell_id,
+        widthM=width,
+        depthM=depth,
+        heightM=round(height, 3),
+        shape=shape,
         walls=walls,
         openings=openings,
         scaleConfidence=scale_confidence,
