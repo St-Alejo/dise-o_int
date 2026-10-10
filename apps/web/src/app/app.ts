@@ -38,6 +38,14 @@ import { ToastService } from './core/ui/toast.service';
       <router-outlet />
     </main>
 
+    <footer class="app-footer">
+      <div class="container row">
+        <span>Interiores <strong>IA</strong> · proyecto final de Programación Orientada a Objetos</span>
+        <span class="spacer"></span>
+        <span class="muted">Tus fotos no se usan para entrenar modelos y se borran a las 24 h si no guardas el proyecto.</span>
+      </div>
+    </footer>
+
     <div class="toasts" aria-live="polite" aria-atomic="false">
       @for (t of toast.toasts(); track t.id) {
         <div class="toast" [class]="'toast toast-' + t.kind" role="status">
@@ -59,6 +67,18 @@ import { ToastService } from './core/ui/toast.service';
     }
     .skip-link:focus {
       left: 8px;
+    }
+    .app-footer {
+      border-top: 1px solid var(--border);
+      padding-block: var(--space-5);
+      font-size: 0.88rem;
+    }
+    .app-footer .row {
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-5);
+    }
+    main {
+      min-height: calc(100vh - var(--header-h) - 90px);
     }
     .app-header {
       position: sticky;
