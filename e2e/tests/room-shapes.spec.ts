@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { apiSession } from './helpers';
 
 /**
  * Cuartos de forma libre de extremo a extremo: se crean por la API con su forma y medidas (sin
@@ -10,17 +11,9 @@ const SHAPES = [
   { shape: 'T', walls: 8, roomType: 'dining', spec: { widthM: 6, depthM: 5, heightM: 2.7 } },
 ] as const;
 
-async function register(page: Page): Promise<Record<string, string>> {
-  const res = await page.request.post('/api/auth/register', {
-    data: { email: `shapes-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.test`, password: 'e2e-password-123', displayName: 'Formas' },
-  });
-  expect(res.ok()).toBeTruthy();
-  return { Authorization: `Bearer ${(await res.json()).accessToken}` };
-}
-
 for (const room of SHAPES) {
   test(`cuarto en ${room.shape}: se crea sin foto, se amuebla y se dibuja con ${room.walls} paredes`, async ({ page }) => {
-    const headers = await register(page);
+    const headers = await apiSession(page, 'formas');
     const created = await page.request.post('/api/projects', {
       headers,
       multipart: { name: `Cuarto en ${room.shape}`, roomType: room.roomType, styles: 'moderno', roomSpec: JSON.stringify({ shape: room.shape, ...room.spec }) },
@@ -45,7 +38,7 @@ for (const room of SHAPES) {
 }
 
 test('otra distribución: cada semilla reacomoda los muebles de otra forma', async ({ page }) => {
-  const headers = await register(page);
+  const headers = await apiSession(page, 'formas');
   const created = await page.request.post('/api/projects', {
     headers,
     multipart: { name: 'Sala para reacomodar', roomType: 'living', styles: 'moderno', roomSpec: JSON.stringify({ shape: 'rect', widthM: 5.5, depthM: 4.5, heightM: 2.6 }) },

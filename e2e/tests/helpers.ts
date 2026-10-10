@@ -46,3 +46,25 @@ export async function openEditor(page: Page): Promise<void> {
   await page.getByRole('tab', { name: /Editor 3D/ }).click();
   await expect(page.getByText('✓ Guardado')).toBeVisible();
 }
+
+const PASSWORD = 'e2e-password-123';
+/** Cuentas ya registradas en este proceso de pruebas, por nombre. */
+const accounts = new Map<string, string>();
+
+/**
+ * Sesión por la API para las pruebas que no pasan por el formulario de registro. La cuenta se
+ * registra una sola vez por archivo y las demás pruebas inician sesión: el registro está limitado
+ * a 10 por minuto por IP y la suite entera sale de la misma. Deja la cookie de sesión en el
+ * contexto de `page` y devuelve la cabecera para llamar a la API.
+ */
+export async function apiSession(page: Page, name: string): Promise<Record<string, string>> {
+  let email = accounts.get(name);
+  const fresh = !email;
+  email ??= `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.test`;
+  const res = fresh
+    ? await page.request.post('/api/auth/register', { data: { email, password: PASSWORD, displayName: name } })
+    : await page.request.post('/api/auth/login', { data: { email, password: PASSWORD } });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  accounts.set(name, email);
+  return { Authorization: `Bearer ${(await res.json()).accessToken}` };
+}

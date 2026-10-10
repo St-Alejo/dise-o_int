@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { apiSession } from './helpers';
 
 /**
  * Recorrer el cuarto a pie: la cámara baja a la altura de los ojos, camina con el teclado sin
@@ -13,11 +14,7 @@ const scene = (page: Page) => page.evaluate(() => (window as unknown as { __scen
 const ROOM = { shape: 'rect', widthM: 5, depthM: 4, heightM: 2.6 };
 
 async function createRoom(page: Page) {
-  const reg = await page.request.post('/api/auth/register', {
-    data: { email: `walk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.test`, password: 'e2e-password-123', displayName: 'Recorrido' },
-  });
-  expect(reg.ok()).toBeTruthy();
-  const headers = { Authorization: `Bearer ${(await reg.json()).accessToken}` };
+  const headers = await apiSession(page, 'recorrido');
   const created = await page.request.post('/api/projects', {
     headers,
     multipart: { name: 'Cuarto para recorrer', roomType: 'bedroom', styles: 'moderno', roomSpec: JSON.stringify(ROOM) },
