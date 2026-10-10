@@ -237,6 +237,8 @@ export interface BuildSceneJob {
   projectId: string;
   styleId: StyleId | null;
   keepLocked: boolean;
+  /** Es el trabajo que termina de crear el proyecto (cuarto definido a mano, sin foto): al acabar queda listo. */
+  finalize?: boolean;
   requestId?: string;
 }
 export interface JobPayloads {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { buildRoomFromSpec } from '@interiores/shared-types';
 import { AiServiceError } from '../src/common/errors.js';
 import { PipelineService, type JobContext } from '../src/modules/jobs/pipeline.service.js';
 import { FakeAi, FakeBroker, FakeQuota, InMemoryCatalogRepository, InMemoryProjectRepository } from './fakes.js';
@@ -90,6 +91,43 @@ describe('PipelineService', () => {
     expect(project.status).toBe('failed');
     expect(project.lastError).toMatch(/tardó demasiado/);
     expect(broker.events.at(-1)).toMatchObject({ status: 'failed' });
+  });
+
+  describe('cuarto definido a mano', () => {
+    const lShell = buildRoomFromSpec({ shape: 'L', widthM: 5, depthM: 4, heightM: 2.6 });
+    const sceneCtx = (final = false): JobContext => ({ ...ctx(final), kind: 'build-scene' });
+
+    it('sin foto: amueblar el cuarto deja el proyecto listo', async () => {
+      await repo.update('p1', { photoKey: null, photoHash: null, roomShell: lShell });
+      await pipeline.buildScene({ projectId: 'p1', styleId: 'bohemio', keepLocked: false, finalize: true }, sceneCtx());
+
+      const project = (await repo.findById('p1'))!;
+      expect(project.status).toBe('ready');
+      expect(project.selectedStyleId).toBe('bohemio');
+      expect(project.placements).toHaveLength(1);
+      expect(ai.calls).toEqual(['layout']);
+      expect(broker.events.at(-1)).toMatchObject({ stage: 'done', status: 'completed' });
+    });
+
+    it('con foto: el análisis no pisa la forma que eligió el usuario', async () => {
+      await repo.update('p1', { roomShell: lShell });
+      await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+
+      const project = (await repo.findById('p1'))!;
+      expect(project.roomShell!.walls).toHaveLength(6);
+      expect(project.status).toBe('ready');
+      expect(ai.calls).toEqual(['analyze', 'style:moderno', 'layout']);
+    });
+
+    it('si amueblar falla del todo, el proyecto nuevo queda fallido; uno ya listo no se toca', async () => {
+      await repo.update('p1', { photoKey: null, roomShell: lShell });
+      await pipeline.markFailed('build-scene', 'p1', sceneCtx(true), new AiServiceError('IA caída', null, true, 'unreachable'));
+      expect((await repo.findById('p1'))!.status).toBe('failed');
+
+      await repo.update('p1', { status: 'ready', lastError: null });
+      await pipeline.markFailed('build-scene', 'p1', sceneCtx(true), new AiServiceError('IA caída', null, true, 'unreachable'));
+      expect((await repo.findById('p1'))!.status).toBe('ready');
+    });
   });
 
   it('si el proyecto se borró mientras estaba en cola, el job termina sin error', async () => {

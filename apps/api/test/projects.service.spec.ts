@@ -95,6 +95,56 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('create con el cuarto definido a mano', () => {
+    const lRoom = { shape: 'L', widthM: 5, depthM: 4, heightM: 2.6, notchWidthM: 2, notchDepthM: 1.5 } as const;
+
+    it('sin foto: el cuarto queda definido, no consume cuota y se encola amueblarlo', async () => {
+      const project = await service.create(alice, { name: 'Estudio', roomType: 'office', styles: 'bohemio', roomSpec: JSON.stringify(lRoom) }, undefined);
+
+      expect(project.roomShell).toMatchObject({ shape: 'L', widthM: 5, depthM: 4, needsCalibration: false, scaleConfidence: 1 });
+      expect(project.roomShell!.walls.map((w) => w.id)).toEqual(['w-back', 'w-right', 'w-3', 'w-4', 'w-front', 'w-left']);
+      // Sin aberturas indicadas nace con una ventana al fondo y una puerta al frente.
+      expect(project.roomShell!.openings.map((o) => [o.type, o.wallId])).toEqual([['window', 'w-back'], ['door', 'w-front']]);
+      expect(project.sourcePhotoUrl).toBeNull();
+      expect(storage.objects.size).toBe(0);
+      expect(quota.used.get('alice')).toBeUndefined();
+      expect(queue.jobs).toEqual([
+        expect.objectContaining({ kind: 'build-scene', jobId: `scene.${project.id}`, data: expect.objectContaining({ styleId: 'bohemio', keepLocked: false, finalize: true }) }),
+      ]);
+      expect(broker.events[0]).toMatchObject({ stage: 'queued', kind: 'build-scene' });
+    });
+
+    it('con foto: el cuarto a mano manda y la foto sigue al análisis para las propuestas', async () => {
+      const project = await service.create(alice, { roomSpec: { shape: 'U', widthM: 6, depthM: 5, heightM: 2.8 } }, await photoWithGps());
+      expect(project.roomShell!.walls).toHaveLength(8);
+      expect(project.sourcePhotoUrl).not.toBeNull();
+      expect(queue.jobs[0]).toMatchObject({ kind: 'analyze-room' });
+    });
+
+    it('respeta las aberturas indicadas y rechaza las que no caben o apuntan a otra pared', async () => {
+      const door = { id: 'o-door-1', type: 'door', wallId: 'w-3', widthM: 0.9, heightM: 2.05, offsetM: 1, sillHeightM: 0 } as const;
+      const project = await service.create(alice, { roomSpec: { ...lRoom, openings: [door] } }, undefined);
+      expect(project.roomShell!.openings).toEqual([door]);
+
+      await expect(service.create(alice, { roomSpec: { ...lRoom, openings: [{ ...door, offsetM: 1.9 }] } }, undefined)).rejects.toThrow(/no cabe/);
+      await expect(service.create(alice, { roomSpec: { ...lRoom, openings: [{ ...door, wallId: 'w-9' }] } }, undefined)).rejects.toBeInstanceOf(ValidationError);
+      expect(repo.projects.size).toBe(1);
+    });
+
+    it('sin foto ni cuarto a mano no hay con qué empezar', async () => {
+      await expect(service.create(alice, { name: 'Nada' }, undefined)).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.create(alice, { roomSpec: '{no es json' }, undefined)).rejects.toThrow();
+    });
+
+    it('reintentar un proyecto sin foto vuelve a encolar el amueblado', async () => {
+      const p = await service.create(alice, { styles: 'moderno', roomSpec: lRoom }, undefined);
+      await repo.update(p.id, { status: 'failed', lastError: 'IA caída' });
+      queue.jobs = [];
+      await service.retryAnalysis(alice, p.id);
+      expect(queue.jobs[0]).toMatchObject({ kind: 'build-scene', data: { finalize: true, styleId: 'moderno' } });
+    });
+  });
+
   describe('retryAnalysis', () => {
     it('solo reintenta proyectos fallidos y vuelve a encolar el análisis', async () => {
       const p = await service.create(alice, { styles: 'moderno' }, await photoWithGps());

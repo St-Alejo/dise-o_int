@@ -30,6 +30,7 @@ import {
   type ProjectRecord,
 } from '../../ports/index.js';
 import { projectKeys } from '../projects/project.mapper.js';
+import { isUserDefinedRoom } from '../projects/room-factory.js';
 import { previewCacheKey } from '../projects/projects.service.js';
 
 /** Contexto de ejecución de un job: permite reportar progreso real y saber si es el último intento. */
@@ -80,11 +81,15 @@ export class PipelineService {
     );
     const fresh = await this.projects.findById(project.id);
     if (!fresh) return; // borrado mientras se analizaba
-    await this.projects.update(
-      project.id,
-      { roomShell: this.withRequestedRoom(analysis.roomShell, fresh) },
-      { expectedRevision: fresh.revision, bumpRevision: true },
-    );
+    // Si el usuario definió el cuarto a mano (forma, medidas y aberturas), ese manda: la foto
+    // solo alimenta las propuestas de estilo.
+    if (!isUserDefinedRoom(fresh.roomShell)) {
+      await this.projects.update(
+        project.id,
+        { roomShell: this.withRequestedRoom(analysis.roomShell, fresh) },
+        { expectedRevision: fresh.revision, bumpRevision: true },
+      );
+    }
 
     // Track A — nunca una sola opción: se generan todos los estilos pedidos.
     const previews = await this.ensurePreviews(project, data.styles, data.promptStrength);
@@ -114,7 +119,7 @@ export class PipelineService {
     const project = await this.projects.findById(data.projectId);
     if (!project?.roomShell) return;
     await this.report(project.id, ctx, 'scene', 20);
-    await this.writeLayout(project.id, data.styleId, data.keepLocked, {}, ctx);
+    await this.writeLayout(project.id, data.styleId, data.keepLocked, data.finalize ? { status: 'ready', lastError: null } : {}, ctx);
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 
@@ -154,6 +159,13 @@ export class PipelineService {
     const friendly = this.friendlyError(error);
     if (kind === 'analyze-room') {
       await this.projects.update(projectId, { status: 'failed', lastError: friendly }).catch(() => undefined);
+    }
+    if (kind === 'build-scene') {
+      // Solo si este trabajo era el que terminaba de crear el proyecto (cuarto a mano, sin foto).
+      const pending = await this.projects.findById(projectId).catch(() => null);
+      if (pending?.status === 'processing') {
+        await this.projects.update(projectId, { status: 'failed', lastError: friendly }).catch(() => undefined);
+      }
     }
     if (kind === 'generate-styles' || kind === 'analyze-room') {
       const project = await this.projects.findById(projectId).catch(() => null);

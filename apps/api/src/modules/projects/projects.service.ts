@@ -58,6 +58,7 @@ import {
   type ProjectRecord,
 } from '../../ports/index.js';
 import { projectKeys, toDesignProject, toListItem } from './project.mapper.js';
+import { newRoomFor } from './room-factory.js';
 
 export interface Actor {
   userId: string;
@@ -113,48 +114,43 @@ export class ProjectsService {
   // ------------------------------------------------------------------ creación (paso 1-2 del flujo)
   async create(actor: Actor, rawFields: CreateProjectFields, photo: Buffer | undefined): Promise<DesignProject> {
     const fields = CreateProjectFieldsSchema.parse(rawFields);
-    if (!photo) throw new ValidationError('Falta la foto del cuarto (campo "photo")');
+    // El cuarto definido a mano se valida antes de gastar nada; sin él, la foto es obligatoria.
+    const room = newRoomFor({ ...fields, hasPhoto: !!photo });
     const styles = fields.styles ?? [...DEFAULT_STYLES];
 
-    // Primero se valida la foto (barato) y después se consume cuota.
-    const processed = await this.photos.process(photo, this.config.UPLOAD_MAX_MB * 1024 * 1024);
-    await this.quota.consume(actor.userId, styles.length);
+    // Primero se valida la foto (barato) y después se consume cuota. Sin foto no hay propuestas
+    // de estilo que generar, así que no se consume.
+    const processed = photo ? await this.photos.process(photo, this.config.UPLOAD_MAX_MB * 1024 * 1024) : null;
+    if (processed) await this.quota.consume(actor.userId, styles.length);
 
     const id = randomUUID();
     try {
-      await this.storage.put(projectKeys.photo(id), processed.photo, 'image/jpeg');
-      await this.storage.put(projectKeys.thumb(id), processed.thumbnail, 'image/webp');
+      if (processed) {
+        await this.storage.put(projectKeys.photo(id), processed.photo, 'image/jpeg');
+        await this.storage.put(projectKeys.thumb(id), processed.thumbnail, 'image/webp');
+      }
       const project = await this.projects.create({
         id,
         ownerId: actor.userId,
         name: fields.name,
         roomType: fields.roomType,
         status: 'processing',
-        photoKey: projectKeys.photo(id),
-        photoHash: processed.hash,
-        thumbKey: projectKeys.thumb(id),
-        roomShell: null,
+        photoKey: processed ? projectKeys.photo(id) : null,
+        photoHash: processed?.hash ?? null,
+        thumbKey: processed ? projectKeys.thumb(id) : null,
+        roomShell: room.shell,
         placements: [],
         finishes: null,
-        requestedRoom:
-          fields.widthM !== undefined && fields.depthM !== undefined && fields.heightM !== undefined
-            ? { widthM: fields.widthM, depthM: fields.depthM, heightM: fields.heightM }
-            : null,
+        requestedRoom: room.requestedRoom,
         selectedStyleId: null,
         requestedStyles: styles,
         saved: false,
       });
-      const jobId = await this.queue.enqueue('analyze-room', `analyze.${id}`, {
-        projectId: id,
-        styles,
-        promptStrength: DEFAULT_PROMPT_STRENGTH,
-        ...(actor.requestId ? { requestId: actor.requestId } : {}),
-      });
-      await this.publishQueued(id, jobId, 'analyze-room');
-      this.logger.log({ projectId: id, jobId, requestId: actor.requestId }, 'Proyecto creado y encolado');
+      const jobId = await this.enqueueFirstJob(id, room.firstJob, styles, actor);
+      this.logger.log({ projectId: id, jobId, kind: room.firstJob, requestId: actor.requestId }, 'Proyecto creado y encolado');
       return this.toDto(project);
     } catch (err) {
-      await this.quota.refund(actor.userId, styles.length).catch(() => undefined);
+      if (processed) await this.quota.refund(actor.userId, styles.length).catch(() => undefined);
       await this.projects.delete(id).catch(() => undefined);
       await this.storage.deletePrefix(projectKeys.prefix(id)).catch(() => undefined);
       // El adaptador de la cola ya traduce los fallos de Redis a DependencyError (503).
@@ -162,18 +158,27 @@ export class ProjectsService {
     }
   }
 
-  /** Reintenta el análisis de un proyecto que falló (p. ej. la IA estaba caída). */
+  /**
+   * Encola el trabajo que termina de montar un proyecto: el análisis de la foto o, si el cuarto
+   * se definió a mano y no hay foto, amueblarlo directamente.
+   */
+  private async enqueueFirstJob(id: string, kind: 'analyze-room' | 'build-scene', styles: StyleId[], actor: Actor): Promise<string> {
+    const requestId = actor.requestId ? { requestId: actor.requestId } : {};
+    const jobId =
+      kind === 'analyze-room'
+        ? await this.queue.enqueue('analyze-room', `analyze.${id}`, { projectId: id, styles, promptStrength: DEFAULT_PROMPT_STRENGTH, ...requestId })
+        : await this.queue.enqueue('build-scene', `scene.${id}`, { projectId: id, styleId: styles[0] ?? null, keepLocked: false, finalize: true, ...requestId });
+    await this.publishQueued(id, jobId, kind);
+    return jobId;
+  }
+
+  /** Reintenta montar un proyecto que falló (p. ej. la IA estaba caída). */
   async retryAnalysis(actor: Actor, id: string): Promise<DesignProject> {
     const project = await this.own(actor, id);
     if (project.status !== 'failed') throw new ValidationError('Solo se pueden reintentar proyectos con error');
     const updated = await this.projects.update(id, { status: 'processing', lastError: null });
-    const jobId = await this.queue.enqueue('analyze-room', `analyze.${id}`, {
-      projectId: id,
-      styles: project.requestedStyles.length ? project.requestedStyles : [...DEFAULT_STYLES],
-      promptStrength: DEFAULT_PROMPT_STRENGTH,
-      ...(actor.requestId ? { requestId: actor.requestId } : {}),
-    });
-    await this.publishQueued(id, jobId, 'analyze-room');
+    const styles = project.requestedStyles.length ? project.requestedStyles : [...DEFAULT_STYLES];
+    await this.enqueueFirstJob(id, project.photoKey ? 'analyze-room' : 'build-scene', styles, actor);
     return this.toDto(updated);
   }
 
