@@ -2,8 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   STAGE_MESSAGES,
   STYLES,
+  finishesFromPhoto,
   resizeRoomShell,
+  type DetectedObject,
   type FurniturePlacement,
+  type InventoryItem,
   type JobKind,
   type JobProgressEvent,
   type LayoutCandidate,
@@ -32,6 +35,11 @@ import {
 import { projectKeys } from '../projects/project.mapper.js';
 import { isUserDefinedRoom } from '../projects/room-factory.js';
 import { previewCacheKey } from '../projects/projects.service.js';
+
+/** Los muebles que el análisis reconoció en la foto (solo un modelo de visión les pone categoría). */
+export function inventoryOf(objects: readonly DetectedObject[]): InventoryItem[] {
+  return objects.flatMap((o) => (o.category ? [{ category: o.category, count: o.count ?? 1 }] : []));
+}
 
 /** Contexto de ejecución de un job: permite reportar progreso real y saber si es el último intento. */
 export interface JobContext {
@@ -81,14 +89,15 @@ export class PipelineService {
     );
     const fresh = await this.projects.findById(project.id);
     if (!fresh) return; // borrado mientras se analizaba
-    // Si el usuario definió el cuarto a mano (forma, medidas y aberturas), ese manda: la foto
-    // solo alimenta las propuestas de estilo.
-    if (!isUserDefinedRoom(fresh.roomShell)) {
-      await this.projects.update(
-        project.id,
-        { roomShell: this.withRequestedRoom(analysis.roomShell, fresh) },
-        { expectedRevision: fresh.revision, bumpRevision: true },
-      );
+    // Si el usuario definió el cuarto a mano (forma, medidas y aberturas), ese manda: de la foto
+    // solo salen los colores, el inventario y las propuestas de estilo.
+    const seenFinishes = fresh.finishes ? null : finishesFromPhoto(analysis.suggestions ?? {});
+    const changes = {
+      ...(isUserDefinedRoom(fresh.roomShell) ? {} : { roomShell: this.withRequestedRoom(analysis.roomShell, fresh) }),
+      ...(seenFinishes ? { finishes: seenFinishes } : {}),
+    };
+    if (Object.keys(changes).length > 0) {
+      await this.projects.update(project.id, changes, { expectedRevision: fresh.revision, bumpRevision: true });
     }
 
     // Track A — nunca una sola opción: se generan todos los estilos pedidos.
@@ -99,7 +108,8 @@ export class PipelineService {
     const ready = (await this.projects.listPreviews(project.id)).filter((p) => p.status === 'ready');
     const selected: StyleId | null = ready.find((p) => data.styles.includes(p.styleId))?.styleId ?? data.styles[0] ?? null;
     await this.report(project.id, ctx, 'scene', 85);
-    await this.writeLayout(project.id, selected, true, { status: 'ready', lastError: null }, ctx);
+    // Si el análisis reconoció los muebles de la foto, la escena inicial coloca esos.
+    await this.writeLayout(project.id, selected, true, { status: 'ready', lastError: null }, ctx, inventoryOf(analysis.detectedObjects));
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 
@@ -134,12 +144,13 @@ export class PipelineService {
     keepLocked: boolean,
     extra: { status?: 'ready'; lastError?: null },
     ctx: JobContext,
+    inventory: InventoryItem[] = [],
   ): Promise<void> {
     for (let attempt = 1; ; attempt++) {
       const project = await this.projects.findById(projectId);
       if (!project?.roomShell) return; // borrado mientras se calculaba
       const locked = keepLocked ? project.placements.filter((p) => p.lockedByUser) : [];
-      const placements = await this.layout(project, project.roomShell, styleId, locked, ctx);
+      const placements = await this.layout(project, project.roomShell, styleId, locked, ctx, inventory);
       try {
         await this.projects.update(
           projectId,
@@ -264,8 +275,11 @@ export class PipelineService {
     styleId: StyleId | null,
     locked: FurniturePlacement[],
     ctx: JobContext,
+    inventory: InventoryItem[] = [],
   ): Promise<FurniturePlacement[]> {
-    const catalog = await this.catalog.search({ roomType: project.roomType });
+    // Con inventario de la foto pueden hacer falta piezas de otro tipo de cuarto (el comedor de
+    // una sala abierta), así que se ofrece el catálogo entero; sin él, solo lo propio del cuarto.
+    const catalog = await this.catalog.search(inventory.length ? {} : { roomType: project.roomType });
     const candidates: LayoutCandidate[] = catalog.map((c) => ({
       id: c.id,
       category: c.category,
@@ -280,7 +294,7 @@ export class PipelineService {
       return locked;
     }
     const res = await this.ai.placeFurniture(
-      { roomShell: shell, roomType: project.roomType, styleId, candidates, locked },
+      { roomShell: shell, roomType: project.roomType, styleId, candidates, locked, ...(inventory.length ? { inventory } : {}) },
       this.aiCtx(ctx),
     );
     const lockedIds = new Set(locked.map((p) => p.id));

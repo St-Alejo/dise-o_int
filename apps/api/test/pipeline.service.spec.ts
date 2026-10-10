@@ -93,6 +93,46 @@ describe('PipelineService', () => {
     expect(broker.events.at(-1)).toMatchObject({ status: 'failed' });
   });
 
+  describe('lo que el análisis vio en la foto', () => {
+    const office = {
+      detectedObjects: [
+        { label: 'desk', confidence: 0.85, bbox: [0, 0, 1, 1] as [number, number, number, number], category: 'desk', count: 1 },
+        { label: 'chair', confidence: 0.85, bbox: [0, 0, 1, 1] as [number, number, number, number], category: 'chair', count: 3 },
+        { label: 'mueble', confidence: 0.3, bbox: [0.1, 0.2, 0.3, 0.4] as [number, number, number, number] },
+      ],
+      suggestions: { wallColor: '#4a6fa5', floorColor: '#8b7355', floorMaterial: 'wood' as const },
+    };
+
+    it('pinta el cuarto con los colores de la foto y amuebla con su inventario', async () => {
+      ai.seen = office;
+      await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+
+      const project = (await repo.findById('p1'))!;
+      // Pared azul y piso de madera oscura: los materiales de la biblioteca más parecidos.
+      expect(project.finishes).toEqual({ floor: 'wood-teak', walls: { all: 'paint-steel-blue' }, ceiling: 'paint-white' });
+      // Solo cuenta lo que trae categoría (lo que reconoce un modelo de visión).
+      expect(ai.layoutRequests[0]!.inventory).toEqual([
+        { category: 'desk', count: 1 },
+        { category: 'chair', count: 3 },
+      ]);
+      // Y puede elegir entre todo el catálogo, no solo lo típico de una sala.
+      expect(ai.layoutRequests[0]!.candidates.length).toBeGreaterThan(0);
+    });
+
+    it('sin inventario ni colores (análisis local) todo sigue como antes', async () => {
+      await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+      expect((await repo.findById('p1'))!.finishes).toBeNull();
+      expect(ai.layoutRequests[0]!.inventory).toBeUndefined();
+    });
+
+    it('reacomodar después usa la plantilla del tipo de cuarto, no el inventario de la foto', async () => {
+      ai.seen = office;
+      await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+      await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true }, { ...ctx(), kind: 'build-scene' });
+      expect(ai.layoutRequests[1]!.inventory).toBeUndefined();
+    });
+  });
+
   describe('cuarto definido a mano', () => {
     const lShell = buildRoomFromSpec({ shape: 'L', widthM: 5, depthM: 4, heightM: 2.6 });
     const sceneCtx = (final = false): JobContext => ({ ...ctx(final), kind: 'build-scene' });

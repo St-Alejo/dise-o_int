@@ -230,9 +230,12 @@ export class FakeQuota implements IQuota {
 export class FakeAi implements IAiClient {
   failStyles = new Set<string>();
   calls: string[] = [];
+  /** Lo que un modelo de visión añadiría al análisis (inventario, colores). */
+  seen: Partial<Pick<AnalyzeRoomResponse, 'detectedObjects' | 'suggestions'>> = {};
+  layoutRequests: PlaceFurnitureRequest[] = [];
   async analyzeRoom(_req: AnalyzeRoomRequest): Promise<AnalyzeRoomResponse> {
     this.calls.push('analyze');
-    return { roomShell: createRectangularShell(4, 3.5, 2.6), detectedObjects: [], provider: 'fake', durationMs: 1 };
+    return { roomShell: createRectangularShell(4, 3.5, 2.6), detectedObjects: [], provider: 'fake', durationMs: 1, ...this.seen };
   }
   async generateStyle(req: GenerateStyleRequest): Promise<GenerateStyleResponse> {
     this.calls.push(`style:${req.styleId}`);
@@ -241,6 +244,7 @@ export class FakeAi implements IAiClient {
   }
   async placeFurniture(req: PlaceFurnitureRequest): Promise<PlaceFurnitureResponse> {
     this.calls.push('layout');
+    this.layoutRequests.push(req);
     const sofa = req.candidates.find((c) => c.category === 'sofa');
     return {
       placements: sofa
