@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "photo": "comedor.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 1.84,
+    "usage": {
+      "queue_time": 0.41142693,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.193254467,
+      "completion_tokens": 429,
+      "completion_time": 0.932344045,
+      "total_tokens": 2808,
+      "total_time": 1.125598512
+    },
+    "remainingRequests": "998",
+    "remainingTokens": "1086"
+  },
+  "room": {
+    "roomType": "dining",
+    "shape": "rect",
+    "widthM": 5.5,
+    "depthM": 4.5,
+    "heightM": 2.7,
+    "openings": [
+      {
+        "wall": "right",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.9
+      },
+      {
+        "wall": "back",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.4
+      },
+      {
+        "wall": "left",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.5
+      }
+    ],
+    "objects": [
+      {
+        "category": "dining table",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "chair",
+        "count": 4,
+        "nearWall": "center"
+      },
+      {
+        "category": "sofa",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "lamp",
+        "count": 1,
+        "nearWall": "center"
+      }
+    ],
+    "palette": {
+      "walls": "#f5f5f0",
+      "floor": "#e8dcc8",
+      "accent": "#8a9a5b"
+    },
+    "floorMaterial": "wood",
+    "style": "escandinavo",
+    "confidence": 0.85,
+    "notes": "Exact room dimensions are estimated based on the scale of the furniture and standard window sizes."
+  }
+}
