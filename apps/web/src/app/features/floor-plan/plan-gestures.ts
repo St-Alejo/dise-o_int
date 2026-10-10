@@ -13,6 +13,7 @@ import {
   effectiveDimensions,
   footprint,
   footprintBounds,
+  guidesFor,
   moveOpening,
   moveVertex,
   moveWall,
@@ -135,11 +136,7 @@ export class MoveItemGesture implements PlanGesture {
     const aligned = clampToRoom({ x: inside.x + snap.dx, y, z: inside.z + snap.dz }, this.dims, rot, shell);
     const position = snapToWalls(aligned, this.dims, rot, shell);
     // Una guía solo se dibuja si, tras meter la pieza en el cuarto, sigue alineada con ella.
-    const box = this.boxAt(position);
-    const guides = snap.guides.filter((g) => {
-      const mine = g.axis === 'x' ? [box.minX, (box.minX + box.maxX) / 2, box.maxX] : [box.minZ, (box.minZ + box.maxZ) / 2, box.maxZ];
-      return mine.some((v) => Math.abs(v - g.at) < 1e-3);
-    });
+    const guides = guidesFor(snap.guides, this.boxAt(position));
     return { pose: { position, rotationY: rot }, guides, blocked: false };
   }
 

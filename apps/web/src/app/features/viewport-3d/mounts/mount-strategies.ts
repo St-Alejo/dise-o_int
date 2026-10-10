@@ -14,12 +14,17 @@ import {
   clampToRoom,
   distanceFromWall,
   footprint,
+  footprintBounds,
+  guidesFor,
   isInsideRoom,
   mountY,
   overlapsOpening,
   positionOnWall,
   rotateXZ,
+  snapMove,
   wallFrames,
+  type SnapBox,
+  type SnapGuide,
   type WallFrame,
   type Mount,
   type RoomShell,
@@ -46,6 +51,8 @@ export interface DragContext {
   /** Desplazamiento entre el punto agarrado y el centro de la pieza (en planta). */
   grabOffset: { x: number; z: number };
   supports: readonly SupportCandidate[];
+  /** Cajas de los demás muebles del piso: la pieza se alinea con sus bordes y centros. */
+  others?: readonly SnapBox[];
 }
 
 export interface MountPose {
@@ -56,6 +63,8 @@ export interface MountPose {
   elevationM?: number;
   /** La pose existe pero no se permite (p. ej. taparía una ventana). */
   blockedBy?: 'opening';
+  /** Líneas con las que quedó alineada (para dibujarlas mientras se arrastra). */
+  guides?: SnapGuide[];
 }
 
 export interface MountStrategy {
@@ -104,9 +113,17 @@ export class FloorMount implements MountStrategy {
     const hit = intersectHorizontal(ray, 0);
     if (!hit) return null;
     const wanted = { x: hit.x + ctx.grabOffset.x, y: 0, z: hit.z + ctx.grabOffset.z };
-    const clamped = clampToRoom(wanted, ctx.dims, ctx.rotationY, ctx.shell);
-    const position = snapToWalls(clamped, ctx.dims, ctx.rotationY, ctx.shell);
-    return { position: { ...position, y: this.y(ctx) }, rotationY: ctx.rotationY };
+    let aligned = clampToRoom(wanted, ctx.dims, ctx.rotationY, ctx.shell);
+    let guides: SnapGuide[] = [];
+    if (ctx.others?.length) {
+      // Sin rejilla: en el 3D el mueble sigue al cursor y solo se imanta cuando hay con qué alinearse.
+      const snap = snapMove(footprintBounds(footprint(aligned, ctx.dims, ctx.rotationY)), ctx.others, { gridM: 0 });
+      aligned = clampToRoom({ ...aligned, x: aligned.x + snap.dx, z: aligned.z + snap.dz }, ctx.dims, ctx.rotationY, ctx.shell);
+      guides = snap.guides;
+    }
+    const position = snapToWalls(aligned, ctx.dims, ctx.rotationY, ctx.shell);
+    guides = guidesFor(guides, footprintBounds(footprint(position, ctx.dims, ctx.rotationY)));
+    return { position: { ...position, y: this.y(ctx) }, rotationY: ctx.rotationY, ...(guides.length ? { guides } : {}) };
   }
   protected y(_ctx: DragContext): number {
     return 0;

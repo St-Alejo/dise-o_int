@@ -7,13 +7,9 @@ import { CatalogThumbComponent } from '../catalog/catalog-thumb.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import {
-  MacroCommand,
-  MoveCommand,
-  ResizeCommand,
   SetElevationCommand,
   SetLockCommand,
   SetMaterialCommand,
-  type SceneCommand,
 } from '../viewport-3d/commands';
 import { SceneService } from '../viewport-3d/scene.service';
 import {
@@ -23,11 +19,10 @@ import {
   elevationRange,
   isResizable,
   nextDimensions,
-  proposeResize,
   resizeRanges,
-  sameAsCatalog,
   type Axis,
 } from './inspector-model';
+import { buildResize } from './resize-command';
 
 /**
  * Inspector de la pieza seleccionada: medidas (en cm, con sliders dentro de los rangos del
@@ -348,42 +343,11 @@ export class InspectorComponent {
   }
 
   private applyDims(p: FurniturePlacement, it: CatalogItem, dims: { x: number; y: number; z: number }): void {
-    const shell = this.store.shell()!;
-    const proposal = proposeResize(
-      {
-        shell,
-        isPoseValid: (id, itemId, pos, rot, d) => this.store.isPoseValid(id, itemId, pos, rot, d),
-        supportTopOf: (x) => this.store.supportTopOf(x),
-      },
-      p,
-      it,
-      dims,
-    );
-    let position = proposal.position;
-    if (proposal.reason === 'collision' && (it.mount === 'floor' || it.mount === 'ceiling')) {
-      // En su sitio no cabe con el tamaño nuevo: se busca el hueco libre más cercano.
-      const free = this.store.findFreeSpot(p.id, it, proposal.position, p.rotationY, dims);
-      if (free) {
-        position = free;
-        this.error.set(null);
-        this.toast.show(`Para que quepa con ${cm(dims.x)} × ${cm(dims.z)}, lo movimos un poco.`);
-      } else {
-        this.error.set('Con esas medidas no cabe en ningún lugar libre del cuarto.');
-        return;
-      }
-    } else {
-      this.error.set(proposal.error);
-      if (proposal.error) return;
-    }
-    const resize = new ResizeCommand(p, sameAsCatalog(it, dims) ? undefined : dims, position);
-    // Si cambia el alto o el sitio de un soporte, lo que tiene encima lo acompaña.
-    const top = position.y + dims.y;
-    const shift = { x: position.x - p.position.x, z: position.z - p.position.z };
-    const followers: SceneCommand[] = this.store
-      .dependentsOf(p.id)
-      .filter((d) => Math.abs(d.position.y - top) > 1e-4 || Math.abs(shift.x) > 1e-4 || Math.abs(shift.z) > 1e-4)
-      .map((d) => new MoveCommand(d.id, d.position, { x: d.position.x + shift.x, y: top, z: d.position.z + shift.z }));
-    this.store.execute(followers.length ? new MacroCommand('Cambiar medidas', [resize, ...followers]) : resize);
+    const result = buildResize(this.store, p, it, dims, true);
+    this.error.set(result.error);
+    if (!result.command) return;
+    if (result.relocated) this.toast.show(`Para que quepa con ${cm(dims.x)} × ${cm(dims.z)}, lo movimos un poco.`);
+    this.store.execute(result.command);
   }
 
   protected setElevation(valueM: number): void {

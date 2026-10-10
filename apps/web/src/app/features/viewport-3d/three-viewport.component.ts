@@ -16,6 +16,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
+import { IconComponent } from '../../shared/ui/icon.component';
+import { PaintPaletteComponent } from './tools/paint-palette.component';
+import { VIEWPORT_TOOLS } from './tools/tools';
 import { SceneService } from './scene.service';
 
 /**
@@ -29,6 +32,7 @@ import { SceneService } from './scene.service';
 @Component({
   selector: 'app-three-viewport',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [IconComponent, PaintPaletteComponent],
   host: { '(dragover)': 'onDragOver($event)', '(drop)': 'onDrop($event)' },
   template: `
     <canvas
@@ -45,6 +49,31 @@ import { SceneService } from './scene.service';
       (keyup)="onKeyUp($event)"
       (blur)="scene.releaseWalkKeys()"
     ></canvas>
+    <div class="labels" #labels aria-hidden="true"></div>
+    <div class="context" #context [class.off]="!showContext()" role="toolbar" aria-label="Acciones del mueble seleccionado">
+      @if (showContext()) {
+        <button type="button" class="ctx" aria-label="Rotar a la izquierda" title="Rotar a la izquierda" (click)="scene.rotateSelected(-step)"><app-icon name="rotateLeft" /></button>
+        <button type="button" class="ctx" aria-label="Rotar a la derecha" title="Rotar a la derecha" (click)="scene.rotateSelected(step)"><app-icon name="rotateRight" /></button>
+        <button type="button" class="ctx" aria-label="Duplicar" title="Duplicar (Ctrl+D)" (click)="edits?.duplicate()"><app-icon name="copy" /></button>
+        <button type="button" class="ctx" [attr.aria-pressed]="locked()" [attr.aria-label]="locked() ? 'Soltar' : 'Fijar'" [title]="locked() ? 'Fijo: Otra distribución no lo mueve' : 'Fijar en su sitio'" (click)="toggleLock()">
+          <app-icon [name]="locked() ? 'lock' : 'unlock'" />
+        </button>
+        <button type="button" class="ctx danger" aria-label="Quitar" title="Quitar (Supr)" (click)="scene.removeSelected()"><app-icon name="trash" /></button>
+      }
+    </div>
+    @if (editable()) {
+      <div class="tools" role="toolbar" aria-label="Herramientas del visor">
+        @for (t of tools; track t.id) {
+          <button type="button" class="tool" [attr.aria-pressed]="scene.tool() === t.id" [title]="t.hint + ' (' + t.key.toUpperCase() + ')'" (click)="useTool(t.id)">{{ t.label }}</button>
+        }
+      </div>
+      @if (scene.paintTarget(); as paint) {
+        <app-paint-palette [target]="paint.target" [style.left.px]="paletteLeft(paint.x)" [style.top.px]="paint.y + 12" (closed)="scene.paintTarget.set(null)" />
+      }
+      @if (toolNote(); as note) {
+        <p class="tool-note" role="status" [class.warn]="note.warn">{{ note.text }}</p>
+      }
+    }
     @if (scene.sceneReady() && !contextLost()) {
       <div class="modes">
         <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="night()" (click)="scene.setTimeOfDay(night() ? 'day' : 'night')" title="De día alumbra el sol; de noche, las lámparas del cuarto">
@@ -102,6 +131,87 @@ import { SceneService } from './scene.service';
       text-align: center;
       color: var(--text-muted);
       background: color-mix(in srgb, var(--bg) 70%, transparent);
+    }
+    .labels {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .tools {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      box-shadow: var(--shadow-sm);
+    }
+    .tool {
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .tool[aria-pressed='true'] {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+    .context {
+      position: absolute;
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      transform: translate(-50%, -100%);
+    }
+    .context.off {
+      visibility: hidden;
+    }
+    .ctx {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: none;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .ctx:hover {
+      background: var(--surface-2);
+    }
+    .ctx[aria-pressed='true'] {
+      color: var(--primary);
+    }
+    .ctx.danger {
+      color: var(--danger);
+    }
+    .tool-note {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      margin: 0;
+      max-width: calc(100% - 24px);
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .tool-note.warn {
+      background: var(--danger);
+      color: #fff;
     }
     .modes {
       position: absolute;
@@ -162,7 +272,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   readonly scene = inject(SceneService);
   private readonly store = inject(DesignProjectStore);
   /** Solo existe dentro del editor: la vista pública no añade muebles. */
-  private readonly edits = inject(SceneEditsService, { optional: true });
+  protected readonly edits = inject(SceneEditsService, { optional: true });
   private readonly zone = inject(NgZone);
   private readonly host = inject(ElementRef<HTMLElement>);
 
@@ -170,6 +280,22 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   readonly contextLost = signal(false);
   protected readonly walking = computed(() => this.scene.cameraMode() === 'walk');
   protected readonly night = computed(() => this.scene.timeOfDay() === 'night');
+  protected readonly tools = VIEWPORT_TOOLS;
+  protected readonly step = Math.PI / 12;
+  /** Se puede editar: no es la vista pública, la escena está lista y no se está recorriendo. */
+  protected readonly editable = computed(() => !this.readOnly() && this.scene.sceneReady() && !this.contextLost() && !this.walking());
+  protected readonly locked = computed(() => !!this.store.selected()?.lockedByUser);
+  /** La barra del mueble acompaña a la selección; se esconde mientras se arrastra. */
+  protected readonly showContext = computed(() => this.editable() && !!this.edits && !!this.store.selected() && !this.scene.dragging() && this.scene.tool() === 'select');
+  /** Aviso de la herramienta: el problema del gesto en curso o, si no, cómo se usa. */
+  protected readonly toolNote = computed(() => {
+    const problem = this.scene.toolMessage() ?? this.scene.gizmoMessage();
+    if (problem) return { text: problem, warn: true };
+    const tool = this.scene.tool();
+    return tool === 'select' || this.scene.invalidDrop() ? null : { text: VIEWPORT_TOOLS.find((t) => t.id === tool)!.hint, warn: false };
+  });
+  private readonly labelsRef = viewChild.required<ElementRef<HTMLElement>>('labels');
+  private readonly contextRef = viewChild.required<ElementRef<HTMLElement>>('context');
   protected readonly orbitLabel =
     'Vista 3D del cuarto. Arrastra para mover muebles; flechas para desplazar el seleccionado, R para rotar, Supr para quitar.';
   protected readonly walkLabel = 'Recorrido del cuarto a pie. W, A, S, D o flechas para caminar; Escape para salir.';
@@ -211,6 +337,8 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.controls = controls;
     this.scene.attachRenderer(renderer);
     this.scene.frameRoom();
+    this.scene.labels.attach(this.labelsRef().nativeElement);
+    this.scene.labels.anchor(this.contextRef().nativeElement, () => this.scene.selectionAnchor());
     // El buffer no se conserva entre frames: se dibuja y se copia en el mismo instante.
     this.scene.frameCapture = () => {
       if (!canvas.width || !canvas.height) return Promise.resolve(null);
@@ -255,6 +383,22 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.canvasRef().nativeElement.focus();
   }
 
+  protected useTool(id: (typeof VIEWPORT_TOOLS)[number]['id']): void {
+    this.scene.setTool(id);
+    this.canvasRef().nativeElement.focus();
+  }
+
+  protected toggleLock(): void {
+    const selected = this.store.selected();
+    if (selected) this.edits?.toggleLock(selected);
+  }
+
+  /** La paleta no se sale del visor por la derecha. */
+  protected paletteLeft(x: number): number {
+    const width = (this.host.nativeElement as HTMLElement).clientWidth;
+    return Math.max(8, Math.min(x - 116, width - 240));
+  }
+
   /** Un mueble del catálogo arrastrado sobre el visor se puede soltar en el piso. */
   protected onDragOver(event: DragEvent): void {
     if (!this.edits?.dragged() || this.walking()) return;
@@ -281,6 +425,18 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') this.scene.setCameraMode('orbit');
       else if (!this.scene.walkKey(event.code, true)) return;
       event.preventDefault();
+      return;
+    }
+    // Atajos de herramienta: V mover, W paredes, B pintar, M medir.
+    const tool = event.ctrlKey || event.metaKey || event.altKey ? undefined : VIEWPORT_TOOLS.find((t) => t.key === event.key.toLowerCase());
+    if (tool && this.editable()) {
+      event.preventDefault();
+      this.scene.setTool(tool.id);
+      return;
+    }
+    if (event.key === 'Escape' && this.scene.tool() !== 'select') {
+      event.preventDefault();
+      this.scene.setTool('select');
       return;
     }
     const step = event.shiftKey ? 0.25 : 0.05;
@@ -320,6 +476,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.controls = null;
     this.scene.canvas = null;
     this.scene.frameCapture = null;
+    this.scene.labels.anchor(this.contextRef().nativeElement, null);
     void this.scene.dispose();
     this.renderer?.renderLists.dispose();
     this.renderer?.dispose();

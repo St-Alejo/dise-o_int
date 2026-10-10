@@ -341,6 +341,33 @@ export class SetRoomCommand implements SceneCommand {
   }
 }
 
+/**
+ * Sustituye la lista de muebles por otra, recordando la anterior. Sirve para los gestos continuos
+ * del gizmo (estirar un mueble): cada paso se calcula desde el estado inicial y todos los del mismo
+ * gesto se fusionan, tengan o no piezas que los acompañen.
+ */
+export class SetPlacementsCommand implements SceneCommand {
+  readonly continuous: boolean;
+  constructor(
+    readonly label: string,
+    readonly before: Placements,
+    readonly after: Placements,
+    readonly gestureKey: string | null = null,
+  ) {
+    this.continuous = gestureKey !== null;
+  }
+  apply(s: SceneState): SceneState {
+    return { ...s, placements: this.after };
+  }
+  revert(s: SceneState): SceneState {
+    return { ...s, placements: this.before };
+  }
+  mergeWith(next: SceneCommand): SceneCommand | null {
+    if (!(next instanceof SetPlacementsCommand) || !this.gestureKey || next.gestureKey !== this.gestureKey) return null;
+    return new SetPlacementsCommand(this.label, this.before, next.after, this.gestureKey);
+  }
+}
+
 /** Composite de comandos: se aplican en orden y se revierten al revés, como un solo paso. */
 export class MacroCommand implements SceneCommand {
   constructor(

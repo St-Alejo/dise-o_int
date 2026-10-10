@@ -37,6 +37,17 @@ export const SNAP_DEFAULTS = { toleranceM: 0.08, gridM: 0.05 } as const;
 
 const lines = (min: number, max: number) => [min, (min + max) / 2, max];
 
+/**
+ * Las guías que siguen valiendo para la caja final de la pieza: después de alinearla, meterla en
+ * el cuarto o pegarla a una pared puede haberla movido, y una guía que ya no toca nada confunde.
+ */
+export function guidesFor(guides: readonly SnapGuide[], box: SnapBox): SnapGuide[] {
+  return guides.filter((g) => {
+    const mine = g.axis === 'x' ? lines(box.minX, box.maxX) : lines(box.minZ, box.maxZ);
+    return mine.some((v) => Math.abs(v - g.at) < 1e-3);
+  });
+}
+
 interface AxisSnap {
   delta: number;
   at: number;

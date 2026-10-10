@@ -1,5 +1,15 @@
 import { signal } from '@angular/core';
-import { effectiveDimensions, type CatalogItem, type FurniturePlacement, type RoomShell, type Vector3 } from '@interiores/shared-types';
+import {
+  effectiveDimensions,
+  footprint,
+  footprintBounds,
+  type CatalogItem,
+  type FurniturePlacement,
+  type RoomShell,
+  type SnapBox,
+  type SnapGuide,
+  type Vector3,
+} from '@interiores/shared-types';
 import * as THREE from 'three';
 import type { SceneCommand } from '../commands';
 import { MOUNT_STRATEGIES, type MountPose, type MountStrategy, type SupportCandidate } from '../mounts/mount-strategies';
@@ -38,6 +48,8 @@ export interface DragHost {
   /** La cámara se suelta mientras se arrastra un mueble. */
   setCameraEnabled(enabled: boolean): void;
   refreshSelection(invalid?: boolean): void;
+  /** Líneas con las que quedó alineada la pieza que se arrastra (vacío = ninguna). */
+  guides?(guides: readonly SnapGuide[]): void;
 }
 
 interface Drag {
@@ -52,6 +64,8 @@ interface Drag {
   moved: boolean;
   /** Lo que estaba apoyado encima al empezar: se mueve con el soporte. */
   dependents: FurniturePlacement[];
+  /** Cajas de los demás muebles del piso, para alinearse con ellos. */
+  others: SnapBox[];
 }
 
 /**
@@ -115,6 +129,7 @@ export class DragController {
       lastValid: pose,
       moved: false,
       dependents: this.store.dependentsOf(id).map((d) => structuredClone(d)),
+      others: this.otherBoxes(id),
     };
     this.host.setCameraEnabled(false);
     this.host.canvas()?.setPointerCapture(event.pointerId);
@@ -140,7 +155,7 @@ export class DragController {
     const { origin, direction } = this.raycaster.ray;
     const pose = this.drag.strategy.poseFor(
       { origin: { x: origin.x, y: origin.y, z: origin.z }, direction: { x: direction.x, y: direction.y, z: direction.z } },
-      { shell, dims, rotationY: this.drag.start.rotationY, grabOffset: this.drag.grabOffset, supports: this.supportsFor(this.drag.id) },
+      { shell, dims, rotationY: this.drag.start.rotationY, grabOffset: this.drag.grabOffset, supports: this.supportsFor(this.drag.id), others: this.drag.others },
     );
     if (!pose) return;
     this.drag.last = pose;
@@ -152,6 +167,7 @@ export class DragController {
       });
     if (valid) this.drag.lastValid = pose;
     this.invalidDrop.set(!valid);
+    this.host.guides?.(pose.guides ?? []);
     this.targets.place(this.drag.id, pose.position, pose.rotationY);
     // Lo que está encima acompaña al soporte mientras se arrastra.
     const d = delta(this.drag.start.position, pose.position);
@@ -172,6 +188,7 @@ export class DragController {
     this.drag = null;
     this.dragging.set(false);
     this.invalidDrop.set(false);
+    this.host.guides?.([]);
     this.host.setCameraEnabled(true);
     const canvas = this.host.canvas();
     if (canvas?.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -191,6 +208,15 @@ export class DragController {
       }
     }
     this.host.refreshSelection();
+  }
+
+  /** Los demás muebles que pisan el suelo (sin la pieza ni lo que lleva encima). */
+  private otherBoxes(placementId: string): SnapBox[] {
+    return this.store.placements().flatMap((p) => {
+      const item = this.store.catalog().get(p.catalogItemId);
+      if (!item || p.id === placementId || p.supportId || item.mount !== 'floor') return [];
+      return [footprintBounds(footprint(p.position, effectiveDimensions(item.dimensionsM, p), p.rotationY))];
+    });
   }
 
   /** Muebles de piso donde se puede apoyar algo (menos la pieza arrastrada y lo que lleva encima). */

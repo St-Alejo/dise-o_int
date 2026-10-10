@@ -8,24 +8,34 @@ import {
   roomCenter,
   walkStart,
   type CatalogItem,
+  type Point2,
   type RoomShell,
+  type SnapGuide,
   type Vector3,
   type WalkWorld,
 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { clearancesOf, metres } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
 import { CameraDirector } from './camera/camera-director';
 import type { CameraModeId, CameraPose } from './camera/camera-mode';
 import { ORBIT_FOV, OrbitMode } from './camera/orbit-mode';
 import { WalkMode } from './camera/walk-mode';
+import type { GizmoHandleKind } from './mounts/gizmo-math';
+import type { Ray } from './mounts/mount-strategies';
 import { DragController } from './scene/drag-controller';
 import { FurnitureView } from './scene/furniture-view';
+import { GizmoController } from './scene/gizmo-controller';
+import { GizmoView } from './scene/gizmo-view';
+import { GuidesView } from './scene/guides-view';
+import { OverlayLabels } from './scene/overlay-labels';
 import { LightingRig, type TimeOfDay } from './scene/lighting-rig';
 import type { FrameSystem, SceneContext } from './scene/render-loop';
 import { RoomView } from './scene/room-view';
 import { SelectionActions } from './scene/selection-actions';
 import { SelectionView } from './scene/selection-view';
+import { MeasureTool, PaintTool, RoomTool, SelectTool, ToolManager, type PaintTarget, type ToolEvent, type ViewportToolId } from './tools/tools';
 
 /** Lo que las pruebas e2e pueden leer de la escena sin comparar píxeles. */
 export interface SceneSnapshot {
@@ -38,6 +48,11 @@ export interface SceneSnapshot {
   /** Lámparas del cuarto que están alumbrando. */
   lamps: number;
   placements: number;
+  /** Herramienta activa del visor. */
+  tool: ViewportToolId;
+  selectedId: string | null;
+  /** Tiradores del gizmo, con su posición en la ventana (para arrastrarlos en las pruebas). */
+  gizmo: { kind: GizmoHandleKind; x: number; y: number }[];
 }
 
 /**
@@ -77,8 +92,56 @@ export class SceneService implements SceneContext {
       if (this.controls) this.controls.enabled = enabled;
     },
     refreshSelection: (invalid) => this.refreshSelection(invalid),
+    guides: (guides) => this.showSnapGuides(guides),
   });
   private readonly systems: FrameSystem[] = [];
+
+  private readonly gizmoView = new GizmoView(this);
+  private readonly guides = new GuidesView(this);
+  /** Textos y controles HTML pegados a puntos de la escena (cotas, barra del mueble). */
+  readonly labels = new OverlayLabels();
+  private readonly gizmo = new GizmoController(this.store, this.actions, (poses) => this.previewPoses(poses));
+  private readonly tools = new ToolManager(
+    [
+      new SelectTool({
+        pickHandle: () => this.gizmoView.pick(this.raycaster),
+        beginHandle: (kind, e) => this.gizmo.begin(kind, this.gizmoPointer(e)),
+        moveHandle: (e) => {
+          this.gizmo.move(this.gizmoPointer(e));
+          this.refreshSelection();
+        },
+        endHandle: () => {
+          this.gizmo.end();
+          this.refreshSelection();
+        },
+        highlight: (kind) => this.gizmoView.highlight(kind),
+        dragDown: (event) => this.dragController.onPointerDown(event),
+        dragMove: (event) => this.dragController.onPointerMove(event),
+        dragUp: (event) => this.dragController.onPointerUp(event),
+        readOnly: () => this.readOnly(),
+      }),
+      new RoomTool(this.store, {
+        shell: () => this.store.shell(),
+        panBy: (dx, dz) => this.panBy(dx, dz),
+        message: (text) => this.toolMessage.set(text),
+      }),
+      new PaintTool({
+        shell: () => this.store.shell(),
+        pickItem: () => this.furniture.pick(this.raycaster),
+        select: (id) => this.store.select(id),
+        open: (target, at) => this.paintTarget.set(target && at ? { target, ...this.localPoint(at.x, at.y) } : null),
+      }),
+      new MeasureTool({ measure: (line) => this.showMeasure(line) }),
+    ],
+    (id) => this.tool.set(id),
+  );
+  /** Herramienta activa del visor: mover, paredes, pintar o medir. */
+  readonly tool = signal<ViewportToolId>('select');
+  /** Aviso de la herramienta en curso (un cuarto imposible, una medida que no cabe). */
+  readonly toolMessage = signal<string | null>(null);
+  readonly gizmoMessage = this.gizmo.message.asReadonly();
+  /** Superficie que se está pintando y dónde mostrar su paleta (píxeles dentro del visor). */
+  readonly paintTarget = signal<{ target: PaintTarget; x: number; y: number } | null>(null);
 
   private readonly orbit = new OrbitMode(
     this.camera,
@@ -98,6 +161,10 @@ export class SceneService implements SceneContext {
   readonly cameraMode = this.director.mode.asReadonly();
 
   private needsRender = true;
+  private size = { width: 1, height: 1 };
+  private pressed = false;
+  /** Poses provisionales que llegan de fuera del visor (el plano, el aro de rotación). */
+  private previewed: ReadonlyMap<string, { position: Vector3; rotationY: number }> | null = null;
   private framedShellId: string | null = null;
   /** Mundo del recorrido (paredes y muebles que estorban); se recalcula si cambia la escena. */
   private walkWorld: WalkWorld | null = null;
@@ -126,6 +193,9 @@ export class SceneService implements SceneContext {
     effect(() => {
       this.store.selectedId();
       this.store.placements();
+      this.store.shell();
+      this.cameraMode();
+      this.readOnly();
       untracked(() => this.refreshSelection());
     });
     // Acabados propios o, si no hay, la paleta del estilo elegido.
@@ -159,10 +229,15 @@ export class SceneService implements SceneContext {
     if (moved) this.room.updateCutaway();
     const render = this.needsRender || moved;
     this.needsRender = false;
+    if (render) {
+      this.gizmoView.rescale();
+      this.labels.update(this.camera, this.size.width, this.size.height);
+    }
     return render;
   }
 
   setSize(width: number, height: number): void {
+    this.size = { width, height };
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
     this.invalidate();
@@ -179,12 +254,18 @@ export class SceneService implements SceneContext {
       timeOfDay: this.timeOfDay(),
       lamps: this.lighting.lampCount,
       placements: this.furniture.count,
+      tool: this.tool(),
+      selectedId: this.store.selectedId(),
+      gizmo: this.gizmoView.handlePositions().map(({ kind, position }) => ({ kind, ...this.clientPoint(position) })),
     };
   }
 
   async dispose(): Promise<void> {
     this.room.dispose();
     this.selection.dispose();
+    this.gizmoView.dispose();
+    this.guides.dispose();
+    this.labels.attach(null);
     this.lighting.dispose();
     await this.furniture.dispose();
   }
@@ -239,7 +320,125 @@ export class SceneService implements SceneContext {
   private refreshSelection(invalid = false): void {
     const placement = this.store.selected();
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
-    this.selection.update(placement && item ? { placement, item, pose: this.dragController.poseOf(placement.id), invalid } : null);
+    const pose = placement ? (this.previewed?.get(placement.id) ?? this.dragController.poseOf(placement.id)) : null;
+    this.selection.update(placement && item ? { placement, item, pose, invalid } : null);
+    const editable = !this.readOnly() && this.cameraMode() !== 'walk' && this.tool() === 'select';
+    this.gizmoView.update(editable ? this.gizmo.layout(pose) : null);
+    this.showClearances(editable && placement && item && item.mount === 'floor' && !placement.supportId ? { placement, item, pose } : null);
+  }
+
+  /** Cotas del mueble seleccionado hasta las paredes, dibujadas en el piso. */
+  private showClearances(target: { placement: { position: Vector3; rotationY: number; dimensionsM?: Vector3 }; item: CatalogItem; pose: { position: Vector3; rotationY: number } | null } | null): void {
+    const shell = this.store.shell();
+    if (!target || !shell) {
+      this.guides.set('clearance', []);
+      this.labels.set('clearance', []);
+      return;
+    }
+    const { placement, item, pose } = target;
+    const corners = footprint(pose?.position ?? placement.position, effectiveDimensions(item.dimensionsM, placement), pose?.rotationY ?? placement.rotationY).corners;
+    const lines = clearancesOf(shell, corners);
+    const y = 0.03;
+    this.guides.set(
+      'clearance',
+      lines.map((c) => [
+        { x: c.from.x, y, z: c.from.y },
+        { x: c.to.x, y, z: c.to.y },
+      ]),
+    );
+    this.labels.set(
+      'clearance',
+      lines.map((c) => ({ position: { x: (c.from.x + c.to.x) / 2, y, z: (c.from.y + c.to.y) / 2 }, text: c.label.text, kind: 'clearance' as const })),
+    );
+  }
+
+  /** Guías de alineación de la pieza que se arrastra. */
+  private showSnapGuides(guides: readonly SnapGuide[]): void {
+    const y = 0.035;
+    this.guides.set(
+      'snap',
+      guides.map((g) =>
+        g.axis === 'x'
+          ? ([
+              { x: g.at, y, z: g.from },
+              { x: g.at, y, z: g.to },
+            ] as const)
+          : ([
+              { x: g.from, y, z: g.at },
+              { x: g.to, y, z: g.at },
+            ] as const),
+      ),
+    );
+  }
+
+  /** Regla entre dos puntos del piso. */
+  private showMeasure(line: { from: Point2; to: Point2 } | null): void {
+    const y = 0.04;
+    this.guides.set('measure', line ? [[{ x: line.from.x, y, z: line.from.z }, { x: line.to.x, y, z: line.to.z }]] : []);
+    this.labels.set(
+      'measure',
+      line
+        ? [
+            {
+              position: { x: (line.from.x + line.to.x) / 2, y: 0.12, z: (line.from.z + line.to.z) / 2 },
+              text: metres(Math.hypot(line.to.x - line.from.x, line.to.z - line.from.z)),
+              kind: 'measure' as const,
+            },
+          ]
+        : [],
+    );
+    this.invalidate();
+  }
+
+  /** Punto sobre el mueble seleccionado donde va su barra de acciones (null = no mostrarla). */
+  selectionAnchor(): Vector3 | null {
+    const placement = this.store.selected();
+    const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
+    if (!placement || !item) return null;
+    const pose = this.previewed?.get(placement.id) ?? this.dragController.poseOf(placement.id);
+    const position = pose?.position ?? placement.position;
+    return { x: position.x, y: position.y + effectiveDimensions(item.dimensionsM, placement).y + 0.3, z: position.z };
+  }
+
+  // ------------------------------------------------------------------ herramientas
+  setTool(id: ViewportToolId): void {
+    if (this.readOnly() || this.cameraMode() === 'walk') return;
+    this.tools.use(id);
+    this.paintTarget.set(null);
+    if (this.canvas) this.canvas.style.cursor = '';
+    this.refreshSelection();
+  }
+
+  /** Rayo del cursor (deja apuntado también el raycaster de la escena). */
+  private toolEvent(event: PointerEvent): ToolEvent | null {
+    if (!this.canvas) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const ndc = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const { origin, direction } = this.raycaster.ray;
+    const ray: Ray = { origin: { x: origin.x, y: origin.y, z: origin.z }, direction: { x: direction.x, y: direction.y, z: direction.z } };
+    return { ray, event };
+  }
+
+  private gizmoPointer(e: ToolEvent): { ray: Ray; free: boolean } {
+    return { ray: e.ray, free: e.event.altKey };
+  }
+
+  /** Posición en la ventana de un punto de la escena. */
+  private clientPoint(position: { x: number; y: number; z: number }): { x: number; y: number } {
+    const rect = this.canvas?.getBoundingClientRect();
+    const p = new THREE.Vector3(position.x, position.y, position.z).project(this.camera);
+    return {
+      x: Math.round((rect?.left ?? 0) + ((p.x + 1) / 2) * (rect?.width ?? 0)),
+      y: Math.round((rect?.top ?? 0) + ((1 - p.y) / 2) * (rect?.height ?? 0)),
+    };
+  }
+
+  /** Coordenadas de la ventana → píxeles dentro del visor. */
+  private localPoint(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.canvas?.getBoundingClientRect();
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
   }
 
   /**
@@ -247,6 +446,7 @@ export class SceneService implements SceneContext {
    * sin tocar el estado. Con `null` vuelven a donde dice el proyecto.
    */
   previewPoses(poses: ReadonlyMap<string, { position: Vector3; rotationY: number }> | null): void {
+    this.previewed = poses;
     if (poses) for (const [id, pose] of poses) this.furniture.place(id, pose.position, pose.rotationY);
     else for (const p of this.store.placements()) this.furniture.place(p.id, p.position, p.rotationY);
     this.refreshSelection();
@@ -300,6 +500,7 @@ export class SceneService implements SceneContext {
     if (mode === this.cameraMode() || !this.store.shell()) return;
     if (mode === 'walk') {
       // Recorrer es solo mirar: nada seleccionado y el mundo de colisión al día.
+      this.setTool('select');
       this.store.select(null);
       this.walkWorld = null;
     } else {
@@ -345,13 +546,30 @@ export class SceneService implements SceneContext {
 
   // ------------------------------------------------------------------ interacción
   onPointerDown(event: PointerEvent): void {
-    if (this.cameraMode() !== 'walk') return this.dragController.onPointerDown(event);
+    if (this.cameraMode() !== 'walk') {
+      const e = event.button === 0 ? this.toolEvent(event) : null;
+      if (!e) return;
+      this.pressed = true;
+      this.paintTarget.set(null);
+      if (this.tools.down(e)) {
+        // La herramienta se queda con el gesto: la cámara espera a que se suelte.
+        if (this.controls) this.controls.enabled = false;
+        this.canvas?.setPointerCapture(event.pointerId);
+      }
+      return;
+    }
     this.lookFrom = { x: event.clientX, y: event.clientY };
     this.canvas?.setPointerCapture(event.pointerId);
   }
 
   onPointerMove(event: PointerEvent): void {
-    if (this.cameraMode() !== 'walk') return this.dragController.onPointerMove(event);
+    if (this.cameraMode() !== 'walk') {
+      const e = this.toolEvent(event);
+      if (!e) return;
+      const cursor = this.tools.move(e, this.pressed);
+      if (this.canvas && cursor !== null && (cursor || this.tool() !== 'select')) this.canvas.style.cursor = cursor;
+      return;
+    }
     if (!this.lookFrom) return;
     this.walk.look(event.clientX - this.lookFrom.x, event.clientY - this.lookFrom.y);
     this.lookFrom = { x: event.clientX, y: event.clientY };
@@ -359,7 +577,18 @@ export class SceneService implements SceneContext {
   }
 
   onPointerUp(event: PointerEvent): void {
-    if (this.cameraMode() !== 'walk') return this.dragController.onPointerUp(event);
+    if (this.cameraMode() !== 'walk') {
+      const e = this.pressed ? this.toolEvent(event) : null;
+      if (!e) return;
+      this.pressed = false;
+      const captured = this.tools.busy;
+      this.tools.up(e);
+      if (captured) {
+        if (this.controls) this.controls.enabled = true;
+        if (this.canvas?.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
     this.lookFrom = null;
     if (this.canvas?.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
   }

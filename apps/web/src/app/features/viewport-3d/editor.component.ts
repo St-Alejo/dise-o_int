@@ -128,7 +128,7 @@ function initialView(): ViewMode {
           <!-- El visor 3D no se destruye al pasar al plano: solo se oculta (conserva la cámara y la GPU). -->
           <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" />
         </div>
-        <p class="help muted">Arrastra un mueble para moverlo · clic derecho o dos dedos para desplazar la cámara · con uno seleccionado: flechas, R para rotar, Supr para quitar</p>
+        <p class="help muted">En el 3D: arrastra un mueble, gira su aro o estira sus tiradores · Paredes (W), Pintar (B) y Medir (M) cambian de herramienta · clic derecho o dos dedos mueven la cámara</p>
       </div>
 
       <aside class="panel card" aria-label="Panel del mueble">
