@@ -1,6 +1,7 @@
-import { buildRoomShape, createRectangularShell } from '@interiores/shared-types';
+import { buildRoomShape, createRectangularShell, getMaterial } from '@interiores/shared-types';
 import * as THREE from 'three';
-import { buildRoom, disposeObject, wallPieces } from './room-builder';
+import { applyFinishes, buildRoom, disposeObject, wallPieces } from './room-builder';
+import { floorTextureSpec } from './scene/texture-library';
 
 describe('wallPieces', () => {
   it('pared sin aberturas = un solo tramo', () => {
@@ -122,5 +123,32 @@ describe('buildRoom', () => {
     });
     disposeObject(room.group);
     expect(disposed).toBeGreaterThan(5);
+  });
+});
+
+describe('texturas del piso', () => {
+  it('cada material de piso lleva el dibujo que le corresponde y la pintura va lisa', () => {
+    const spec = (id: string) => floorTextureSpec(getMaterial(id)!);
+    expect(spec('wood-oak')).toEqual({ pattern: 'planks', tileM: 2.4 });
+    expect(spec('ceramic-terracotta')?.pattern).toBe('tiles');
+    expect(spec('stone-marble-white')?.pattern).toBe('veins');
+    expect(spec('stone-microcement')?.pattern).toBe('speckle');
+    expect(spec('paint-white')).toBeNull();
+  });
+
+  it('el piso recibe la textura de su material y la suelta al pasar a uno liso', () => {
+    const room = buildRoom(createRectangularShell(4, 3, 2.6));
+    const texture = new THREE.Texture();
+    const asked: string[] = [];
+    const textures = { floor: (m: { id: string; kind: string }) => (asked.push(m.id), m.kind === 'wood' ? texture : null) };
+    applyFinishes(room, { floor: 'wood-oak', walls: { all: 'paint-white' }, ceiling: 'paint-white' }, textures);
+    const floor = room.floor.material as THREE.MeshStandardMaterial;
+    expect(floor.map).toBe(texture);
+    expect(asked).toEqual(['wood-oak']);
+    applyFinishes(room, { floor: 'stone-microcement', walls: { all: 'paint-white' }, ceiling: 'paint-white' }, textures);
+    expect(floor.map).toBeNull();
+    // Sin biblioteca de texturas (pruebas, entornos sin canvas) todo sigue funcionando liso.
+    applyFinishes(room, { floor: 'wood-oak', walls: { all: 'paint-white' }, ceiling: 'paint-white' });
+    expect(floor.map).toBeNull();
   });
 });

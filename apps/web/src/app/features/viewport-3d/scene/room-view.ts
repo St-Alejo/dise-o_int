@@ -1,12 +1,14 @@
 import type { RoomFinishes, RoomShell } from '@interiores/shared-types';
 import { applyFinishes, buildRoom, disposeObject, type BuiltRoom } from '../room-builder';
 import type { SceneContext } from './render-loop';
+import { TextureLibrary } from './texture-library';
 
 /** El cuarto en la escena: lo reconstruye al cambiar, lo pinta y recorta las paredes que estorban. */
 export class RoomView {
   private room: BuiltRoom | null = null;
   /** El recorte solo tiene sentido mirando desde fuera; al recorrer el cuarto las paredes van enteras. */
   private cutaway = true;
+  private readonly textures = new TextureLibrary();
 
   constructor(private readonly ctx: SceneContext) {}
 
@@ -29,7 +31,7 @@ export class RoomView {
 
   applyFinishes(finishes: RoomFinishes): void {
     if (!this.room) return;
-    applyFinishes(this.room, finishes);
+    applyFinishes(this.room, finishes, this.textures);
     this.ctx.invalidate();
   }
 
@@ -62,6 +64,7 @@ export class RoomView {
 
   dispose(): void {
     this.clear();
+    this.textures.dispose();
   }
 
   private clear(): void {

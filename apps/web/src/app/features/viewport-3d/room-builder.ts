@@ -11,6 +11,7 @@ import {
   roomPolygon,
   wallFrames,
   wallMaterialId,
+  type MaterialDefinition,
   type Opening,
   type Point2,
   type RoomFinishes,
@@ -205,16 +206,23 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
  * Pinta el cuarto con sus acabados: material del piso, del techo y de cada pared (o el de 'all').
  * Cambia color y rugosidad de los materiales existentes: no reconstruye geometría.
  */
-export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes): void {
-  const paint = (mat: THREE.MeshStandardMaterial, id: string) => {
+/** Quien da la textura de un material de piso (la biblioteca de texturas; en las pruebas, nadie). */
+export interface FloorTextures {
+  floor(material: MaterialDefinition): THREE.Texture | null;
+}
+
+export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?: FloorTextures): void {
+  const paint = (mat: THREE.MeshStandardMaterial, id: string, floor = false) => {
     const def = getMaterial(id);
     if (!def) return;
     mat.color.set(def.color);
     mat.roughness = def.roughness;
     mat.metalness = def.metalness;
+    // La textura multiplica el color: da el relieve (vetas, juntas) sin cambiar el tono.
+    if (floor) mat.map = textures?.floor(def) ?? null;
     mat.needsUpdate = true;
   };
-  paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor);
+  paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor, true);
   paint(room.ceiling.material as THREE.MeshStandardMaterial, finishes.ceiling);
   for (const wall of room.walls) {
     const wallMat = wall.materials[0];
