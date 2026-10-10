@@ -16,11 +16,16 @@ import type {
   WallSegment,
 } from './domain.js';
 import type { CalibrationReference } from './api.js';
-
-export interface Point2 {
-  x: number;
-  z: number;
-}
+import {
+  closestOnBoundary,
+  ensureWinding,
+  interiorAnchor,
+  isSimplePolygon,
+  pointInPolygon,
+  polygonBounds,
+  quadInsidePolygon,
+  type Point2,
+} from './polygon.js';
 
 export interface Footprint {
   /** Esquinas en orden (sentido horario visto desde arriba). */
@@ -96,8 +101,39 @@ export function footprintsOverlap(a: Footprint, b: Footprint, tolerance = 0.01):
   return true;
 }
 
-/** ¿La huella cabe completa dentro del rectángulo del cuarto? */
-export function isInsideRoom(fp: Footprint, shell: Pick<RoomShell, 'widthM' | 'depthM'>, tolerance = 0.005): boolean {
+/** Lo mínimo para saber dónde acaba un cuarto: su caja y, si no es un rectángulo, sus paredes. */
+export type RoomBounds = Pick<RoomShell, 'widthM' | 'depthM'> & { walls?: readonly WallSegment[] };
+
+/** Planta del cuarto: los vértices de sus paredes, en orden. */
+export function roomPolygon(shell: { walls: readonly WallSegment[] }): Point2[] {
+  return shell.walls.map((w) => ({ x: w.start.x, z: w.start.z }));
+}
+
+/**
+ * ¿El cuarto es exactamente su caja (un rectángulo de 0 a ancho y de 0 a fondo)? Es el caso de
+ * todos los proyectos anteriores a los cuartos de forma libre y va por el camino rápido de siempre.
+ */
+export function isBoxRoom(shell: RoomBounds): boolean {
+  const walls = shell.walls;
+  if (!walls) return true;
+  if (walls.length !== 4) return false;
+  const onCorner = (v: Vector3) =>
+    (Math.abs(v.x) < 1e-6 || Math.abs(v.x - shell.widthM) < 1e-6) && (Math.abs(v.z) < 1e-6 || Math.abs(v.z - shell.depthM) < 1e-6);
+  const axisAligned = (w: WallSegment) => Math.abs(w.start.x - w.end.x) < 1e-6 || Math.abs(w.start.z - w.end.z) < 1e-6;
+  return walls.every((w) => onCorner(w.start) && onCorner(w.end) && axisAligned(w) && wallLength(w) > 1e-6);
+}
+
+/**
+ * El "centro" del cuarto: el de su caja si es rectangular; si no, su punto más despejado (en una
+ * L o una U el centro de la caja puede caer fuera del cuarto).
+ */
+export function roomCenter(shell: RoomBounds): Point2 {
+  return isBoxRoom(shell) ? { x: shell.widthM / 2, z: shell.depthM / 2 } : interiorAnchor(roomPolygon({ walls: shell.walls! }));
+}
+
+/** ¿La huella cabe completa dentro del cuarto? */
+export function isInsideRoom(fp: Footprint, shell: RoomBounds, tolerance = 0.005): boolean {
+  if (!isBoxRoom(shell)) return quadInsidePolygon(fp.corners, fp.center, roomPolygon({ walls: shell.walls! }), tolerance);
   const b = footprintBounds(fp);
   return (
     b.minX >= -tolerance &&
@@ -108,21 +144,85 @@ export function isInsideRoom(fp: Footprint, shell: Pick<RoomShell, 'widthM' | 'd
 }
 
 /** Desplaza la posición lo mínimo necesario para que la huella quede dentro del cuarto. */
-export function clampToRoom(
-  position: Vector3,
-  dimensionsM: Vector3,
-  rotationY: number,
-  shell: Pick<RoomShell, 'widthM' | 'depthM'>,
-): Vector3 {
+export function clampToRoom(position: Vector3, dimensionsM: Vector3, rotationY: number, shell: RoomBounds): Vector3 {
   const b = footprintBounds(footprint({ ...position, x: 0, z: 0 }, dimensionsM, rotationY));
   const halfX = (b.maxX - b.minX) / 2;
   const halfZ = (b.maxZ - b.minZ) / 2;
   const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)));
-  return {
+  const boxed = {
     x: clamp(position.x, halfX, shell.widthM - halfX),
     y: position.y,
     z: clamp(position.z, halfZ, shell.depthM - halfZ),
   };
+  return isBoxRoom(shell) ? boxed : clampToPolygon(boxed, dimensionsM, rotationY, roomPolygon({ walls: shell.walls! }));
+}
+
+/**
+ * Mete la huella en un cuarto de forma libre. Primero empuja: cada esquina que quedó fuera vuelve
+ * al borde más cercano y cada esquina entrante del cuarto que quedó dentro de la huella la saca
+ * por su lado más corto. Si con eso no basta (rincones estrechos), busca el hueco válido más
+ * cercano en anillos. Si la pieza no cabe en ningún sitio, devuelve la posición recibida.
+ */
+function clampToPolygon(position: Vector3, dims: Vector3, rotationY: number, poly: Point2[]): Vector3 {
+  const fits = (p: Point2) => quadInsidePolygon(footprint({ x: p.x, y: 0, z: p.z }, dims, rotationY).corners, p, poly, 1e-4);
+  let p: Point2 = { x: position.x, z: position.z };
+  for (let i = 0; i < 8 && !fits(p); i++) {
+    const move = pushInside(p, dims, rotationY, poly);
+    if (!move) break;
+    p = { x: p.x + move.x, z: p.z + move.z };
+  }
+  if (!fits(p)) {
+    const b = polygonBounds(poly);
+    const reach = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+    const found = nearestFit({ x: position.x, z: position.z }, reach, fits);
+    if (!found) return position;
+    p = found;
+  }
+  return { x: p.x, y: position.y, z: p.z };
+}
+
+/** Un paso de empuje hacia dentro, o null si no hay nada que corregir de esta forma. */
+function pushInside(p: Point2, dims: Vector3, rotationY: number, poly: Point2[]): Point2 | null {
+  const fp = footprint({ x: p.x, y: 0, z: p.z }, dims, rotationY);
+  let move: Point2 | null = null;
+  const longer = (v: Point2) => !move || Math.hypot(v.x, v.z) > Math.hypot(move.x, move.z);
+  for (const c of fp.corners) {
+    if (pointInPolygon(c, poly, 1e-6)) continue;
+    const q = closestOnBoundary(c, poly);
+    const v = { x: (q.x - c.x) * 1.001, z: (q.z - c.z) * 1.001 };
+    if (longer(v)) move = v;
+  }
+  if (move) return move;
+  const hw = dims.x / 2;
+  const hd = dims.z / 2;
+  for (const v of poly) {
+    // El vértice en el marco local de la huella (rotación inversa).
+    const local = rotateXZ(v.x - p.x, v.z - p.z, -rotationY);
+    if (Math.abs(local.x) >= hw - 1e-6 || Math.abs(local.z) >= hd - 1e-6) continue;
+    const exits: Point2[] = [
+      { x: local.x - hw, z: 0 },
+      { x: local.x + hw, z: 0 },
+      { x: 0, z: local.z - hd },
+      { x: 0, z: local.z + hd },
+    ];
+    const shortest = exits.reduce((a, b) => (Math.hypot(a.x, a.z) <= Math.hypot(b.x, b.z) ? a : b));
+    const world = rotateXZ(shortest.x * 1.001, shortest.z * 1.001, rotationY);
+    if (longer(world)) move = world;
+  }
+  return move;
+}
+
+/** Primer punto válido en anillos crecientes alrededor de `from` (cada 5 cm). */
+function nearestFit(from: Point2, reach: number, fits: (p: Point2) => boolean): Point2 | null {
+  for (let r = 0.05; r <= reach; r += 0.05) {
+    const steps = Math.max(16, Math.ceil((2 * Math.PI * r) / 0.1));
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      const p = { x: from.x + Math.cos(a) * r, z: from.z + Math.sin(a) * r };
+      if (fits(p)) return p;
+    }
+  }
+  return null;
 }
 
 export interface MountContext {
@@ -213,7 +313,7 @@ export interface CollisionReport {
 
 /** Revisa colisiones y salidas del cuarto de una escena completa. */
 export function checkScene(
-  shell: Pick<RoomShell, 'widthM' | 'depthM'>,
+  shell: RoomBounds,
   placements: FurniturePlacement[],
   dimensionsOf: (catalogItemId: string) => Vector3 | undefined,
   ignoreCategoriesForOverlap: (catalogItemId: string) => boolean = () => false,
@@ -298,6 +398,71 @@ export function createRectangularShell(
     heightM,
     walls,
     openings,
+    scaleConfidence: opts.scaleConfidence ?? 0.3,
+    needsCalibration: opts.needsCalibration ?? true,
+  };
+}
+
+export interface PolygonShellOptions {
+  id?: string;
+  scaleConfidence?: number;
+  needsCalibration?: boolean;
+}
+
+/** Ids históricos de las cuatro paredes de un cuarto rectangular, por el lado de la caja que ocupan. */
+const SIDE_IDS = { back: 'w-back', right: 'w-right', front: 'w-front', left: 'w-left' } as const;
+
+/**
+ * Cuarto de forma libre a partir de su planta (los vértices, en cualquier sentido). La planta se
+ * lleva al origen y al orden canónico, empezando por la pared del fondo (z = 0). En cada lado de
+ * la caja, la pared más larga conserva el id histórico (`w-back`, `w-right`, `w-front`,
+ * `w-left`): así "la pared del fondo" sigue significando lo mismo en un cuarto en L. Las demás se
+ * numeran `w-2`, `w-3`… según su posición. Sin aberturas: se añaden después.
+ */
+export function createPolygonShell(points: readonly Point2[], heightM: number, opts: PolygonShellOptions = {}): RoomShell {
+  if (points.length < 3 || !isSimplePolygon(points)) throw new RoomGeometryError('La planta del cuarto no es un polígono válido');
+  const b = polygonBounds(points);
+  const moved = ensureWinding(points).map((p) => ({ x: round3(p.x - b.minX), z: round3(p.z - b.minZ) }));
+  const widthM = round3(b.maxX - b.minX);
+  const depthM = round3(b.maxZ - b.minZ);
+  // Se empieza por el primer lado que corre sobre z = 0 hacia +x (la pared del fondo).
+  const first = moved.findIndex((p, i) => {
+    const q = moved[(i + 1) % moved.length]!;
+    return Math.abs(p.z) < 1e-6 && Math.abs(q.z) < 1e-6 && q.x > p.x;
+  });
+  const poly = first > 0 ? [...moved.slice(first), ...moved.slice(0, first)] : moved;
+
+  const sideOf = (a: Point2, c: Point2): keyof typeof SIDE_IDS | null => {
+    const on = (v: number, target: number) => Math.abs(v - target) < 1e-6;
+    if (on(a.z, 0) && on(c.z, 0)) return 'back';
+    if (on(a.x, widthM) && on(c.x, widthM)) return 'right';
+    if (on(a.z, depthM) && on(c.z, depthM)) return 'front';
+    if (on(a.x, 0) && on(c.x, 0)) return 'left';
+    return null;
+  };
+  const edges = poly.map((a, i) => {
+    const c = poly[(i + 1) % poly.length]!;
+    return { a, c, side: sideOf(a, c), length: Math.hypot(c.x - a.x, c.z - a.z) };
+  });
+  const longest = new Map<string, number>();
+  edges.forEach((e, i) => {
+    if (!e.side) return;
+    const current = longest.get(e.side);
+    if (current === undefined || e.length > edges[current]!.length + 1e-9) longest.set(e.side, i);
+  });
+  const walls: WallSegment[] = edges.map((e, i) => ({
+    id: e.side && longest.get(e.side) === i ? SIDE_IDS[e.side] : `w-${i + 1}`,
+    start: { x: e.a.x, y: 0, z: e.a.z },
+    end: { x: e.c.x, y: 0, z: e.c.z },
+    hasWindow: false,
+  }));
+  return {
+    id: opts.id ?? 'room',
+    widthM,
+    depthM,
+    heightM,
+    walls,
+    openings: [],
     scaleConfidence: opts.scaleConfidence ?? 0.3,
     needsCalibration: opts.needsCalibration ?? true,
   };
@@ -420,6 +585,31 @@ export function validateOpenings(shell: Pick<RoomShell, 'walls' | 'openings' | '
   }
 }
 
+/** Lado más corto que puede tener una pared: por debajo no cabe ni se puede dibujar bien. */
+export const MIN_WALL_M = 0.4;
+
+/**
+ * Valida la planta de un cuarto: paredes encadenadas que cierran, sin cruzarse, con ids únicos,
+ * lados de al menos 40 cm y la caja (`widthM` × `depthM`) pegada al origen. Después valida las
+ * aberturas. Un cuarto rectangular de los de siempre pasa sin más.
+ */
+export function validateRoomShell(shell: RoomShell): void {
+  const { walls } = shell;
+  if (new Set(walls.map((w) => w.id)).size !== walls.length) throw new RoomGeometryError('Hay paredes con el mismo id');
+  const near = (a: Vector3, b: Vector3) => Math.hypot(a.x - b.x, a.z - b.z) < 1e-3;
+  walls.forEach((w, i) => {
+    if (wallLength(w) < MIN_WALL_M - 1e-6) throw new RoomGeometryError(`La pared ${w.id} es demasiado corta (mínimo ${MIN_WALL_M} m)`);
+    if (!near(w.end, walls[(i + 1) % walls.length]!.start)) throw new RoomGeometryError('Las paredes del cuarto no cierran');
+  });
+  const poly = roomPolygon(shell);
+  if (!isSimplePolygon(poly)) throw new RoomGeometryError('Las paredes del cuarto se cruzan');
+  const b = polygonBounds(poly);
+  if (Math.abs(b.minX) > 1e-3 || Math.abs(b.minZ) > 1e-3 || Math.abs(b.maxX - shell.widthM) > 1e-3 || Math.abs(b.maxZ - shell.depthM) > 1e-3) {
+    throw new RoomGeometryError('Las medidas del cuarto no coinciden con sus paredes');
+  }
+  validateOpenings(shell);
+}
+
 /**
  * Quita las aberturas que se solapan con otra anterior de la misma pared. Los proyectos
  * analizados antes de corregir el detector pueden traer la misma ventana duplicada: como el
@@ -469,7 +659,13 @@ export function resizeRoomShell(shell: RoomShell, dims: RoomDimensions, openings
       throw new RoomGeometryError(`El ${label} del cuarto debe estar entre ${lo} y ${hi} m`);
     }
   }
-  const rebuilt = createRectangularShell(dims.widthM, dims.depthM, dims.heightM, { id: shell.id, door: false, window: false });
+  // Un cuarto de forma libre conserva su forma: la planta se estira en cada eje hasta la medida pedida.
+  const sx = dims.widthM / shell.widthM;
+  const sz = dims.depthM / shell.depthM;
+  const stretch = (v: Vector3): Vector3 => ({ x: v.x * sx, y: 0, z: v.z * sz });
+  const rebuilt = isBoxRoom(shell)
+    ? createRectangularShell(dims.widthM, dims.depthM, dims.heightM, { id: shell.id, door: false, window: false })
+    : { walls: shell.walls.map((w) => ({ ...w, start: stretch(w.start), end: stretch(w.end) })) };
   const newWalls = new Map(rebuilt.walls.map((w) => [w.id, w]));
   const oldWalls = new Map(shell.walls.map((w) => [w.id, w]));
 
@@ -520,7 +716,7 @@ export interface FitResult {
 export function fitPlacementsToRoom(
   placements: FurniturePlacement[],
   dimensionsOf: (p: FurniturePlacement) => Vector3 | undefined,
-  shell: Pick<RoomShell, 'widthM' | 'depthM'>,
+  shell: RoomBounds,
 ): FitResult {
   const moved: string[] = [];
   const tooBig: string[] = [];
