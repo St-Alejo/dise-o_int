@@ -8,7 +8,7 @@
  */
 import type { RoomShell } from './domain.js';
 import { roomCenter, roomPolygon } from './geometry.js';
-import { closestOnBoundary, closestOnSegment, pointInPolygon, type Point2 } from './polygon.js';
+import { closestOnBoundary, closestOnSegment, distanceToBoundary, pointInPolygon, type Point2 } from './polygon.js';
 
 export const WALKER = {
   /** Medio ancho de hombros: lo que la persona se separa de paredes y muebles. */
@@ -68,35 +68,45 @@ export function buildWalkWorld(shell: Pick<RoomShell, 'walls' | 'widthM' | 'dept
   };
 }
 
+const centroid = (poly: readonly Point2[]): Point2 => ({
+  x: poly.reduce((sum, v) => sum + v.x, 0) / poly.length,
+  z: poly.reduce((sum, v) => sum + v.z, 0) / poly.length,
+});
+
 /** Saca el círculo de lo que esté pisando: paredes primero, luego muebles; varias pasadas para los rincones. */
 function resolve(point: Point2, world: WalkWorld, radius: number): Point2 {
   let p = point;
-  const away = (from: Point2, edge: Point2, distance: number): Point2 => ({
-    x: edge.x + ((from.x - edge.x) / distance) * radius,
-    z: edge.z + ((from.z - edge.z) / distance) * radius,
-  });
+  /** A un radio de `edge`, en la dirección de `toward` (que no puede coincidir con `edge`). */
+  const offset = (edge: Point2, toward: Point2): Point2 => {
+    const d = Math.hypot(toward.x - edge.x, toward.z - edge.z) || 1;
+    return { x: edge.x + ((toward.x - edge.x) / d) * radius, z: edge.z + ((toward.z - edge.z) / d) * radius };
+  };
   for (let pass = 0; pass < 4; pass++) {
     let moved = false;
     for (const [a, b] of world.walls) {
       const edge = closestOnSegment(p, a, b);
       const d = Math.hypot(p.x - edge.x, p.z - edge.z);
-      if (d > 1e-9 && d < radius - 1e-9) {
-        p = away(p, edge, d);
-        moved = true;
-      }
+      if (d >= radius - 1e-9) continue;
+      // Justo sobre la pared no hay dirección de salida: se empuja hacia el interior del cuarto.
+      p = offset(edge, d > 1e-9 ? p : centroid(world.room));
+      moved = true;
     }
     for (const quad of world.obstacles) {
       const edge = closestOnBoundary(p, quad);
       const d = Math.hypot(p.x - edge.x, p.z - edge.z);
-      if (d < 1e-9) continue;
-      if (pointInPolygon(p, quad)) {
+      const inside = pointInPolygon(p, quad);
+      if (!inside && d >= radius - 1e-9) continue;
+      const middle = centroid(quad);
+      if (d <= 1e-9) {
+        // Justo sobre el borde del mueble: se sale alejándose de su centro.
+        p = offset(edge, { x: 2 * edge.x - middle.x, z: 2 * edge.z - middle.z });
+      } else if (inside) {
         // Dentro del mueble: se sale por el borde más cercano y se queda a un radio de él.
-        p = { x: edge.x + ((edge.x - p.x) / d) * radius, z: edge.z + ((edge.z - p.z) / d) * radius };
-        moved = true;
-      } else if (d < radius - 1e-9) {
-        p = away(p, edge, d);
-        moved = true;
+        p = offset(edge, { x: 2 * edge.x - p.x, z: 2 * edge.z - p.z });
+      } else {
+        p = offset(edge, p);
       }
+      moved = true;
     }
     if (!moved) break;
   }
@@ -156,21 +166,47 @@ export function stepToward(
   return { state: { ...state, x: p.x, z: p.z }, arrived: progressed < distance * 0.2 };
 }
 
+/** Metros libres en línea recta desde `from` en la dirección de `yaw` (hasta `max`). */
+export function clearAhead(from: Point2, yaw: number, world: WalkWorld, max = 8): number {
+  const dx = -Math.sin(yaw);
+  const dz = -Math.cos(yaw);
+  const step = 0.25;
+  let run = 0;
+  while (run + step <= max && canStand({ x: from.x + dx * (run + step), z: from.z + dz * (run + step) }, world)) run += step;
+  return run;
+}
+
+/** Holgura alrededor de un punto: distancia a la pared o al mueble más cercano. */
+function clearance(p: Point2, world: WalkWorld): number {
+  let best = distanceToBoundary(p, world.room);
+  for (const quad of world.obstacles) best = Math.min(best, distanceToBoundary(p, quad));
+  return best;
+}
+
 /**
- * Dónde empezar el recorrido: el punto más despejado del cuarto o, si lo ocupa un mueble, el
- * hueco libre más cercano. Se mira hacia la pared del fondo.
+ * Dónde empezar el recorrido y hacia dónde mirar: un lugar despejado desde el que se vea un buen
+ * tramo de cuarto. Empezar en el centro mirando al fondo puede dejar a la persona a un palmo de
+ * una pared o de un mueble; aquí se puntúa cada punto libre por su holgura y por lo lejos que se
+ * ve en su mejor dirección.
  */
 export function walkStart(shell: Pick<RoomShell, 'walls' | 'widthM' | 'depthM'>, world: WalkWorld): WalkerState {
-  const center = roomCenter(shell);
-  if (canStand(center, world)) return { ...center, yaw: 0 };
-  const reach = Math.max(shell.widthM, shell.depthM);
-  for (let r = 0.2; r <= reach; r += 0.2) {
-    const steps = Math.ceil((2 * Math.PI * r) / 0.25);
-    for (let i = 0; i < steps; i++) {
-      const a = (i / steps) * Math.PI * 2;
-      const p = { x: center.x + Math.cos(a) * r, z: center.z + Math.sin(a) * r };
-      if (canStand(p, world)) return { ...p, yaw: 0 };
+  const fallback = { ...roomCenter(shell), yaw: 0 };
+  let best: { state: WalkerState; score: number } | null = null;
+  const step = 0.25;
+  for (let x = step; x < shell.widthM; x += step) {
+    for (let z = step; z < shell.depthM; z += step) {
+      const p = { x, z };
+      if (!canStand(p, world)) continue;
+      let view = { yaw: 0, run: -1 };
+      // Ocho direcciones; a igual vista gana mirar hacia el fondo (yaw 0), que va primero.
+      for (let k = 0; k < 8; k++) {
+        const yaw = (k * Math.PI) / 4;
+        const run = clearAhead(p, yaw, world);
+        if (run > view.run + 1e-9) view = { yaw, run };
+      }
+      const score = Math.min(1.5, clearance(p, world)) + 0.35 * view.run;
+      if (!best || score > best.score + 1e-9) best = { state: { x, z, yaw: view.yaw }, score };
     }
   }
-  return { ...center, yaw: 0 };
+  return best?.state ?? fallback;
 }

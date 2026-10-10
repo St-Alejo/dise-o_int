@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRectangularShell, footprint } from './geometry.js';
 import { pointInPolygon } from './polygon.js';
 import { buildRoomShape } from './room-templates.js';
-import { WALKER, buildWalkWorld, canStand, stepToward, stepWalker, walkStart, type WalkBody, type WalkerState } from './walk.js';
+import { WALKER, buildWalkWorld, canStand, clearAhead, stepToward, stepWalker, walkStart, type WalkBody, type WalkerState } from './walk.js';
 
 const room = createRectangularShell(4, 3, 2.6);
 /** Sofá de 2 × 1 contra la pared del fondo, centrado. */
@@ -132,13 +132,27 @@ describe('ir a un punto', () => {
 });
 
 describe('dónde empieza el recorrido', () => {
-  it('en el centro si está libre; si lo ocupa un mueble, en el hueco más cercano', () => {
-    expect(walkStart(room, buildWalkWorld(room))).toEqual({ x: 2, z: 1.5, yaw: 0 });
-    const table: WalkBody = { corners: footprint({ x: 2, y: 0, z: 1.5 }, { x: 1.4, y: 0.75, z: 0.9 }, 0).corners, baseY: 0, heightM: 0.75 };
-    const world = buildWalkWorld(room, [table]);
-    const start = walkStart(room, world);
-    expect(canStand(start, world)).toBe(true);
-    expect(Math.hypot(start.x - 2, start.z - 1.5)).toBeLessThan(1.3);
+  it('en un lugar despejado, mirando hacia donde más cuarto se ve', () => {
+    const empty = buildWalkWorld(room);
+    const start = walkStart(room, empty);
+    expect(canStand(start, empty)).toBe(true);
+    // En un cuarto de 4 × 3 vacío quedan al menos 2 m libres por delante y holgura a los lados.
+    expect(clearAhead(start, start.yaw, empty)).toBeGreaterThanOrEqual(2);
+
+    // Con un sofá contra el fondo no se empieza pegado a él ni mirándolo a un palmo.
+    const world = buildWalkWorld(room, [sofa]);
+    const furnished = walkStart(room, world);
+    expect(canStand(furnished, world)).toBe(true);
+    expect(clearAhead(furnished, furnished.yaw, world)).toBeGreaterThanOrEqual(2);
+    expect(furnished.z).toBeGreaterThan(1 + R);
+  });
+
+  it('mide los metros libres en línea recta', () => {
+    const world = buildWalkWorld(room, [sofa]);
+    // Desde el frente hacia el fondo: hasta toparse con el sofá (que llega a z = 1).
+    expect(clearAhead({ x: 2, z: 2.5 }, 0, world)).toBeCloseTo(1.25);
+    // Hacia la izquierda (yaw = π/2) hasta la pared.
+    expect(clearAhead({ x: 2, z: 2.5 }, Math.PI / 2, world)).toBeCloseTo(1.75);
   });
 
   it('en una U cae dentro del cuarto, no en el hueco', () => {
