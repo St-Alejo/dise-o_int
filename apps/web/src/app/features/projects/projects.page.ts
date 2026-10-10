@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../../shared/ui/icon.component';
@@ -23,6 +23,9 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
       <div class="row head">
         <h1>Mis proyectos</h1>
         <span class="spacer"></span>
+        @if (projects().length > 3) {
+          <input class="input search" type="search" placeholder="Buscar por nombre" aria-label="Buscar proyectos por nombre" [value]="query()" (input)="query.set($any($event.target).value)" />
+        }
         <a routerLink="/proyectos/nuevo" class="btn btn-primary">+ Nuevo proyecto</a>
       </div>
 
@@ -42,7 +45,7 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
         </div>
       } @else {
         <ul class="grid" role="list">
-          @for (p of projects(); track p.id) {
+          @for (p of shown(); track p.id) {
             <li class="card project">
               <a [routerLink]="['/proyectos', p.id]" class="thumb" [attr.aria-label]="'Abrir ' + p.name">
                 @if (p.thumbnailUrl) {
@@ -53,8 +56,21 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
               </a>
               <div class="meta">
                 <div class="row">
-                  <h2 class="name">{{ p.name }}</h2>
-                  <span [class]="status[p.status].cls">{{ status[p.status].label }}</span>
+                  @if (renaming() === p.id) {
+                    <input
+                      #nameInput
+                      class="input rename"
+                      maxlength="120"
+                      [value]="p.name"
+                      [attr.aria-label]="'Nombre nuevo de ' + p.name"
+                      (keydown.enter)="rename(p, nameInput.value)"
+                      (keydown.escape)="renaming.set(null)"
+                    />
+                    <button type="button" class="btn btn-sm btn-primary" (click)="rename(p, nameInput.value)">Guardar</button>
+                  } @else {
+                    <h2 class="name">{{ p.name }}</h2>
+                    <span [class]="status[p.status].cls">{{ status[p.status].label }}</span>
+                  }
                 </div>
                 <p class="muted small">
                   {{ roomLabels[p.roomType] }} · {{ p.itemCount }} muebles · {{ p.updatedAt | date: 'd MMM, HH:mm' }}
@@ -64,6 +80,19 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
                 }
                 <div class="row">
                   <a [routerLink]="['/proyectos', p.id]" class="btn btn-sm">Abrir</a>
+                  <button type="button" class="btn btn-sm btn-ghost" (click)="renaming.set(p.id)" [attr.aria-label]="'Renombrar ' + p.name">Renombrar</button>
+                  @if (p.status === 'ready') {
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-ghost"
+                      (click)="duplicate(p)"
+                      [disabled]="duplicating() === p.id"
+                      [attr.aria-label]="'Duplicar ' + p.name"
+                      title="Copia el cuarto y los muebles en un proyecto nuevo para probar otra variante"
+                    >
+                      {{ duplicating() === p.id ? 'Copiando…' : 'Duplicar' }}
+                    </button>
+                  }
                   <span class="spacer"></span>
                   @if (confirming() === p.id) {
                     <span class="small">¿Borrar foto, renders y versiones?</span>
@@ -77,6 +106,8 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
                 </div>
               </div>
             </li>
+          } @empty {
+            <li class="muted">Ningún proyecto se llama así.</li>
           }
         </ul>
       }
@@ -91,6 +122,13 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
     }
     .head h1 {
       margin: 0;
+    }
+    .search {
+      width: min(260px, 40vw);
+    }
+    .rename {
+      flex: 1;
+      min-width: 0;
     }
     .grid {
       list-style: none;
@@ -155,6 +193,19 @@ export class ProjectsPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly deleting = signal<string | null>(null);
   protected readonly confirming = signal<string | null>(null);
+  protected readonly renaming = signal<string | null>(null);
+  protected readonly duplicating = signal<string | null>(null);
+  protected readonly query = signal('');
+  /** Proyectos que coinciden con la búsqueda (sin distinguir mayúsculas ni acentos). */
+  protected readonly shown = computed(() => {
+    const fold = (text: string) =>
+      text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    const q = fold(this.query().trim());
+    return q ? this.projects().filter((p) => fold(p.name).includes(q)) : this.projects();
+  });
   protected readonly status = STATUS;
   protected readonly roomLabels = ROOM_TYPE_LABELS;
 
@@ -171,6 +222,32 @@ export class ProjectsPage implements OnInit {
       this.error.set(ApiError.from(err).userMessage);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async rename(p: ProjectListItem, value: string): Promise<void> {
+    const name = value.trim();
+    this.renaming.set(null);
+    if (!name || name === p.name) return;
+    try {
+      await this.api.rename(p.id, name);
+      this.projects.update((list) => list.map((x) => (x.id === p.id ? { ...x, name } : x)));
+    } catch (err) {
+      this.toast.error(ApiError.from(err).userMessage);
+    }
+  }
+
+  async duplicate(p: ProjectListItem): Promise<void> {
+    this.duplicating.set(p.id);
+    try {
+      const copy = await this.api.duplicate(p.id);
+      // La lista trae miniatura y recuento ya calculados: se vuelve a pedir en vez de inventarlos.
+      this.projects.set(await this.api.list());
+      this.toast.success(`"${copy.name}" está lista para editar`);
+    } catch (err) {
+      this.toast.error(ApiError.from(err).userMessage);
+    } finally {
+      this.duplicating.set(null);
     }
   }
 

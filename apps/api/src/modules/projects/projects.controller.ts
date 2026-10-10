@@ -99,6 +99,12 @@ export class ProjectsController {
     return this.service.rename(this.actor(user), id, body.name, body.revision);
   }
 
+  @Post(':id/duplicate')
+  @Throttle(perMinute(12))
+  duplicate(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string): Promise<DesignProject> {
+    return this.service.duplicate(this.actor(user), id);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   remove(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string): Promise<void> {

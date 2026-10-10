@@ -85,6 +85,11 @@ export class ProjectsApi {
     return firstValueFrom(this.http.patch<DesignProject>(`${this.base}/${id}`, { name }));
   }
 
+  /** Copia el diseño en un proyecto nuevo (sin la foto ni las versiones). */
+  duplicate(id: string): Promise<DesignProject> {
+    return firstValueFrom(this.http.post<DesignProject>(`${this.base}/${id}/duplicate`, {}));
+  }
+
   remove(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`${this.base}/${id}`));
   }

@@ -166,6 +166,36 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('duplicate', () => {
+    it('copia el cuarto, los muebles y los acabados en un proyecto nuevo y listo', async () => {
+      const p = await readyProject();
+      const withSofa = await service.updateScene(alice, p.id, {
+        revision: p.revision,
+        furniturePlacements: [{ id: 'p1', catalogItemId: 'sofa-test', position: { x: 2, y: 0, z: 1 }, rotationY: 0, lockedByUser: true }],
+        finishes: { floor: 'wood-walnut', walls: { all: 'paint-sage' }, ceiling: 'paint-white' },
+      });
+      const copy = await service.duplicate(alice, p.id);
+      expect(copy.id).not.toBe(p.id);
+      expect(copy).toMatchObject({ name: `${p.name} (copia)`, status: 'ready', saved: false, sourcePhotoUrl: null, revision: 0 });
+      expect(copy.furniturePlacements).toEqual(withSofa.furniturePlacements);
+      expect(copy.finishes).toEqual(withSofa.finishes);
+      expect(copy.roomShell).toEqual(withSofa.roomShell);
+      expect(copy.versions).toEqual([]);
+      // Son independientes: editar la copia no toca el original.
+      await service.updateScene(alice, copy.id, { revision: copy.revision, furniturePlacements: [] });
+      expect((await service.get(alice, p.id)).furniturePlacements).toHaveLength(1);
+    });
+
+    it('solo el dueño puede duplicar, y el nombre no pasa de 120 caracteres', async () => {
+      const p = await readyProject();
+      await expect(service.duplicate(bob, p.id)).rejects.toBeInstanceOf(NotFoundError);
+      const long = await service.rename(alice, p.id, 'x'.repeat(120));
+      const copy = await service.duplicate(alice, long.id);
+      expect(copy.name).toHaveLength(120);
+      expect(copy.name.endsWith(' (copia)')).toBe(true);
+    });
+  });
+
   describe('updateScene', () => {
     it('aplica control de concurrencia optimista', async () => {
       const p = await readyProject();

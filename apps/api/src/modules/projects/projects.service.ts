@@ -189,6 +189,36 @@ export class ProjectsService {
     return this.toDto(await this.projects.update(id, { name }, revisionGuard(revision)));
   }
 
+  /**
+   * Copia el diseño (cuarto, muebles, acabados y estilo) en un proyecto nuevo, para probar una
+   * variante sin tocar el original. La foto, las propuestas 2D y las versiones no se copian: la
+   * copia nace como un cuarto ya listo, sin guardar.
+   */
+  async duplicate(actor: Actor, id: string): Promise<DesignProject> {
+    const source = await this.own(actor, id);
+    const shell = this.requireShell(source);
+    const suffix = ' (copia)';
+    const copy = await this.projects.create({
+      id: randomUUID(),
+      ownerId: actor.userId,
+      name: `${source.name.slice(0, 120 - suffix.length)}${suffix}`,
+      roomType: source.roomType,
+      status: 'ready',
+      photoKey: null,
+      photoHash: null,
+      thumbKey: null,
+      roomShell: shell,
+      placements: source.placements,
+      finishes: source.finishes,
+      requestedRoom: source.requestedRoom,
+      selectedStyleId: source.selectedStyleId,
+      requestedStyles: source.requestedStyles,
+      saved: false,
+    });
+    this.logger.log({ projectId: copy.id, from: id, requestId: actor.requestId }, 'Proyecto duplicado');
+    return this.toDto(copy);
+  }
+
   /** Borrado REAL de base de datos y archivos (§8.4 privacidad). */
   async remove(actor: Actor, id: string): Promise<void> {
     await this.own(actor, id);
