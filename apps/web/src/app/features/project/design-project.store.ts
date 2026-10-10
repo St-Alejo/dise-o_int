@@ -41,6 +41,8 @@ export class DesignProjectStore {
   private readonly history = new CommandHistory();
   private readonly historyVersion = signal(0);
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Hay un guardado en vuelo (el estado visible puede haber vuelto a "dirty" por una edición). */
+  private saving = false;
 
   readonly project = signal<DesignProject | null>(null);
   readonly placements = signal<Placements>([]);
@@ -268,29 +270,32 @@ export class DesignProjectStore {
     const project = this.project();
     const state = this.saveState();
     // Sin cambios pendientes no hay nada que enviar (evita PUTs inútiles y conflictos falsos).
-    if (!project || state === 'saved' || state === 'saving' || state === 'conflict') return;
+    // Con un guardado en vuelo tampoco: editar mientras tanto deja el estado en "dirty", y un
+    // segundo envío con la misma revisión chocaría con el primero. Al terminar se reprograma.
+    if (!project || this.saving || state === 'saved' || state === 'conflict') return;
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
     const sent = this.placements();
     const sentShell = this.shell();
+    const sentFinishes = this.finishes();
+    this.saving = true;
     this.saveState.set('saving');
     try {
       const saved = await this.api.saveScene(project.id, {
         revision: project.revision,
         furniturePlacements: [...sent],
-        finishes: this.finishes(),
+        finishes: sentFinishes,
         // La planta solo viaja si se editó en el plano.
         ...(sentShell && sentShell !== this.savedShell ? { roomShell: sentShell } : {}),
       });
       this.project.set(saved);
-      if (this.shell() === sentShell) {
-        // Sin ediciones de planta mientras se guardaba: la local sigue siendo la del servidor.
-        if (sentShell !== this.savedShell) this.adoptShell(saved.roomShell);
-        else this.savedShell = sentShell;
-      }
-      if (this.placements() === sent) {
+      const shellUntouched = this.shell() === sentShell;
+      // Sin ediciones de planta mientras se guardaba, la del servidor pasa a ser la local.
+      if (shellUntouched && sentShell !== this.savedShell) this.adoptShell(saved.roomShell);
+      const untouched = shellUntouched && this.placements() === sent && this.finishes() === sentFinishes;
+      if (untouched) {
         // El servidor puede haber ajustado posiciones (clamp): se adopta su versión.
         this.placements.set(saved.furniturePlacements);
         this.saveState.set('saved');
@@ -306,6 +311,8 @@ export class DesignProjectStore {
         this.saveState.set('error');
         this.toast.error(`No se pudo guardar: ${e.userMessage}`);
       }
+    } finally {
+      this.saving = false;
     }
   }
 
