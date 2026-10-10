@@ -158,13 +158,19 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       (window as unknown as { __threeInfo?: THREE.WebGLInfo }).__threeInfo = renderer.info;
     }
 
+    // Resumen de la escena para las pruebas e2e (cuántas paredes, si hay techo…), sin comparar píxeles.
+    Object.defineProperty(window, '__scene', { configurable: true, get: () => this.scene.snapshot() });
+
     // Todo el loop vive fuera de Angular: ningún frame dispara detección de cambios.
     this.zone.runOutsideAngular(() => {
-      const loop = () => {
+      let last = performance.now();
+      const loop = (now: number) => {
         this.frameId = requestAnimationFrame(loop);
-        if (this.scene.tick()) renderer.render(this.scene.scene, this.scene.camera);
+        const dt = Math.min((now - last) / 1000, 0.1);
+        last = now;
+        if (this.scene.tick(dt)) renderer.render(this.scene.scene, this.scene.camera);
       };
-      loop();
+      loop(last);
     });
   }
 
@@ -199,6 +205,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.frameId !== null) cancelAnimationFrame(this.frameId);
+    delete (window as { __scene?: unknown }).__scene;
     this.resizeObserver?.disconnect();
     this.canvasRef().nativeElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.controls?.dispose();
