@@ -77,6 +77,12 @@ export const MATERIALS: readonly MaterialDefinition[] = [
   m('paint-navy', 'Azul marino', 'paint', '#2f3e57', 0.9, 0, WALL_CEILING),
   m('paint-charcoal', 'Gris carbón', 'paint', '#4a4a4a', 0.9, 0, WALL_CEILING),
   m('paint-blush', 'Rosa empolvado', 'paint', '#e2c4bb', 0.9, 0, WALL_CEILING),
+  m('paint-pearl', 'Gris perla', 'paint', '#d6d6d4', 0.9, 0, WALL_CEILING),
+  m('paint-sand', 'Arena', 'paint', '#e3d3b8', 0.9, 0, WALL_CEILING),
+  m('paint-steel-blue', 'Azul acero', 'paint', '#4f73a8', 0.9, 0, WALL_CEILING),
+  m('paint-forest', 'Verde bosque', 'paint', '#3f5a47', 0.9, 0, WALL_CEILING),
+  m('paint-mustard', 'Mostaza suave', 'paint', '#d9b45a', 0.9, 0, WALL_CEILING),
+  m('paint-wine', 'Vino', 'paint', '#5a2328', 0.9, 0, WALL_CEILING),
   m('paint-brick', 'Ladrillo visto', 'paint', '#94553f', 0.95, 0, ['wall']),
 ];
 
@@ -92,6 +98,52 @@ export function materialsOfKinds(kinds: readonly MaterialKind[]): MaterialDefini
 
 export function materialsForSurface(surface: 'floor' | 'wall' | 'ceiling'): MaterialDefinition[] {
   return MATERIALS.filter((mat) => mat.surfaces?.includes(surface));
+}
+
+/** Color sRGB en hex → CIE Lab (D65): un espacio donde la distancia se parece a lo que ve el ojo. */
+function labOf(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  const linear = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  const [r, g, b] = linear;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+/**
+ * Diferencia de color percibida (ΔE en Lab). En RGB, un azul medio queda "más cerca" de un gris
+ * oscuro que de un azul marino; en Lab el tono pesa como debe.
+ */
+function colorDistance(a: string, b: string): number {
+  const [l1, a1, b1] = labOf(a);
+  const [l2, a2, b2] = labOf(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/** El material de la biblioteca cuyo color más se parece a `hex` entre los que sirven para esa superficie. */
+export function nearestMaterial(surface: 'floor' | 'wall' | 'ceiling', hex: string, kinds?: readonly MaterialKind[]): MaterialDefinition {
+  const all = materialsForSurface(surface);
+  const pool = kinds ? all.filter((mat) => kinds.includes(mat.kind)) : all;
+  return (pool.length ? pool : all).reduce((best, mat) => (colorDistance(mat.color, hex) < colorDistance(best.color, hex) ? mat : best));
+}
+
+/** Qué materiales de piso corresponden a lo que un modelo de visión llama madera, baldosa, etc. */
+const FLOOR_KINDS: Record<string, readonly MaterialKind[]> = { wood: ['wood'], tile: ['ceramic', 'stone'], concrete: ['stone'] };
+
+/**
+ * Acabados parecidos a los de la foto: la pintura y el piso de la biblioteca más cercanos a los
+ * colores detectados. El techo queda blanco (casi nunca se ve y casi siempre lo es).
+ */
+export function finishesFromPhoto(seen: { wallColor?: string | undefined; floorColor?: string | undefined; floorMaterial?: string | undefined }): RoomFinishes | null {
+  if (!seen.wallColor && !seen.floorColor) return null;
+  const floor = seen.floorColor ? nearestMaterial('floor', seen.floorColor, FLOOR_KINDS[seen.floorMaterial ?? '']).id : DEFAULT_FINISHES.floor;
+  const wall = seen.wallColor ? nearestMaterial('wall', seen.wallColor).id : DEFAULT_FINISHES.walls['all']!;
+  return { floor, walls: { all: wall }, ceiling: DEFAULT_FINISHES.ceiling };
 }
 
 /** Acabados neutros: los que se usan si el proyecto no tiene ni acabados ni estilo. */

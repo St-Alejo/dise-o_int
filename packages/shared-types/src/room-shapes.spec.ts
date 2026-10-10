@@ -14,6 +14,7 @@ import {
   validateRoomShell,
   wallLength,
 } from './geometry.js';
+import { finishesFromPhoto, nearestMaterial } from './materials.js';
 import { RoomPlan } from './room-plan.js';
 import { buildRoomShape, resolveNotch, ROOM_SHAPE_IDS } from './room-templates.js';
 import { alongOf, overlapsOpening, positionOnWall, wallFrames } from './walls.js';
@@ -176,6 +177,32 @@ describe('medidas de un cuarto de forma libre', () => {
     tiny.walls[1] = { ...tiny.walls[1]!, end: { ...tiny.walls[1]!.start, z: 0.1 } };
     expect(() => validateRoomShell(tiny)).toThrow(RoomGeometryError);
     expect(() => validateRoomShell({ ...shell, widthM: 7 })).toThrow('no coinciden');
+  });
+});
+
+describe('acabados a partir de los colores de la foto', () => {
+  it('elige la pintura y el piso de la biblioteca más parecidos', () => {
+    // Los colores que el modelo de visión vio en las fotos de prueba (docs/pruebas-vision).
+    expect(nearestMaterial('wall', '#4a6fa5').id).toBe('paint-steel-blue');
+    expect(nearestMaterial('wall', '#f0f0f0').id).toBe('paint-white');
+    expect(nearestMaterial('wall', '#3d1c1c').id).toBe('paint-wine');
+    expect(nearestMaterial('wall', '#d3d3d3').id).toBe('paint-pearl');
+    // El tono manda sobre la luminosidad: un azul oscuro es marino, no gris carbón.
+    expect(nearestMaterial('wall', '#26364f').id).toBe('paint-navy');
+    // El tipo de piso acota la búsqueda: un gris claro en baldosa no acaba siendo madera.
+    expect(nearestMaterial('floor', '#e8dcc8', ['wood']).id).toBe('wood-ash-white');
+    expect(nearestMaterial('floor', '#e8dcc8', ['ceramic', 'stone']).kind).not.toBe('wood');
+    expect(nearestMaterial('ceiling', '#ffffff').id).toBe('paint-white');
+  });
+
+  it('arma acabados completos, o nada si la foto no dio colores', () => {
+    expect(finishesFromPhoto({ wallColor: '#4a6fa5', floorColor: '#8b7355', floorMaterial: 'wood' })).toEqual({
+      floor: 'wood-teak',
+      walls: { all: 'paint-steel-blue' },
+      ceiling: 'paint-white',
+    });
+    expect(finishesFromPhoto({ wallColor: '#d3d3d3' })).toMatchObject({ floor: 'wood-oak', walls: { all: 'paint-pearl' } });
+    expect(finishesFromPhoto({ floorMaterial: 'wood' })).toBeNull();
   });
 });
 

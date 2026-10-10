@@ -25,14 +25,34 @@ export const DetectedObjectSchema = z.object({
   confidence: z.number().min(0).max(1),
   /** Caja normalizada [x0, y0, x1, y1] en 0–1 respecto a la imagen. */
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  /** Lo que aporta un modelo de visión: qué es, cuántos hay y junto a qué pared (vista desde la cámara). */
+  category: z.string().min(1).max(40).optional(),
+  count: z.number().int().min(1).max(40).optional(),
+  nearWall: z.enum(['back', 'left', 'right', 'front', 'center']).optional(),
 });
 export type DetectedObject = z.infer<typeof DetectedObjectSchema>;
+
+const HexColor = z.string().regex(/^#[0-9a-f]{6}$/);
+
+/** Lo que la foto sugiere además de la geometría: colores, estilo y tipo de cuarto. */
+export const RoomSuggestionsSchema = z.object({
+  roomType: z.string().max(40).optional(),
+  styleId: StyleIdSchema.optional(),
+  wallColor: HexColor.optional(),
+  floorColor: HexColor.optional(),
+  accentColor: HexColor.optional(),
+  floorMaterial: z.enum(['wood', 'tile', 'carpet', 'concrete', 'other']).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  notes: z.string().max(300).optional(),
+});
+export type RoomSuggestions = z.infer<typeof RoomSuggestionsSchema>;
 
 export const AnalyzeRoomResponseSchema = z.object({
   roomShell: RoomShellSchema,
   detectedObjects: z.array(DetectedObjectSchema),
   provider: z.string(),
   durationMs: z.number().nonnegative(),
+  suggestions: RoomSuggestionsSchema.optional(),
 });
 export type AnalyzeRoomResponse = z.infer<typeof AnalyzeRoomResponseSchema>;
 
@@ -63,6 +83,13 @@ export const LayoutCandidateSchema = z.object({
 });
 export type LayoutCandidate = z.infer<typeof LayoutCandidateSchema>;
 
+/** Un tipo de mueble visto en la foto (en palabras del modelo de visión) y cuántos hay. */
+export const InventoryItemSchema = z.object({
+  category: z.string().min(1).max(40),
+  count: z.number().int().min(1).max(40).default(1),
+});
+export type InventoryItem = z.infer<typeof InventoryItemSchema>;
+
 export const PlaceFurnitureRequestSchema = z.object({
   roomShell: RoomShellSchema,
   roomType: RoomTypeSchema,
@@ -70,6 +97,8 @@ export const PlaceFurnitureRequestSchema = z.object({
   candidates: z.array(LayoutCandidateSchema),
   locked: z.array(FurniturePlacementSchema),
   seed: z.number().int().optional(),
+  /** Lo que había en la foto: si viene, la distribución coloca eso en vez de la plantilla completa. */
+  inventory: z.array(InventoryItemSchema).max(40).optional(),
 });
 export type PlaceFurnitureRequest = z.infer<typeof PlaceFurnitureRequestSchema>;
 
