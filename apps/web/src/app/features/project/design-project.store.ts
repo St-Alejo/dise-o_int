@@ -432,6 +432,7 @@ export class DesignProjectStore {
     const sent = this.placements();
     const sentShell = this.shell();
     const sentFinishes = this.finishes();
+    const shellSent = !!sentShell && sentShell !== this.savedShell;
     this.saveState.set('saving');
     try {
       const saved = await this.api.saveScene(project.id, {
@@ -439,12 +440,17 @@ export class DesignProjectStore {
         furniturePlacements: [...sent],
         finishes: sentFinishes,
         // La planta solo viaja si se editó en el plano.
-        ...(sentShell && sentShell !== this.savedShell ? { roomShell: sentShell } : {}),
+        ...(shellSent && sentShell ? { roomShell: sentShell } : {}),
       });
       this.project.set(saved);
       const shellUntouched = this.shell() === sentShell;
-      // Sin ediciones de planta mientras se guardaba, la del servidor pasa a ser la local.
-      if (shellUntouched && sentShell !== this.savedShell) this.adoptShell(saved.roomShell);
+      if (shellSent) {
+        // Sin ediciones de planta mientras se guardaba, la del servidor pasa a ser la local. Si las
+        // hubo (p. ej. se deshizo), al menos se anota qué tiene ahora el servidor: sin esto, volver
+        // a la planta anterior parecería "sin cambios" y nunca se reenviaría.
+        if (shellUntouched) this.adoptShell(saved.roomShell);
+        else this.savedShell = saved.roomShell;
+      }
       const untouched = shellUntouched && this.placements() === sent && this.finishes() === sentFinishes;
       this.retries = 0;
       this.rebased = false;
