@@ -1,12 +1,26 @@
 /**
- * Construye la geometría del cuarto (piso + paredes con huecos de puertas y ventanas) a
- * partir del RoomShell. Sin CSG: cada pared se parte en tramos (izquierda, bajo/sobre cada
- * abertura, derecha). Es código puro de Three.js: no necesita WebGL y se prueba en jsdom.
+ * Construye la geometría del cuarto a partir del RoomShell: piso y techo con la forma de la
+ * planta, paredes con huecos de puertas y ventanas, zócalos, hojas de puerta y marcos. Sirve para
+ * cualquier forma (rectángulo, L, T, U o paredes libres).
+ * Sin CSG: cada pared se parte en tramos (izquierda, bajo/sobre cada abertura, derecha). Es
+ * código puro de Three.js: no necesita WebGL y se prueba en jsdom.
  */
-import { getMaterial, wallMaterialId, type Opening, type RoomFinishes, type RoomShell, type WallSegment } from '@interiores/shared-types';
+import {
+  getMaterial,
+  isConvexVertex,
+  roomPolygon,
+  wallFrames,
+  wallMaterialId,
+  type Opening,
+  type Point2,
+  type RoomFinishes,
+  type RoomShell,
+} from '@interiores/shared-types';
 import * as THREE from 'three';
 
 export const WALL_THICKNESS = 0.12;
+const BASEBOARD = { height: 0.08, depth: 0.012 };
+const FRAME = 0.06;
 
 export interface WallInfo {
   wallId: string;
@@ -21,26 +35,19 @@ export interface BuiltRoom {
   group: THREE.Group;
   walls: WallInfo[];
   floor: THREE.Mesh;
+  /** Mira hacia abajo: desde fuera (vista de órbita) no se ve; desde dentro, sí. */
+  ceiling: THREE.Mesh;
 }
 
 export interface RoomPalette {
   floor: string;
   wall: string;
   trim: string;
+  ceiling: string;
+  door: string;
 }
 
-export const DEFAULT_PALETTE: RoomPalette = { floor: '#c9a27e', wall: '#efe9e1', trim: '#f7f4ef' };
-
-function inwardNormal(wall: WallSegment, shell: RoomShell): THREE.Vector2 {
-  const dx = wall.end.x - wall.start.x;
-  const dz = wall.end.z - wall.start.z;
-  const len = Math.hypot(dx, dz) || 1;
-  const n = new THREE.Vector2(-dz / len, dx / len);
-  const mx = (wall.start.x + wall.end.x) / 2;
-  const mz = (wall.start.z + wall.end.z) / 2;
-  if ((shell.widthM / 2 - mx) * n.x + (shell.depthM / 2 - mz) * n.y < 0) n.multiplyScalar(-1);
-  return n;
-}
+export const DEFAULT_PALETTE: RoomPalette = { floor: '#c9a27e', wall: '#efe9e1', trim: '#f7f4ef', ceiling: '#f7f4ef', door: '#b08a63' };
 
 /** Tramos macizos de una pared de longitud `length` con sus aberturas (coordenadas locales). */
 export function wallPieces(
@@ -70,30 +77,39 @@ export function wallPieces(
   return pieces.filter((p) => p.x1 - p.x0 > 0.001 && p.y1 - p.y0 > 0.001);
 }
 
+/** Plano horizontal con la forma de la planta, a la altura `y`, mirando hacia arriba o hacia abajo. */
+function slab(poly: Point2[], y: number, facing: 'up' | 'down', material: THREE.Material): THREE.Mesh {
+  // ShapeGeometry vive en XY mirando a +Z: se tumba para que su normal quede vertical.
+  const flip = facing === 'up' ? -1 : 1;
+  const geometry = new THREE.ShapeGeometry(new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.z * flip))));
+  geometry.rotateX((Math.PI / 2) * flip);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = y;
+  return mesh;
+}
+
 export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALETTE): BuiltRoom {
   const group = new THREE.Group();
   group.name = 'room';
+  const poly = roomPolygon(shell);
 
-  // Piso (un poco más grande que el cuarto para que no se vean rendijas bajo las paredes)
-  const floorGeom = new THREE.PlaneGeometry(shell.widthM + WALL_THICKNESS * 2, shell.depthM + WALL_THICKNESS * 2);
-  floorGeom.rotateX(-Math.PI / 2);
-  const floor = new THREE.Mesh(
-    floorGeom,
-    new THREE.MeshStandardMaterial({ color: palette.floor, roughness: 0.75, metalness: 0 }),
-  );
-  floor.position.set(shell.widthM / 2, 0, shell.depthM / 2);
+  const floor = slab(poly, 0, 'up', new THREE.MeshStandardMaterial({ color: palette.floor, roughness: 0.75, metalness: 0 }));
   floor.receiveShadow = true;
   floor.name = 'floor';
-  group.add(floor);
+  const ceiling = slab(poly, shell.heightM, 'down', new THREE.MeshStandardMaterial({ color: palette.ceiling, roughness: 0.95, metalness: 0 }));
+  ceiling.name = 'ceiling';
+  group.add(floor, ceiling);
 
   const walls: WallInfo[] = [];
+  const frames = wallFrames(shell);
 
-  for (const wall of shell.walls) {
+  shell.walls.forEach((wall, index) => {
     const dx = wall.end.x - wall.start.x;
     const dz = wall.end.z - wall.start.z;
     const length = Math.hypot(dx, dz);
-    if (length < 0.01) continue;
-    const normal = inwardNormal(wall, shell);
+    if (length < 0.01) return;
+    const frame = frames[index]!;
+    const normal = new THREE.Vector2(frame.normal.x, frame.normal.z);
     const openings = shell.openings.filter((o) => o.wallId === wall.id);
 
     // Grupo con X local a lo largo de la pared (start → end) y +Z local = normal interior.
@@ -103,11 +119,19 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     wallGroup.rotation.y = Math.atan2(-dz, dx);
     const localZ = new THREE.Vector2(Math.sin(wallGroup.rotation.y), Math.cos(wallGroup.rotation.y));
     const inwardSign = localZ.dot(normal) >= 0 ? 1 : -1;
+    /** z local de algo centrado en el espesor de la pared (que queda por fuera del cuarto). */
+    const inWall = (-inwardSign * WALL_THICKNESS) / 2;
+    // Lo decorativo (zócalos) va en un grupo aparte: la pared en sí no invade el cuarto.
+    const trimGroup = new THREE.Group();
+    trimGroup.name = `trim-${wall.id}`;
+    trimGroup.position.copy(wallGroup.position);
+    trimGroup.rotation.copy(wallGroup.rotation);
 
     // Materiales POR PARED: el recorte "casa de muñecas" vuelve translúcida la pared entera
-    // (incluidos marcos y vidrios). `baseOpacity` guarda la opacidad normal de cada uno.
+    // (incluidos marcos, vidrios y puertas). `baseOpacity` guarda la opacidad normal de cada uno.
     const material = new THREE.MeshStandardMaterial({ color: palette.wall, roughness: 0.92, transparent: true, opacity: 1 });
     const trimMaterial = new THREE.MeshStandardMaterial({ color: palette.trim, roughness: 0.6, transparent: true, opacity: 1 });
+    const doorMaterial = new THREE.MeshStandardMaterial({ color: palette.door, roughness: 0.55, transparent: true, opacity: 1 });
     const glassMaterial = new THREE.MeshStandardMaterial({
       color: '#bcd9ea',
       transparent: true,
@@ -116,58 +140,69 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
       metalness: 0.1,
       depthWrite: false,
     });
-    for (const m of [material, trimMaterial, glassMaterial]) m.userData['baseOpacity'] = m.opacity;
-    // Las paredes sobresalen media pared en cada extremo para cerrar las esquinas.
+    const materials = [material, trimMaterial, glassMaterial, doorMaterial];
+    for (const m of materials) m.userData['baseOpacity'] = m.opacity;
+    const box = (w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Group = wallGroup) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, y, z);
+      parent.add(mesh);
+      return mesh;
+    };
+
+    // En las esquinas salientes la pared se alarga su espesor para cerrar el hueco exterior. En
+    // las entrantes (la muesca de una L) no: ese alargue se metería dentro del cuarto.
+    const convexStart = isConvexVertex(poly, index);
+    const convexEnd = isConvexVertex(poly, (index + 1) % poly.length);
     for (const piece of wallPieces(length, shell.heightM, openings)) {
-      const extendStart = piece.x0 === 0 ? WALL_THICKNESS : 0;
-      const extendEnd = Math.abs(piece.x1 - length) < 1e-6 ? WALL_THICKNESS : 0;
+      const extendStart = piece.x0 === 0 && convexStart ? WALL_THICKNESS : 0;
+      const extendEnd = Math.abs(piece.x1 - length) < 1e-6 && convexEnd ? WALL_THICKNESS : 0;
       const w = piece.x1 - piece.x0 + extendStart + extendEnd;
       const h = piece.y1 - piece.y0;
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, WALL_THICKNESS), material);
-      mesh.position.set(piece.x0 - extendStart + w / 2, piece.y0 + h / 2, (-inwardSign * WALL_THICKNESS) / 2);
+      const mesh = box(w, h, WALL_THICKNESS, material, piece.x0 - extendStart + w / 2, piece.y0 + h / 2, inWall);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      wallGroup.add(mesh);
+      if (piece.y0 === 0) {
+        const z = (inwardSign * BASEBOARD.depth) / 2;
+        box(piece.x1 - piece.x0, BASEBOARD.height, BASEBOARD.depth, trimMaterial, (piece.x0 + piece.x1) / 2, BASEBOARD.height / 2, z, trimGroup).name = 'baseboard';
+      }
     }
 
     for (const o of openings) {
       const cx = o.offsetM;
+      const deep = WALL_THICKNESS + 0.02;
       if (o.type === 'window') {
-        const glass = new THREE.Mesh(new THREE.BoxGeometry(o.widthM, o.heightM, 0.02), glassMaterial);
-        glass.position.set(cx, o.sillHeightM + o.heightM / 2, (-inwardSign * WALL_THICKNESS) / 2);
-        glass.name = 'window-glass';
-        wallGroup.add(glass);
-        const sill = new THREE.Mesh(new THREE.BoxGeometry(o.widthM + 0.1, 0.04, WALL_THICKNESS + 0.06), trimMaterial);
-        sill.position.set(cx, o.sillHeightM - 0.02, (-inwardSign * WALL_THICKNESS) / 2 + inwardSign * 0.03);
-        wallGroup.add(sill);
+        box(o.widthM, o.heightM, 0.02, glassMaterial, cx, o.sillHeightM + o.heightM / 2, inWall).name = 'window-glass';
+        box(o.widthM + 0.1, 0.04, WALL_THICKNESS + 0.06, trimMaterial, cx, o.sillHeightM - 0.02, inWall + inwardSign * 0.03);
+        // Marco: dintel, jambas y, si la ventana es ancha, un parteluz al centro.
+        const mid = o.sillHeightM + o.heightM / 2;
+        box(o.widthM, FRAME / 2, deep, trimMaterial, cx, o.sillHeightM + o.heightM - FRAME / 4, inWall);
+        for (const side of [-1, 1]) box(FRAME / 2, o.heightM, deep, trimMaterial, cx + side * (o.widthM / 2 - FRAME / 4), mid, inWall);
+        if (o.widthM > 0.9) box(FRAME / 2, o.heightM, 0.04, trimMaterial, cx, mid, inWall);
       } else {
-        // Marco de puerta (dintel + jambas)
-        const frameT = 0.06;
-        const lintel = new THREE.Mesh(new THREE.BoxGeometry(o.widthM + frameT * 2, frameT, WALL_THICKNESS + 0.02), trimMaterial);
-        lintel.position.set(cx, o.heightM + frameT / 2, (-inwardSign * WALL_THICKNESS) / 2);
-        wallGroup.add(lintel);
-        for (const side of [-1, 1]) {
-          const jamb = new THREE.Mesh(new THREE.BoxGeometry(frameT, o.heightM, WALL_THICKNESS + 0.02), trimMaterial);
-          jamb.position.set(cx + side * (o.widthM / 2 + frameT / 2), o.heightM / 2, (-inwardSign * WALL_THICKNESS) / 2);
-          wallGroup.add(jamb);
-        }
+        // Marco de puerta (dintel + jambas) y la hoja, cerrada, con su manija.
+        box(o.widthM + FRAME * 2, FRAME, deep, trimMaterial, cx, o.heightM + FRAME / 2, inWall);
+        for (const side of [-1, 1]) box(FRAME, o.heightM, deep, trimMaterial, cx + side * (o.widthM / 2 + FRAME / 2), o.heightM / 2, inWall);
+        const leaf = box(o.widthM, o.heightM, 0.04, doorMaterial, cx, o.heightM / 2, inWall);
+        leaf.name = 'door-leaf';
+        leaf.castShadow = true;
+        box(0.03, 0.12, 0.05, trimMaterial, cx + o.widthM / 2 - 0.09, Math.min(1.05, o.heightM * 0.5), inWall + inwardSign * 0.045).name = 'door-handle';
       }
     }
 
-    group.add(wallGroup);
+    group.add(wallGroup, trimGroup);
     walls.push({
       wallId: wall.id,
       normal,
       midpoint: new THREE.Vector3((wall.start.x + wall.end.x) / 2, shell.heightM / 2, (wall.start.z + wall.end.z) / 2),
-      materials: [material, trimMaterial, glassMaterial],
+      materials,
     });
-  }
+  });
 
-  return { group, walls, floor };
+  return { group, walls, floor, ceiling };
 }
 
 /**
- * Pinta el cuarto con sus acabados: material del piso y de cada pared (o el de 'all').
+ * Pinta el cuarto con sus acabados: material del piso, del techo y de cada pared (o el de 'all').
  * Cambia color y rugosidad de los materiales existentes: no reconstruye geometría.
  */
 export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes): void {
@@ -180,6 +215,7 @@ export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes): void {
     mat.needsUpdate = true;
   };
   paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor);
+  paint(room.ceiling.material as THREE.MeshStandardMaterial, finishes.ceiling);
   for (const wall of room.walls) {
     const wallMat = wall.materials[0];
     if (wallMat) paint(wallMat, wallMaterialId(finishes, { id: wall.wallId }));

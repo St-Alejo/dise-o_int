@@ -1,4 +1,4 @@
-import { createRectangularShell } from '@interiores/shared-types';
+import { buildRoomShape, createRectangularShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { buildRoom, disposeObject, wallPieces } from './room-builder';
 
@@ -53,6 +53,64 @@ describe('buildRoom', () => {
     const back = room.group.getObjectByName('wall-w-back')!;
     const box = new THREE.Box3().setFromObject(back);
     expect(box.max.z).toBeCloseTo(0);
+  });
+
+  it('el piso mira hacia arriba y el techo hacia abajo, a la altura del cuarto', () => {
+    const room = buildRoom(createRectangularShell(4, 3, 2.5));
+    const normalY = (mesh: THREE.Mesh) => mesh.geometry.getAttribute('normal').getY(0);
+    expect(normalY(room.floor)).toBeCloseTo(1);
+    expect(normalY(room.ceiling)).toBeCloseTo(-1);
+    expect(room.ceiling.position.y).toBe(2.5);
+    expect(room.group.getObjectByName('ceiling')).toBe(room.ceiling);
+  });
+
+  it('una puerta tiene hoja y manija; las paredes llevan zócalo salvo en el vano', () => {
+    const room = buildRoom(createRectangularShell(4, 3, 2.5, { window: false }));
+    expect(room.group.getObjectByName('door-leaf')).toBeDefined();
+    expect(room.group.getObjectByName('door-handle')).toBeDefined();
+    const baseboards = (id: string) => room.group.getObjectByName(`trim-${id}`)!.children.length;
+    expect(baseboards('w-back')).toBe(1);
+    expect(baseboards('w-front')).toBe(2); // a cada lado de la puerta
+  });
+
+  describe('cuarto en L', () => {
+    // 5 × 4 sin la esquina del frente a la derecha (2 × 1,5): la esquina entrante está en (3, 2,5).
+    const shell = buildRoomShape('L', { widthM: 5, depthM: 4, heightM: 2.6, notchWidthM: 2, notchDepthM: 1.5 });
+    const room = buildRoom(shell);
+
+    it('tiene 6 paredes y un piso con la forma y el área de la planta', () => {
+      expect(room.walls).toHaveLength(6);
+      const pos = room.floor.geometry.getAttribute('position');
+      const index = room.floor.geometry.getIndex()!;
+      let area = 0;
+      for (let i = 0; i < index.count; i += 3) {
+        const [a, b, c] = [index.getX(i), index.getX(i + 1), index.getX(i + 2)].map((k) => new THREE.Vector3().fromBufferAttribute(pos, k));
+        area += new THREE.Triangle(a!, b!, c!).getArea();
+      }
+      expect(area).toBeCloseTo(17);
+      const box = new THREE.Box3().setFromObject(room.floor);
+      expect([box.min.x, box.max.x, box.min.z, box.max.z].map((v) => Math.round(v * 100) / 100)).toEqual([0, 5, 0, 4]);
+    });
+
+    it('las normales de las paredes de la muesca apuntan al cuarto', () => {
+      const normal = (id: string) => room.walls.find((w) => w.wallId === id)!.normal;
+      expect(normal('w-3').y).toBeCloseTo(-1); // mira hacia el fondo
+      expect(normal('w-4').x).toBeCloseTo(-1); // mira hacia la izquierda
+    });
+
+    it('ninguna pared invade el cuarto junto a la esquina entrante', () => {
+      const inside = [new THREE.Vector3(2.95, 1, 2.55), new THREE.Vector3(3.05, 1, 2.45), new THREE.Vector3(2.95, 1, 2.45)];
+      for (const info of room.walls) {
+        const box = new THREE.Box3().setFromObject(room.group.getObjectByName(`wall-${info.wallId}`)!);
+        for (const p of inside) expect(box.containsPoint(p), info.wallId).toBe(false);
+      }
+    });
+
+    it('las esquinas salientes siguen cerradas por fuera', () => {
+      const back = new THREE.Box3().setFromObject(room.group.getObjectByName('wall-w-back')!);
+      expect(back.min.x).toBeCloseTo(-0.12);
+      expect(back.max.x).toBeCloseTo(5.12);
+    });
   });
 
   it('disposeObject libera geometrías y materiales', () => {
