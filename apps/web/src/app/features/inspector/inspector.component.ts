@@ -73,8 +73,8 @@ import { buildResize } from './resize-command';
                       class="input"
                       type="number"
                       [id]="'dim-' + a.axis"
-                      [min]="r[0] * 100"
-                      [max]="r[1] * 100"
+                      [min]="round(r[0] * 100)"
+                      [max]="round(r[1] * 100)"
                       step="1"
                       [value]="round(dims()[a.axis] * 100)"
                       (change)="resize(a.axis, +$any($event.target).value / 100)"
@@ -206,7 +206,10 @@ import { buildResize } from './resize-command';
       gap: 4px;
       color: var(--text-muted);
     }
+    /* Ancho fijo: un campo numérico se ensancha solo según los dígitos de su mínimo y su máximo. */
     .unit .input {
+      width: 64px;
+      min-width: 0;
       padding: 4px 6px;
       min-height: 30px;
     }
