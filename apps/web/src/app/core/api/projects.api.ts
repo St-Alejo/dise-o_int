@@ -14,6 +14,7 @@ import type {
   ProjectListItem,
   PublicProject,
   RoomDimensionsInput,
+  RoomSpec,
   RoomType,
   ShareLink,
   ShoppingList,
@@ -24,6 +25,16 @@ import type {
 import { Observable, filter, firstValueFrom, map, shareReplay } from 'rxjs';
 
 export type UploadEvent = { kind: 'progress'; pct: number } | { kind: 'done'; project: DesignProject };
+
+export interface NewProject {
+  /** Sin foto hace falta `roomSpec`. */
+  photo: File | null;
+  name: string;
+  roomType: RoomType;
+  styles: StyleId[];
+  room?: RoomDimensionsInput;
+  roomSpec?: RoomSpec;
+}
 
 /** Cliente tipado de la API REST (los tipos vienen de @interiores/shared-types). */
 @Injectable({ providedIn: 'root' })
@@ -40,20 +51,22 @@ export class ProjectsApi {
   }
 
   /**
-   * Sube la foto reportando progreso real de la subida. Si el usuario conoce las medidas del
-   * cuarto, viajan junto a la foto y mandan sobre la estimación de la IA.
+   * Crea un proyecto reportando el progreso real de la subida. El cuarto sale de la foto, de la
+   * forma y medidas elegidas a mano (`roomSpec`) o de ambas: lo que define el usuario manda sobre
+   * la estimación de la IA.
    */
-  create(photo: File, name: string, roomType: RoomType, styles: StyleId[], room?: RoomDimensionsInput): Observable<UploadEvent> {
+  create(req: NewProject): Observable<UploadEvent> {
     const form = new FormData();
-    form.append('name', name);
-    form.append('roomType', roomType);
-    form.append('styles', styles.join(','));
-    if (room) {
-      form.append('widthM', String(room.widthM));
-      form.append('depthM', String(room.depthM));
-      form.append('heightM', String(room.heightM));
+    form.append('name', req.name);
+    form.append('roomType', req.roomType);
+    form.append('styles', req.styles.join(','));
+    if (req.room) {
+      form.append('widthM', String(req.room.widthM));
+      form.append('depthM', String(req.room.depthM));
+      form.append('heightM', String(req.room.heightM));
     }
-    form.append('photo', photo, photo.name);
+    if (req.roomSpec) form.append('roomSpec', JSON.stringify(req.roomSpec));
+    if (req.photo) form.append('photo', req.photo, req.photo.name);
     return this.http.post<DesignProject>(this.base, form, { reportProgress: true, observe: 'events' }).pipe(
       filter((e: HttpEvent<DesignProject>) => e.type === HttpEventType.UploadProgress || e.type === HttpEventType.Response),
       map((e): UploadEvent =>

@@ -99,11 +99,13 @@ const ORDER: ProgressStage[] = ['queued', 'geometry', 'surfaces', 'styles', 'sce
 export class ProcessingPanelComponent {
   readonly event = input<JobProgressEvent | null>(null);
   readonly title = input('Estamos preparando tu cuarto');
+  /** Cuarto creado sin foto: no hay análisis ni propuestas, solo se amuebla. */
+  readonly furnishingOnly = input(false);
 
   protected readonly stages = VISIBLE;
   protected readonly messages = STAGE_MESSAGES;
   protected readonly pct = computed(() => this.event()?.pct ?? 0);
-  protected readonly showStages = computed(() => (this.event()?.kind ?? 'analyze-room') === 'analyze-room');
+  protected readonly showStages = computed(() => !this.furnishingOnly() && (this.event()?.kind ?? 'analyze-room') === 'analyze-room');
   private readonly index = computed(() => ORDER.indexOf(this.event()?.stage ?? 'queued'));
 
   isDone(stage: ProgressStage): boolean {

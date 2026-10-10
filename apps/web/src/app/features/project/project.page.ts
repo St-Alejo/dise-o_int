@@ -69,20 +69,23 @@ type View = 'estilos' | '3d';
 
         @if (p.status === 'failed') {
           <div class="card" role="alert">
-            <h2>No pudimos procesar la foto</h2>
+            <h2>{{ p.sourcePhotoUrl ? 'No pudimos procesar la foto' : 'No pudimos amueblar tu cuarto' }}</h2>
             <p class="muted">{{ p.lastError ?? 'Ocurrió un error inesperado.' }}</p>
             <div class="row">
               <button type="button" class="btn btn-primary" (click)="retry()" [disabled]="working()">Reintentar</button>
-              <a routerLink="/proyectos/nuevo" class="btn">Probar con otra foto</a>
+              <a routerLink="/proyectos/nuevo" class="btn">{{ p.sourcePhotoUrl ? 'Probar con otra foto' : 'Empezar de nuevo' }}</a>
             </div>
           </div>
         } @else if (p.status !== 'ready' || (job() && job()!.kind === 'analyze-room')) {
-          <app-processing-panel [event]="job()" />
+          <app-processing-panel [event]="job()" [furnishingOnly]="!p.sourcePhotoUrl" />
         } @else {
-          <div class="tabs" role="tablist" aria-label="Vistas del proyecto">
-            <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === 'estilos'" (click)="setView('estilos')">🎨 Propuestas 2D</button>
-            <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === '3d'" (click)="setView('3d')">🧊 Editor 3D</button>
-          </div>
+          <!-- Las propuestas 2D se generan sobre la foto: un cuarto creado sin foto va directo al 3D. -->
+          @if (p.sourcePhotoUrl) {
+            <div class="tabs" role="tablist" aria-label="Vistas del proyecto">
+              <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === 'estilos'" (click)="setView('estilos')">🎨 Propuestas 2D</button>
+              <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === '3d'" (click)="setView('3d')">🧊 Editor 3D</button>
+            </div>
+          }
           @if (job(); as j) {
             <div class="job card row" role="status" aria-live="polite">
               <div class="mini-bar"><div [style.width.%]="j.pct"></div></div>
@@ -237,7 +240,11 @@ export class ProjectPage implements OnInit {
   protected readonly working = signal(false);
   protected readonly shareUrl = signal('');
   private readonly localView = signal<View | null>(null);
-  protected readonly view = computed<View>(() => this.localView() ?? this.vista() ?? 'estilos');
+  protected readonly view = computed<View>(() => {
+    const project = this.store.project();
+    if (project && !project.sourcePhotoUrl) return '3d';
+    return this.localView() ?? this.vista() ?? 'estilos';
+  });
 
   private readonly versionsDialog = viewChild<ElementRef<HTMLDialogElement>>('versionsDialog');
   private readonly shareDialog = viewChild<ElementRef<HTMLDialogElement>>('shareDialog');

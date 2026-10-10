@@ -27,7 +27,7 @@ export const routes: Routes = [
   {
     path: 'proyectos/nuevo',
     canActivate: [authGuard],
-    loadComponent: () => import('./features/upload/new-project.page').then((m) => m.NewProjectPage),
+    loadComponent: () => import('./features/new-project/new-project.page').then((m) => m.NewProjectPage),
     title: 'Nuevo proyecto — Interiores IA',
   },
   {
