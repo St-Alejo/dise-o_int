@@ -21,15 +21,19 @@ test('buscar y añadir: lámpara sobre la mesa de noche y cuadro en la pared', a
   await expect(results.first()).toContainText(/Lámpara de mesa/);
 
   // Una mesa de noche primero, para que la lámpara tenga dónde apoyarse.
+  // La lista se redibuja un instante después de escribir: se espera el resultado antes de pulsarlo.
   await search.fill('mesa de noche');
+  await expect(results.first()).toContainText(/noche/i);
   await results.first().click();
   await page.getByRole('button', { name: 'Deseleccionar' }).click();
   await search.fill('lámpara de mesa');
+  await expect(results.first()).toContainText(/Lámpara de mesa/);
   await results.first().click();
   await expect(page.getByText(/quedó sobre/)).toBeVisible();
   await page.getByRole('button', { name: 'Deseleccionar' }).click();
 
   await search.fill('cuadro');
+  await expect(results.first()).toContainText(/cuadro/i);
   await results.first().click();
   await expect(page.getByText('✓ Guardado')).toBeVisible({ timeout: 15_000 });
 

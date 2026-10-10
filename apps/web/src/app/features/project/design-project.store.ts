@@ -44,8 +44,8 @@ export class DesignProjectStore {
   private readonly history = new CommandHistory();
   private readonly historyVersion = signal(0);
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Hay un guardado en vuelo (el estado visible puede haber vuelto a "dirty" por una edición). */
-  private saving = false;
+  /** El guardado en vuelo, si lo hay (el estado visible puede haber vuelto a "dirty" por una edición). */
+  private inFlight: Promise<void> | null = null;
 
   readonly project = signal<DesignProject | null>(null);
   readonly placements = signal<Placements>([]);
@@ -54,6 +54,8 @@ export class DesignProjectStore {
   readonly catalog = signal<ReadonlyMap<string, CatalogItem>>(new Map());
   readonly selectedId = signal<string | null>(null);
   readonly roomTarget = signal<RoomTarget | null>(null);
+  /** Piezas elegidas además de la principal (multiselección con Shift+clic o con un marco). */
+  readonly extraIds = signal<readonly string[]>([]);
   readonly saveState = signal<SaveState>('saved');
   readonly loadError = signal<string | null>(null);
 
@@ -62,6 +64,12 @@ export class DesignProjectStore {
   /** La planta tal como la tiene el servidor: si la local es otra, hay que enviarla al guardar. */
   private savedShell: RoomShell | null = null;
   readonly selected = computed(() => this.placements().find((p) => p.id === this.selectedId()) ?? null);
+  /** Todas las piezas seleccionadas, la principal primero. */
+  readonly selection = computed(() => {
+    const ids = [this.selectedId(), ...this.extraIds()];
+    const byId = new Map(this.placements().map((p) => [p.id, p]));
+    return ids.flatMap((id) => (id && byId.has(id) ? [byId.get(id)!] : []));
+  });
   readonly selectedItem = computed(() => {
     const sel = this.selected();
     return sel ? (this.catalog().get(sel.catalogItemId) ?? null) : null;
@@ -187,6 +195,49 @@ export class DesignProjectStore {
 
   select(id: string | null): void {
     this.selectedId.set(id);
+    this.extraIds.set([]);
+  }
+
+  /** Shift+clic: añade la pieza a la selección o la quita de ella. */
+  toggleSelect(id: string): void {
+    const primary = this.selectedId();
+    const extras = this.extraIds();
+    if (!primary) return this.select(id);
+    if (id === primary) {
+      this.selectedId.set(extras[0] ?? null);
+      this.extraIds.set(extras.slice(1));
+    } else {
+      this.extraIds.set(extras.includes(id) ? extras.filter((x) => x !== id) : [...extras, id]);
+    }
+  }
+
+  selectMany(ids: readonly string[]): void {
+    this.selectedId.set(ids[0] ?? null);
+    this.extraIds.set(ids.slice(1));
+  }
+
+  /**
+   * ¿Se pueden mover juntas estas piezas a esas posiciones? Cada una debe quedar dentro del cuarto
+   * y sin chocar con las que no se mueven (entre sí conservan su posición relativa).
+   */
+  isGroupValid(moved: ReadonlyMap<string, Vector3>): boolean {
+    const shell = this.shell();
+    if (!shell) return false;
+    const still = this.placements().filter((p) => !moved.has(p.id));
+    for (const [id, position] of moved) {
+      const p = this.placements().find((x) => x.id === id);
+      const item = p ? this.catalog().get(p.catalogItemId) : null;
+      if (!p || !item) return false;
+      const dims = effectiveDimensions(item.dimensionsM, p);
+      if (!p.supportId && !isInsideRoom(footprint(position, dims, p.rotationY), shell)) return false;
+      const me = bodyOf({ ...p, position, dimensionsM: dims }, item);
+      const hit = still.some((other) => {
+        const otherItem = this.catalog().get(other.catalogItemId);
+        return !!otherItem && bodiesCollide(me, bodyOf(other, otherItem));
+      });
+      if (hit) return false;
+    }
+    return true;
   }
 
   dimensionsOf(catalogItemId: string): Vector3 | null {
@@ -274,21 +325,29 @@ export class DesignProjectStore {
     this.saveTimer = setTimeout(() => void this.flush(), AUTOSAVE_MS);
   }
 
+  /**
+   * Guarda lo pendiente. Si ya hay un guardado en vuelo se espera a que termine: dos envíos con la
+   * misma revisión chocarían entre sí, y quien llama (guardar versión, el asistente, cambiar las
+   * medidas) necesita que al volver la revisión local sea la del servidor.
+   */
   async flush(): Promise<void> {
+    while (this.inFlight) await this.inFlight;
     const project = this.project();
     const state = this.saveState();
     // Sin cambios pendientes no hay nada que enviar (evita PUTs inútiles y conflictos falsos).
-    // Con un guardado en vuelo tampoco: editar mientras tanto deja el estado en "dirty", y un
-    // segundo envío con la misma revisión chocaría con el primero. Al terminar se reprograma.
-    if (!project || this.saving || state === 'saved' || state === 'conflict') return;
+    if (!project || state === 'saved' || state === 'conflict') return;
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
+    this.inFlight = this.save(project).finally(() => (this.inFlight = null));
+    await this.inFlight;
+  }
+
+  private async save(project: DesignProject): Promise<void> {
     const sent = this.placements();
     const sentShell = this.shell();
     const sentFinishes = this.finishes();
-    this.saving = true;
     this.saveState.set('saving');
     try {
       const saved = await this.api.saveScene(project.id, {
@@ -319,8 +378,6 @@ export class DesignProjectStore {
         this.saveState.set('error');
         this.toast.error(`No se pudo guardar: ${e.userMessage}`);
       }
-    } finally {
-      this.saving = false;
     }
   }
 
