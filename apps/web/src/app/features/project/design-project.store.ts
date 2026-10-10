@@ -122,7 +122,11 @@ export class DesignProjectStore {
     const current = this.project();
     if (current && current.id === project.id && project.revision < current.revision) return;
     const localEdits = this.saveState() === 'dirty' || this.saveState() === 'saving';
+    // La misma revisión es el mismo contenido: no hay nada que adoptar, y vaciar el historial
+    // dejaría al usuario sin deshacer por una recarga que no trajo cambios.
+    const unchanged = !!current && current.id === project.id && project.revision === current.revision && current.status === project.status;
     this.project.set(project);
+    if (unchanged && this.saveState() === 'saved') return;
     if (!localEdits) {
       this.adoptShell(project.roomShell);
       this.placements.set(project.furniturePlacements);
