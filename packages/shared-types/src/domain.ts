@@ -14,7 +14,7 @@ const positiveMeters = finite.positive().max(100);
 export const Vector3Schema = z.object({ x: finite, y: finite, z: finite });
 export type Vector3 = z.infer<typeof Vector3Schema>;
 
-export const ROOM_TYPES = ['living', 'bedroom', 'dining', 'office'] as const;
+export const ROOM_TYPES = ['living', 'bedroom', 'dining', 'office', 'kitchen', 'bathroom'] as const;
 export const RoomTypeSchema = z.enum(ROOM_TYPES);
 export type RoomType = z.infer<typeof RoomTypeSchema>;
 

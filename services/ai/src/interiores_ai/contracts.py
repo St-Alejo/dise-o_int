@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RoomType = Literal["living", "bedroom", "dining", "office"]
+RoomType = Literal["living", "bedroom", "dining", "office", "kitchen", "bathroom"]
 StyleId = Literal["escandinavo", "minimalista", "industrial", "bohemio", "moderno", "clasico"]
 Category = Literal[
     "sofa",

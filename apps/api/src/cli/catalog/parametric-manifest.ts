@@ -46,7 +46,9 @@ const LIVING: RoomType[] = ['living'];
 const BED: RoomType[] = ['bedroom'];
 const DINING: RoomType[] = ['dining'];
 const OFFICE: RoomType[] = ['office'];
-const ANY: RoomType[] = ['living', 'bedroom', 'dining', 'office'];
+const KITCHEN: RoomType[] = ['kitchen', 'dining'];
+const BATH: RoomType[] = ['bathroom'];
+const ANY: RoomType[] = ['living', 'bedroom', 'dining', 'office', 'kitchen'];
 
 export const PARAMETRIC_MANIFEST: ManifestEntry[] = [
   // ------------------------------------------------------------------ sofás y asientos
@@ -65,7 +67,7 @@ export const PARAMETRIC_MANIFEST: ManifestEntry[] = [
   pm('silla-roble', 'Silla de comedor de roble', 'chair', 'dining-chair', [0.46, 0.84, 0.52], { sub: 'dining-chair', styles: ['escandinavo', 'minimalista'], rooms: ['dining', 'office'], price: 120, mats: { asiento: 'fabric-linen-sand' } }),
   pm('silla-negra', 'Silla de comedor negra', 'chair', 'dining-chair', [0.45, 0.82, 0.5], { sub: 'dining-chair', styles: ['industrial', 'moderno'], rooms: ['dining', 'office'], price: 95, mats: { estructura: 'metal-black', asiento: 'wood-black' } }),
   pm('silla-nogal-cuero', 'Silla de nogal y cuero', 'chair', 'dining-chair', [0.48, 0.88, 0.54], { sub: 'dining-chair', styles: ['clasico', 'moderno'], rooms: DINING, price: 180, mats: { estructura: 'wood-walnut', asiento: 'leather-cognac' } }),
-  pm('taburete-alto', 'Taburete alto de barra', 'chair', 'stool', [0.4, 0.75, 0.4], { sub: 'stool', styles: ['industrial', 'moderno'], rooms: DINING, price: 85, mats: { estructura: 'metal-black', asiento: 'wood-oak' }, syn: ['bar stool'] }),
+  pm('taburete-alto', 'Taburete alto de barra', 'chair', 'stool', [0.4, 0.75, 0.4], { sub: 'stool', styles: ['industrial', 'moderno'], rooms: KITCHEN, price: 85, mats: { estructura: 'metal-black', asiento: 'wood-oak' }, syn: ['bar stool'] }),
   pm('taburete-bajo', 'Taburete bajo de madera', 'chair', 'stool', [0.36, 0.46, 0.36], { sub: 'stool', styles: ['escandinavo', 'bohemio'], rooms: ANY, price: 60 }),
   pm('silla-oficina', 'Silla de oficina ergonómica', 'chair', 'office-chair', [0.62, 1.05, 0.62], { sub: 'office-chair', styles: ['moderno', 'minimalista'], rooms: OFFICE, price: 240, mats: { tapizado: 'fabric-charcoal' }, syn: ['office chair', 'silla giratoria'] }),
 
@@ -106,21 +108,21 @@ export const PARAMETRIC_MANIFEST: ManifestEntry[] = [
   pm('comoda-terracota', 'Cómoda terracota', 'storage', 'dresser', [1.0, 0.9, 0.45], { sub: 'dresser', styles: ['bohemio', 'moderno'], rooms: BED, price: 450, mats: { frentes: 'paint-terracotta', cuerpo: 'wood-oak' }, syn: ['cajonera'] }),
 
   // ------------------------------------------------------------------ cocina
-  pm('cocina-modulo-bajo', 'Mueble bajo de cocina con encimera', 'kitchen', 'kitchen-base', [1.2, 0.9, 0.6], { sub: 'kitchen-base', styles: ['minimalista', 'moderno'], rooms: DINING, price: 520, mats: { cuerpo: 'plastic-white', frentes: 'plastic-white' }, syn: ['gabinete de cocina', 'base cabinet'] }),
-  pm('cocina-modulo-roble', 'Módulo de cocina de roble', 'kitchen', 'kitchen-base', [0.8, 0.9, 0.6], { sub: 'kitchen-base', styles: ['escandinavo', 'bohemio'], rooms: DINING, price: 430, mats: { encimera: 'wood-oak' } }),
-  pm('cocina-alacena', 'Alacena de pared', 'kitchen', 'kitchen-wall', [1.2, 0.7, 0.35], { sub: 'kitchen-wall', mount: 'wall', elev: 1.45, styles: ['minimalista', 'moderno'], rooms: DINING, price: 360, mats: { cuerpo: 'plastic-white', frentes: 'plastic-white' }, syn: ['gabinete alto', 'wall cabinet'] }),
-  pm('cocina-isla', 'Isla de cocina con barra', 'kitchen', 'kitchen-island', [1.8, 0.92, 0.95], { sub: 'kitchen-island', styles: ['moderno', 'minimalista'], rooms: DINING, price: 1450, mats: { frentes: 'wood-black', encimera: 'stone-marble-white' }, syn: ['barra', 'island'] }),
-  pm('nevera-inox', 'Nevera de acero inoxidable', 'kitchen', 'fridge', [0.7, 1.85, 0.68], { sub: 'fridge', styles: ALL_STYLES, rooms: DINING, price: 1100, mats: { acabado: 'metal-chrome' }, syn: ['refrigerador', 'heladera', 'fridge'] }),
-  pm('nevera-blanca', 'Nevera blanca', 'kitchen', 'fridge', [0.6, 1.7, 0.65], { sub: 'fridge', styles: ALL_STYLES, rooms: DINING, price: 780, syn: ['refrigerador', 'heladera'] }),
-  pm('estufa-horno', 'Estufa con horno', 'kitchen', 'stove', [0.6, 0.9, 0.6], { sub: 'stove', styles: ALL_STYLES, rooms: DINING, price: 650, mats: { acabado: 'metal-chrome' }, syn: ['cocina', 'horno', 'stove', 'oven'] }),
-  pm('fregadero', 'Fregadero con mueble', 'kitchen', 'sink-cabinet', [1.0, 1.15, 0.6], { sub: 'sink', styles: ALL_STYLES, rooms: DINING, price: 560, mats: { cuerpo: 'plastic-white', frentes: 'plastic-white' }, syn: ['lavaplatos', 'sink'] }),
+  pm('cocina-modulo-bajo', 'Mueble bajo de cocina con encimera', 'kitchen', 'kitchen-base', [1.2, 0.9, 0.6], { sub: 'kitchen-base', styles: ['minimalista', 'moderno'], rooms: KITCHEN, price: 520, mats: { cuerpo: 'plastic-white', frentes: 'plastic-white' }, syn: ['gabinete de cocina', 'base cabinet'] }),
+  pm('cocina-modulo-roble', 'Módulo de cocina de roble', 'kitchen', 'kitchen-base', [0.8, 0.9, 0.6], { sub: 'kitchen-base', styles: ['escandinavo', 'bohemio'], rooms: KITCHEN, price: 430, mats: { encimera: 'wood-oak' } }),
+  pm('cocina-alacena', 'Alacena de pared', 'kitchen', 'kitchen-wall', [1.2, 0.7, 0.35], { sub: 'kitchen-wall', mount: 'wall', elev: 1.45, styles: ['minimalista', 'moderno'], rooms: KITCHEN, price: 360, mats: { cuerpo: 'plastic-white', frentes: 'plastic-white' }, syn: ['gabinete alto', 'wall cabinet'] }),
+  pm('cocina-isla', 'Isla de cocina con barra', 'kitchen', 'kitchen-island', [1.8, 0.92, 0.95], { sub: 'kitchen-island', styles: ['moderno', 'minimalista'], rooms: KITCHEN, price: 1450, mats: { frentes: 'wood-black', encimera: 'stone-marble-white' }, syn: ['barra', 'island'] }),
+  pm('nevera-inox', 'Nevera de acero inoxidable', 'kitchen', 'fridge', [0.7, 1.85, 0.68], { sub: 'fridge', styles: ALL_STYLES, rooms: KITCHEN, price: 1100, mats: { acabado: 'metal-chrome' }, syn: ['refrigerador', 'heladera', 'fridge'] }),
+  pm('nevera-blanca', 'Nevera blanca', 'kitchen', 'fridge', [0.6, 1.7, 0.65], { sub: 'fridge', styles: ALL_STYLES, rooms: KITCHEN, price: 780, syn: ['refrigerador', 'heladera'] }),
+  pm('estufa-horno', 'Estufa con horno', 'kitchen', 'stove', [0.6, 0.9, 0.6], { sub: 'stove', styles: ALL_STYLES, rooms: KITCHEN, price: 650, mats: { acabado: 'metal-chrome' }, syn: ['cocina', 'horno', 'stove', 'oven'] }),
+  pm('fregadero', 'Fregadero con mueble', 'kitchen', 'sink-cabinet', [1.0, 1.15, 0.6], { sub: 'sink', styles: ALL_STYLES, rooms: KITCHEN, price: 560, mats: { cuerpo: 'plastic-white', frentes: 'plastic-white' }, syn: ['lavaplatos', 'sink'] }),
 
   // ------------------------------------------------------------------ baño
-  pm('inodoro', 'Inodoro', 'bathroom', 'toilet', [0.38, 0.78, 0.66], { sub: 'toilet', styles: ALL_STYLES, rooms: [], price: 280, syn: ['sanitario', 'wc', 'toilet'] }),
-  pm('lavamanos-roble', 'Lavamanos con mueble de roble', 'bathroom', 'vanity', [0.8, 1.05, 0.48], { sub: 'vanity', styles: ['escandinavo', 'minimalista'], rooms: [], price: 420, syn: ['lavabo', 'vanity'] }),
-  pm('lavamanos-negro', 'Lavamanos con mueble negro', 'bathroom', 'vanity', [0.6, 1.0, 0.45], { sub: 'vanity', styles: ['industrial', 'moderno'], rooms: [], price: 390, mats: { cuerpo: 'wood-black', frentes: 'wood-black', metal: 'metal-black' }, syn: ['lavabo'] }),
-  pm('banera', 'Bañera exenta', 'bathroom', 'bathtub', [1.7, 0.58, 0.75], { sub: 'bathtub', styles: ALL_STYLES, rooms: [], price: 1200, syn: ['tina', 'bathtub'] }),
-  pm('ducha', 'Ducha con mampara', 'bathroom', 'shower', [0.9, 2.0, 0.9], { sub: 'shower', styles: ALL_STYLES, rooms: [], price: 680, syn: ['regadera', 'shower'] }),
+  pm('inodoro', 'Inodoro', 'bathroom', 'toilet', [0.38, 0.78, 0.66], { sub: 'toilet', styles: ALL_STYLES, rooms: BATH, price: 280, syn: ['sanitario', 'wc', 'toilet'] }),
+  pm('lavamanos-roble', 'Lavamanos con mueble de roble', 'bathroom', 'vanity', [0.8, 1.05, 0.48], { sub: 'vanity', styles: ['escandinavo', 'minimalista'], rooms: BATH, price: 420, syn: ['lavabo', 'vanity'] }),
+  pm('lavamanos-negro', 'Lavamanos con mueble negro', 'bathroom', 'vanity', [0.6, 1.0, 0.45], { sub: 'vanity', styles: ['industrial', 'moderno'], rooms: BATH, price: 390, mats: { cuerpo: 'wood-black', frentes: 'wood-black', metal: 'metal-black' }, syn: ['lavabo'] }),
+  pm('banera', 'Bañera exenta', 'bathroom', 'bathtub', [1.7, 0.58, 0.75], { sub: 'bathtub', styles: ALL_STYLES, rooms: BATH, price: 1200, syn: ['tina', 'bathtub'] }),
+  pm('ducha', 'Ducha con mampara', 'bathroom', 'shower', [0.9, 2.0, 0.9], { sub: 'shower', styles: ALL_STYLES, rooms: BATH, price: 680, syn: ['regadera', 'shower'] }),
 
   // ------------------------------------------------------------------ pared
   pm('espejo-redondo-laton', 'Espejo redondo con marco de latón', 'wall-decor', 'mirror', [0.7, 0.7, 0.03], { sub: 'mirror', mount: 'wall', elev: 1.2, styles: ['moderno', 'clasico', 'bohemio'], rooms: ANY, price: 160, params: { shape: 'round' }, mats: { estructura: 'metal-brass' }, syn: ['mirror'] }),

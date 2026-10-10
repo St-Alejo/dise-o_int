@@ -60,6 +60,8 @@ export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
   bedroom: 'Dormitorio',
   dining: 'Comedor',
   office: 'Oficina',
+  kitchen: 'Cocina',
+  bathroom: 'Baño',
 };
 
 export const ROOM_TYPE_PROMPTS: Record<RoomType, string> = {
@@ -67,6 +69,8 @@ export const ROOM_TYPE_PROMPTS: Record<RoomType, string> = {
   bedroom: 'bedroom',
   dining: 'dining room',
   office: 'home office',
+  kitchen: 'kitchen',
+  bathroom: 'bathroom',
 };
 
 /** Estilos por defecto que se generan al subir la foto (la investigación: nunca una sola opción). */

@@ -2,6 +2,7 @@
 
 Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 
+- **Seis tipos de cuarto.** Sala, dormitorio, comedor, oficina, cocina (hilera de gabinetes con fregadero, estufa y nevera, e isla con taburetes si hay paso) y baño.
 - **Un cuarto con su forma real.** Rectangular, en L, en T o en U, con piso y techo de esa forma, puertas y ventanas donde van. Se crea con un asistente que muestra el plano con cotas mientras escribes las medidas, con foto o sin ella.
 - **La foto decide.** Con un modelo de visión (opcional), cada foto aporta medidas aproximadas, la pared de cada puerta y ventana, los muebles que había y los colores. Sin él, el análisis local hace el trabajo. Detalle y resultados con seis fotos reales en [`docs/pruebas-vision/`](docs/pruebas-vision).
 - **Editor con plano y 3D a la vez.** Vista 3D, plano o los dos lado a lado. En el plano se arrastran los muebles con guías de alineación y cotas hasta las paredes, y se mueven paredes, esquinas, puertas y ventanas. Hay lista de objetos, duplicar, copiar y pegar, arrastrar del catálogo y exportar la imagen o el plano con medidas. Todo se deshace con Ctrl+Z.

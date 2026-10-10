@@ -276,3 +276,105 @@ def test_una_variante_no_rompe_las_reglas_duras(catalog):
         # Los muebles altos siguen lejos de la pared de la cámara.
         shelf = next((p for p in result.placements if p.catalogItemId == "estanteria"), None)
         assert shelf is None or shelf.position.z < shell.depthM - 0.5, f"semilla {seed}"
+
+
+# ---------------------------------------------------------------------------
+# Cocina y baño
+# ---------------------------------------------------------------------------
+def kitchen_catalog() -> list[LayoutCandidate]:
+    from tests.conftest import cand
+
+    return [
+        cand("fregadero", "kitchen", "sink", (1.0, 1.15, 0.6), ["moderno"]),
+        cand("estufa", "kitchen", "stove", (0.6, 0.9, 0.6), ["moderno"]),
+        cand("modulo", "kitchen", "kitchen-base", (1.2, 0.9, 0.6), ["moderno"]),
+        cand("nevera", "kitchen", "fridge", (0.7, 1.85, 0.68), ["moderno"]),
+        cand("isla", "kitchen", "kitchen-island", (1.8, 0.92, 0.95), ["moderno"]),
+        cand("taburete", "chair", "stool", (0.4, 0.75, 0.4), ["moderno"]),
+        cand("alacena", "kitchen", "kitchen-wall", (1.2, 0.7, 0.35), ["moderno"], mount="wall"),
+        cand("colgante", "lighting", "pendant", (0.4, 0.5, 0.4), ["moderno"], mount="ceiling"),
+    ]
+
+
+def test_la_cocina_se_arma_como_una_hilera_contra_una_pared():
+    catalog = kitchen_catalog()
+    shell, result = run(catalog, "kitchen", w=4.2, d=3.2)
+    assert result.unplaced == [] and result.score == 1.0
+    assert_valid(shell, result, catalog)
+    row = [(p, item, fp) for p, item, fp in footprints(result, catalog) if item.category == "kitchen" and item.subcategory != "kitchen-island"]
+    assert {item.subcategory for _, item, _ in row} == {"sink", "stove", "kitchen-base", "fridge"}
+    # Todas miran hacia el mismo lado y cada una toca a otra: es una sola hilera, sin huecos.
+    assert len({round(p.rotationY, 3) for p, _, _ in row}) == 1
+    for p, item, _ in row:
+        touching = [
+            q
+            for q, other, _ in row
+            if q is not p and math.hypot(q.position.x - p.position.x, q.position.z - p.position.z) <= (item.dimensionsM.x + other.dimensionsM.x) / 2 + 0.05
+        ]
+        assert touching, f"{p.catalogItemId} quedó suelto"
+    # El fregadero queda en la pared de la ventana (w-back en este cuarto de prueba).
+    sink = next(p for p, item, _ in row if item.subcategory == "sink")
+    assert sink.position.z < 0.5
+
+
+def test_la_isla_solo_va_si_queda_paso_alrededor_y_trae_sus_taburetes():
+    catalog = kitchen_catalog()
+    _, small = run(catalog, "kitchen", w=3.4, d=2.8)
+    assert not any(p.catalogItemId in ("isla", "taburete") for p in small.placements)
+
+    shell, big = run(catalog, "kitchen", w=6.0, d=5.0)
+    assert_valid(shell, big, catalog)
+    island = next(p for p in big.placements if p.catalogItemId == "isla")
+    stools = [p for p in big.placements if p.catalogItemId == "taburete"]
+    assert len(stools) == 3
+    for s in stools:
+        assert math.hypot(s.position.x - island.position.x, s.position.z - island.position.z) < 1.4
+    # Queda al menos 75 cm entre la isla y cualquier mueble de la hilera.
+    by_id = {c.id: c for c in catalog}
+    grown = Footprint.of(island.position.x, island.position.z, 1.8 + 1.5, 0.95 + 1.5, island.rotationY)
+    for p in big.placements:
+        item = by_id[p.catalogItemId]
+        if item.category == "kitchen" and p is not island:
+            assert not overlaps(grown, Footprint.of(p.position.x, p.position.z, item.dimensionsM.x, item.dimensionsM.z, p.rotationY), 0.0)
+    # La lámpara cuelga sobre la isla.
+    lamp = next(p for p in big.placements if p.catalogItemId == "colgante")
+    assert math.hypot(lamp.position.x - island.position.x, lamp.position.z - island.position.z) < 0.3
+
+
+def test_el_bano_coloca_lavamanos_e_inodoro_sin_bloquear_la_puerta():
+    from tests.conftest import cand
+
+    catalog = [
+        cand("lavamanos", "bathroom", "vanity", (0.8, 1.05, 0.48), ["moderno"]),
+        cand("inodoro", "bathroom", "toilet", (0.38, 0.78, 0.66), ["moderno"]),
+        cand("ducha", "bathroom", "shower", (0.9, 2.0, 0.9), ["moderno"]),
+        cand("banera", "bathroom", "bathtub", (1.7, 0.58, 0.75), ["moderno"]),
+    ]
+    shell, result = run(catalog, "bathroom", w=2.6, d=2.4)
+    assert result.unplaced == [] and result.score == 1.0
+    assert_valid(shell, result, catalog)
+    # En un baño chico va la ducha; la bañera solo entra si el cuarto da para las dos.
+    assert {p.catalogItemId for p in result.placements} == {"lavamanos", "inodoro", "ducha"}
+    shell, big = run(catalog, "bathroom", w=3.6, d=3.0)
+    assert_valid(shell, big, catalog)
+    assert "banera" in {p.catalogItemId for p in big.placements}
+
+
+@settings(max_examples=40, deadline=None)
+@given(w=st.floats(min_value=2.2, max_value=7.0), d=st.floats(min_value=2.2, max_value=7.0), seed=st.integers(min_value=0, max_value=50))
+def test_invariante_de_la_cocina_con_cualquier_medida_y_semilla(w, d, seed):
+    catalog = kitchen_catalog()
+    shell = rectangular_shell(w, d, 2.6, windows=[(0.5, 1.4, 1.2, 0.9)])
+    result = engine.place(PlaceFurnitureRequest(roomShell=shell, roomType="kitchen", styleId="moderno", candidates=catalog, locked=[], seed=seed))
+    assert_valid(shell, result, catalog)
+
+
+def test_el_inventario_de_la_foto_reconoce_lo_que_hay_en_una_cocina():
+    from interiores_ai.layout.rules_engine import inventory_role
+
+    assert inventory_role("refrigerator", "kitchen") == "fridge"
+    assert inventory_role("kitchen island", "kitchen") == "island"
+    assert inventory_role("bar stools", "kitchen") == "stool"
+    assert inventory_role("cabinets", "kitchen") == "kitchen-base"
+    assert inventory_role("chair", "kitchen") == "stool"
+    assert inventory_role("microwave", "kitchen") is None

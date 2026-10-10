@@ -15,7 +15,9 @@
             "living",
             "bedroom",
             "dining",
-            "office"
+            "office",
+            "kitchen",
+            "bathroom"
           ]
         }
       },
@@ -354,7 +356,9 @@
             "living",
             "bedroom",
             "dining",
-            "office"
+            "office",
+            "kitchen",
+            "bathroom"
           ]
         },
         "promptStrength": {
@@ -572,7 +576,9 @@
             "living",
             "bedroom",
             "dining",
-            "office"
+            "office",
+            "kitchen",
+            "bathroom"
           ]
         },
         "styleId": {

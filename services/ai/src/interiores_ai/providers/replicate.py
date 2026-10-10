@@ -38,6 +38,8 @@ ROOM_PROMPTS: dict[RoomType, str] = {
     "bedroom": "bedroom",
     "dining": "dining room",
     "office": "home office",
+    "kitchen": "kitchen",
+    "bathroom": "bathroom",
 }
 NEGATIVE = "lowres, watermark, text, deformed, blurry, distorted walls, extra windows, people"
 

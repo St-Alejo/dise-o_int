@@ -37,7 +37,7 @@ from .polygon import RoomGeometry
 
 # "wall" y "surface" no compiten por el piso: un cuadro o una lámpara de mesa no bloquean muebles.
 Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
-Anchor = Literal["wall", "front-of", "facing-wall", "beside", "around", "corner", "center", "over", "under"]
+Anchor = Literal["wall", "front-of", "facing-wall", "beside", "next-to", "around", "corner", "center", "over", "under"]
 
 DOOR_CLEARANCE_M = 0.9
 # Con semilla, cuánto peor que la mejor puede ser una pose para entrar en el sorteo. Las reglas
@@ -64,6 +64,8 @@ class Role:
     ref: str | None = None
     gap: float = 0.45
     prefer_window: bool = False
+    # Superficie mínima del cuarto (m²) para que este rol tenga sentido; 0 = siempre.
+    min_area: float = 0.0
 
 
 def is_(category: str, *subs: str) -> Callable[[LayoutCandidate], bool]:
@@ -110,6 +112,26 @@ TEMPLATES: dict[RoomType, list[Role]] = {
         Role("pendant", is_("lighting", "pendant"), "center"),
         Role("plant", is_("decor", "plant"), "corner"),
     ],
+    # La cocina se arma como una hilera contra una pared: el fregadero (bajo la ventana si la hay)
+    # y, pegados a él, la estufa, los muebles bajos y la nevera. Si cabe, una isla con taburetes.
+    "kitchen": [
+        Role("sink", is_("kitchen", "sink"), "wall", required=True, prefer_window=True),
+        Role("stove", is_("kitchen", "stove"), "next-to", ref="sink"),
+        Role("kitchen-base", is_("kitchen", "kitchen-base"), "next-to", ref="sink", count=2),
+        Role("fridge", is_("kitchen", "fridge"), "next-to", ref="sink"),
+        Role("island", is_("kitchen", "kitchen-island"), "center"),
+        Role("stool", is_("chair", "stool"), "around", ref="island", count=3),
+        Role("pendant", is_("lighting", "pendant"), "over", ref="island"),
+        Role("plant", is_("decor", "plant"), "corner"),
+    ],
+    # La ducha primero: ocupa un rincón entero y el lavamanos y el inodoro se acomodan a ella.
+    "bathroom": [
+        Role("shower", is_("bathroom", "shower"), "corner"),
+        Role("vanity", is_("bathroom", "vanity"), "wall", required=True),
+        Role("toilet", is_("bathroom", "toilet"), "wall", required=True),
+        Role("bathtub", is_("bathroom", "bathtub"), "wall", min_area=7.5),
+        Role("plant", is_("decor", "plant"), "corner"),
+    ],
 }
 
 
@@ -120,8 +142,8 @@ for _roles in TEMPLATES.values():
     for _role in _roles:
         ROLE_LIBRARY.setdefault(_role.name, _role)
 
-# Cómo llama un modelo de visión a cada rol. Lo que no está aquí (una nevera, una isla) no tiene
-# rol todavía y se ignora.
+# Cómo llama un modelo de visión a cada rol. Lo que no está aquí (un microondas, un espejo) no
+# tiene rol todavía y se ignora.
 INVENTORY_ROLES: dict[str, str] = {
     "sofa": "sofa",
     "couch": "sofa",
@@ -169,12 +191,35 @@ INVENTORY_ROLES: dict[str, str] = {
     "desk": "desk",
     "office chair": "desk-chair",
     "desk chair": "desk-chair",
+    "sink": "sink",
+    "kitchen sink": "sink",
+    "stove": "stove",
+    "oven": "stove",
+    "range": "stove",
+    "cooktop": "stove",
+    "fridge": "fridge",
+    "refrigerator": "fridge",
+    "kitchen cabinet": "kitchen-base",
+    "base cabinet": "kitchen-base",
+    "counter": "kitchen-base",
+    "countertop": "kitchen-base",
+    "island": "island",
+    "kitchen island": "island",
+    "stool": "stool",
+    "bar stool": "stool",
+    "barstool": "stool",
+    "vanity": "vanity",
+    "washbasin": "vanity",
+    "toilet": "toilet",
+    "shower": "shower",
+    "bathtub": "bathtub",
+    "tub": "bathtub",
 }
 # Palabras genéricas cuyo rol depende del tipo de cuarto.
 CONTEXT_ROLES: dict[str, dict[RoomType, str]] = {
-    "chair": {"living": "armchair", "bedroom": "armchair", "dining": "dining-chair", "office": "desk-chair"},
-    "table": {"living": "coffee-table", "dining": "dining-table", "office": "desk"},
-    "cabinet": {"living": "shelf", "bedroom": "dresser", "dining": "sideboard", "office": "shelf"},
+    "chair": {"living": "armchair", "bedroom": "armchair", "dining": "dining-chair", "office": "desk-chair", "kitchen": "stool"},
+    "table": {"living": "coffee-table", "dining": "dining-table", "office": "desk", "kitchen": "dining-table"},
+    "cabinet": {"living": "shelf", "bedroom": "dresser", "dining": "sideboard", "office": "shelf", "kitchen": "kitchen-base"},
 }
 
 
@@ -321,6 +366,8 @@ class RulesLayoutEngine:
             if role.required:
                 required_total += 1
             already = len(scene.by_role(role.name))
+            if role.min_area and shell.widthM * shell.depthM < role.min_area and not role.required:
+                continue  # en un cuarto chico esta pieza no deja pasar
             if already >= role.count:
                 required_ok += role.required
                 continue
@@ -452,13 +499,28 @@ class RulesLayoutEngine:
                     yield Pose(ref.x + fx * (dist + extra) + rx * lateral, ref.z + fz * (dist + extra) + rz * lateral, rot, base_cost=abs(extra) + abs(lateral))
         elif role.anchor == "beside" and ref:
             yield from self._beside_poses(role, item, ref)
+        elif role.anchor == "next-to" and ref and ref.wall_id is not None:
+            yield from self._next_to_poses(item, ref, scene)
+        elif role.anchor == "next-to":
+            yield from self._wall_poses(item, shell)
         elif role.anchor == "around" and ref:
             yield from self._around_poses(item, ref, scene)
         elif role.anchor in ("under", "over") and ref:
             yield from self._centered_on(ref, scene, item)
         elif role.anchor == "corner":
-            yield from self._corner_poses(item, scene.room, ref)
-        elif role.anchor == "center" or (role.anchor in ("under", "over", "front-of", "beside", "around") and not ref):
+            yield from self._corner_poses(item, scene.room, ref, squared=role.name == "shower")
+        elif role.anchor == "center":
+            # Una isla solo va si queda paso a su alrededor: nunca pegada a la hilera ni a la pared.
+            margin = 0.75 if role.name == "island" else 0.0
+            cx, cz = scene.room.center
+            rot = 0.0 if shell.widthM >= shell.depthM else math.pi / 2
+            for dx in (0.0, -0.3, 0.3, -0.6, 0.6):
+                for dz in (0.0, -0.3, 0.3):
+                    pose = Pose(cx + dx, cz + dz, rot, base_cost=abs(dx) + abs(dz))
+                    if margin and not self._has_clearance(pose, item, scene, margin):
+                        continue
+                    yield pose
+        elif role.anchor in ("under", "over", "front-of", "beside", "around") and not ref and role.name not in ("stool",):
             cx, cz = scene.room.center
             rot = 0.0 if shell.widthM >= shell.depthM else math.pi / 2
             for dx in (0.0, -0.3, 0.3, -0.6, 0.6):
@@ -503,6 +565,24 @@ class RulesLayoutEngine:
                 yield Pose(x, z, rot, base_cost=abs(along))
 
     @staticmethod
+    def _next_to_poses(item: LayoutCandidate, ref: Placed, scene: Scene) -> Iterator[Pose]:
+        """Pegado a la hilera que empieza en `ref`: contra la misma pared y con el frente alineado."""
+        d = item.dimensionsM
+        row = [p for p in scene.placed if p.layer == "floor" and p.wall_id == ref.wall_id]
+        for neighbour in row:
+            nd = neighbour.item.dimensionsM
+            rx, rz = right(neighbour.rot)
+            fx, fz = forward(neighbour.rot)
+            # El fondo de las dos piezas toca la pared aunque no midan lo mismo de fondo.
+            depth_shift = (d.z - nd.z) / 2
+            for side in (-1, 1):
+                lateral = side * (nd.x / 2 + d.x / 2 + 0.01)
+                x = neighbour.x + rx * lateral + fx * depth_shift
+                z = neighbour.z + rz * lateral + fz * depth_shift
+                # Cuanto más cerca del arranque de la hilera, mejor: no deja huecos.
+                yield Pose(x, z, neighbour.rot, wall_id=ref.wall_id, base_cost=math.hypot(x - ref.x, z - ref.z) * 0.2)
+
+    @staticmethod
     def _around_poses(item: LayoutCandidate, ref: Placed, scene: Scene) -> Iterator[Pose]:
         d = item.dimensionsM
         rd = ref.item.dimensionsM
@@ -544,14 +624,28 @@ class RulesLayoutEngine:
             yield Pose(ref.x + dx, ref.z, rot, base_cost=abs(dx))
 
     @staticmethod
-    def _corner_poses(item: LayoutCandidate, room: RoomGeometry, ref: Placed | None) -> Iterator[Pose]:
+    def _corner_poses(item: LayoutCandidate, room: RoomGeometry, ref: Placed | None, squared: bool = False) -> Iterator[Pose]:
         d = item.dimensionsM
-        half = max(d.x, d.z) / 2 + 0.05
+        # Una pieza que llena el rincón (la ducha) va pegada a las dos paredes y a escuadra con
+        # ellas; las demás (una planta, una butaca) quedan sueltas y miran al centro del cuarto.
+        half = max(d.x, d.z) / 2 + (WALL_GAP_M if squared else 0.05)
         cx, cz = room.center
         # Los rincones son las esquinas salientes: en una L, la esquina de la muesca no lo es.
         for x, z in room.corners(half):
             cost = 0.0 if ref is None else math.hypot(ref.x - x, ref.z - z) * 0.3
-            yield Pose(x, z, angle_facing(cx - x, cz - z), base_cost=cost)
+            rot = angle_facing(cx - x, cz - z)
+            if squared:
+                rot = round(rot / (math.pi / 2)) * (math.pi / 2)
+            yield Pose(x, z, rot, base_cost=cost)
+
+    @staticmethod
+    def _has_clearance(pose: Pose, item: LayoutCandidate, scene: Scene, margin: float) -> bool:
+        """¿Queda un paso de `margin` metros alrededor de la pieza (paredes y otros muebles)?"""
+        d = item.dimensionsM
+        grown = Footprint.of(pose.x, pose.z, d.x + 2 * margin, d.z + 2 * margin, pose.rot)
+        if not scene.room.inside(grown):
+            return False
+        return not any(p.layer == "floor" and overlaps(grown, p.fp, 0.0) for p in scene.placed)
 
     # ------------------------------------------------------------------ costos
     def _role_cost(self, role: Role, item: LayoutCandidate, pose: Pose, scene: Scene) -> float:

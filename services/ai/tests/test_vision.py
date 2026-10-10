@@ -250,7 +250,7 @@ def test_cada_palabra_del_modelo_tiene_su_rol_segun_el_cuarto():
     assert inventory_role("tv-stand", "living") == "tv-stand"
     assert [inventory_role("chair", r) for r in ("living", "dining", "office")] == ["armchair", "dining-chair", "desk-chair"]
     assert inventory_role("table", "bedroom") is None
-    assert inventory_role("refrigerator", "living") is None
+    assert inventory_role("microwave", "living") is None
 
 
 def test_con_inventario_se_coloca_lo_que_habia_en_la_foto():
@@ -271,7 +271,7 @@ def test_con_inventario_se_coloca_lo_que_habia_en_la_foto():
     # Sillas de comedor sin mesa no tienen dónde ir.
     assert "dining-chair" not in dict(names(roles_for("bedroom", inventory(("bed", 1), ("dining chair", 4)))))
     # Un inventario que no se entiende no vacía el cuarto: se usa la plantilla.
-    assert names(roles_for("living", inventory(("refrigerator", 1)))) == full
+    assert names(roles_for("living", inventory(("microwave", 1)))) == full
 
 
 def test_dos_fotos_distintas_dan_dos_distribuciones_distintas(catalog):

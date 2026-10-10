@@ -73,7 +73,7 @@ export class ProjectsController {
   @Post()
   @Throttle(perMinute(12))
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', properties: { photo: { type: 'string', format: 'binary', description: 'Foto del cuarto (opcional si se envía roomSpec)' }, roomSpec: { type: 'string', description: 'Cuarto definido a mano, como JSON: { shape, widthM, depthM, heightM, notchWidthM?, notchDepthM?, openings? }' }, name: { type: 'string' }, roomType: { type: 'string', enum: ['living', 'bedroom', 'dining', 'office'] }, styles: { type: 'string', description: 'Estilos separados por comas' }, widthM: { type: 'string', description: 'Ancho real en metros (opcional; junto con depthM y heightM)' }, depthM: { type: 'string' }, heightM: { type: 'string' } } } })
+  @ApiBody({ schema: { type: 'object', properties: { photo: { type: 'string', format: 'binary', description: 'Foto del cuarto (opcional si se envía roomSpec)' }, roomSpec: { type: 'string', description: 'Cuarto definido a mano, como JSON: { shape, widthM, depthM, heightM, notchWidthM?, notchDepthM?, openings? }' }, name: { type: 'string' }, roomType: { type: 'string', enum: ['living', 'bedroom', 'dining', 'office', 'kitchen', 'bathroom'] }, styles: { type: 'string', description: 'Estilos separados por comas' }, widthM: { type: 'string', description: 'Ancho real en metros (opcional; junto con depthM y heightM)' }, depthM: { type: 'string' }, heightM: { type: 'string' } } } })
   @UseInterceptors(FileInterceptor('photo', { limits: { fileSize: MULTER_HARD_LIMIT, files: 1, fields: 10 } }))
   create(
     @CurrentUser() user: AuthPrincipal,

@@ -26,6 +26,8 @@ DEFAULT_DIMS: dict[RoomType, tuple[float, float, float]] = {
     "bedroom": (3.6, 3.4, 2.5),
     "dining": (3.8, 3.4, 2.6),
     "office": (3.2, 3.0, 2.5),
+    "kitchen": (3.6, 3.0, 2.5),
+    "bathroom": (2.4, 2.0, 2.4),
 }
 
 

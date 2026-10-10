@@ -67,3 +67,35 @@ test('otra distribución: cada semilla reacomoda los muebles de otra forma', asy
   }
   expect(variants.size).toBeGreaterThanOrEqual(3);
 });
+
+const SERVICE_ROOMS = [
+  { roomType: 'kitchen', label: 'Cocina', spec: { shape: 'rect', widthM: 5.5, depthM: 4.6, heightM: 2.6 }, expected: ['sink', 'stove', 'fridge', 'kitchen-base', 'kitchen-island', 'stool'] },
+  { roomType: 'bathroom', label: 'Baño', spec: { shape: 'rect', widthM: 2.8, depthM: 2.4, heightM: 2.5 }, expected: ['vanity', 'toilet', 'shower'] },
+] as const;
+
+for (const room of SERVICE_ROOMS) {
+  test(`${room.label}: se amuebla con lo propio de ese cuarto`, async ({ page }) => {
+    const headers = await apiSession(page, 'formas');
+    const created = await page.request.post('/api/projects', {
+      headers,
+      multipart: { name: room.label, roomType: room.roomType, styles: 'moderno', roomSpec: JSON.stringify(room.spec) },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const { id } = await created.json();
+    const get = async () => (await page.request.get(`/api/projects/${id}`, { headers })).json();
+    await expect.poll(async () => (await get()).status, { timeout: 60_000, intervals: [500, 1000] }).toBe('ready');
+
+    const catalog: { id: string; subcategory?: string }[] = await (await page.request.get('/api/catalog', { headers })).json();
+    const kinds = new Map(catalog.map((c) => [c.id, c.subcategory ?? '']));
+    const placed = new Set((await get()).furniturePlacements.map((p: { catalogItemId: string }) => kinds.get(p.catalogItemId)));
+    for (const kind of room.expected) expect(placed, `falta ${kind}`).toContain(kind);
+
+    await page.goto(`/proyectos/${id}?vista=3d`);
+    await expect(page.getByText(room.label, { exact: true }).first()).toBeVisible();
+    await expect(page.locator('app-plan-editor polygon.item').first()).toBeVisible({ timeout: 30_000 });
+    if (process.env.SHOTS) {
+      await page.waitForTimeout(2500);
+      await page.screenshot({ path: `shots/${room.roomType}.png` });
+    }
+  });
+}

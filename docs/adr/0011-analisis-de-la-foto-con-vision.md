@@ -43,7 +43,8 @@ cada abertura, el inventario y los colores; las medidas son aproximadas y la for
 - La caché y el tope diario viven en memoria por proceso: con dos workers de uvicorn el tope
   efectivo es el doble y una foto repetida puede costar dos llamadas.
 - El inventario no se guarda: "Reacomodar" vuelve a la plantilla del tipo de cuarto.
-- Faltan el tipo de cuarto "cocina" y roles para isla, taburetes y gabinetes; lo que el modelo
-  nombra y no tiene rol se ignora.
+- Lo que el modelo nombra y no tiene rol se ignora. (Al escribir esta decisión faltaban el tipo
+  de cuarto "cocina" y los roles de isla, taburetes y gabinetes; se añadieron después, junto con
+  el baño.)
 - El contrato con la IA creció con campos opcionales (`category`, `count`, `nearWall`,
   `suggestions`, `inventory`): el análisis local no los envía y todo sigue funcionando sin ellos.
