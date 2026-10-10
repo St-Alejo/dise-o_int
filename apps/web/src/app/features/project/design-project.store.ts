@@ -19,7 +19,8 @@ import {
 import { ApiError } from '../../core/api/api-error';
 import { CatalogApi, ProjectsApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
-import { CommandHistory, type Placements, type SceneCommand, type SceneState } from '../viewport-3d/commands';
+import { CommandHistory, MacroCommand, SetFinishesCommand, SetRoomCommand, type Placements, type SceneCommand, type SceneState } from '../viewport-3d/commands';
+import { DraftStore, draftIsRecoverable, isTransient, retryDelayMs, sceneKey, sceneOf, type SceneDraft } from './save-resilience';
 import { planPlacement, type PlacementPlan } from './placement-planner';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'conflict' | 'error';
@@ -44,6 +45,14 @@ export class DesignProjectStore {
   private readonly history = new CommandHistory();
   private readonly historyVersion = signal(0);
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Reintentos seguidos sin éxito (marca la espera del siguiente). */
+  private retries = 0;
+  /** Huella de la escena tal como la tiene el servidor: sirve para saber si un conflicto es real. */
+  private baseline = '';
+  /** Ya se resolvió solo un conflicto en este intento: el siguiente se le muestra al usuario. */
+  private rebased = false;
+  private readonly drafts = new DraftStore(typeof localStorage === 'undefined' ? null : localStorage);
   /** El guardado en vuelo, si lo hay (el estado visible puede haber vuelto a "dirty" por una edición). */
   private inFlight: Promise<void> | null = null;
 
@@ -58,6 +67,10 @@ export class DesignProjectStore {
   readonly extraIds = signal<readonly string[]>([]);
   readonly saveState = signal<SaveState>('saved');
   readonly loadError = signal<string | null>(null);
+  /** Sin conexión: los cambios se quedan en este navegador y se envían al volver. */
+  readonly offline = signal(typeof navigator !== 'undefined' && navigator.onLine === false);
+  /** Cambios de una visita anterior que no llegaron a guardarse y se pueden recuperar. */
+  readonly recoverable = signal<SceneDraft | null>(null);
 
   /** Planta del cuarto en edición: se cambia con comandos, igual que los muebles. */
   readonly shell = signal<RoomShell | null>(null);
@@ -87,7 +100,30 @@ export class DesignProjectStore {
   );
 
   constructor() {
+    const onOnline = () => {
+      this.offline.set(false);
+      // Vuelve la red: lo pendiente sale ya, sin esperar al siguiente reintento.
+      if (this.saveState() === 'error') void this.retrySave();
+    };
+    const onOffline = () => this.offline.set(true);
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      // Con cambios sin guardar, el navegador pregunta antes de cerrar o recargar.
+      if (this.saveState() === 'saved' || this.saveState() === 'conflict') return;
+      void this.flush();
+      event.preventDefault();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', onOnline);
+      window.addEventListener('offline', onOffline);
+      window.addEventListener('beforeunload', beforeUnload);
+    }
     inject(DestroyRef).onDestroy(() => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', onOnline);
+        window.removeEventListener('offline', onOffline);
+        window.removeEventListener('beforeunload', beforeUnload);
+      }
+      if (this.retryTimer) clearTimeout(this.retryTimer);
       if (this.saveTimer) clearTimeout(this.saveTimer);
       // Si se sale con cambios pendientes, se intenta un último guardado.
       if (this.saveState() === 'dirty') void this.flush();
@@ -101,9 +137,33 @@ export class DesignProjectStore {
       const [project, catalog] = await Promise.all([this.api.get(id), this.catalogApi.all()]);
       this.catalog.set(new Map(catalog.map((c) => [c.id, c])));
       this.replaceFromServer(project);
+      // ¿Quedó algo sin guardar de una visita anterior (se cerró la pestaña, se cayó la red)?
+      const draft = this.drafts.read(id);
+      if (draftIsRecoverable(draft, project)) this.recoverable.set(draft);
+      else this.drafts.clear(id);
     } catch (err) {
       this.loadError.set(ApiError.from(err).userMessage);
     }
+  }
+
+  /** Aplica los cambios sin guardar de la visita anterior, como un paso que se puede deshacer. */
+  recoverDraft(): void {
+    const draft = this.recoverable();
+    const shell = this.shell();
+    this.recoverable.set(null);
+    if (!draft || !shell || !draft.shell) return;
+    this.execute(
+      new MacroCommand('Recuperar cambios', [
+        new SetRoomCommand('Recuperar cambios', { shell, placements: this.placements() }, { shell: draft.shell, placements: draft.placements }),
+        new SetFinishesCommand(this.finishes(), draft.finishes),
+      ]),
+    );
+  }
+
+  discardDraft(): void {
+    const project = this.project();
+    this.recoverable.set(null);
+    if (project) this.drafts.clear(project.id);
   }
 
   /** Vista pública (solo lectura): el proyecto llega ya resuelto por el link compartido. */
@@ -140,6 +200,7 @@ export class DesignProjectStore {
     this.project.set(project);
     if (unchanged && this.saveState() === 'saved') return;
     if (!localEdits) {
+      this.baseline = sceneKey(sceneOf(project));
       this.adoptShell(project.roomShell);
       this.placements.set(project.furniturePlacements);
       this.finishes.set(project.finishes ?? null);
@@ -321,6 +382,12 @@ export class DesignProjectStore {
   private afterEdit(): void {
     this.bumpHistory();
     this.saveState.set('dirty');
+    // Copia local por si la pestaña se cierra o la red falla antes de guardar.
+    const project = this.project();
+    if (project) {
+      this.recoverable.set(null);
+      this.drafts.write(project.id, { revision: project.revision, savedAt: Date.now(), placements: this.placements(), finishes: this.finishes(), shell: this.shell() });
+    }
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => void this.flush(), AUTOSAVE_MS);
   }
@@ -362,10 +429,14 @@ export class DesignProjectStore {
       // Sin ediciones de planta mientras se guardaba, la del servidor pasa a ser la local.
       if (shellUntouched && sentShell !== this.savedShell) this.adoptShell(saved.roomShell);
       const untouched = shellUntouched && this.placements() === sent && this.finishes() === sentFinishes;
+      this.retries = 0;
+      this.rebased = false;
+      this.baseline = sceneKey(sceneOf(saved));
       if (untouched) {
         // El servidor puede haber ajustado posiciones (clamp): se adopta su versión.
         this.placements.set(saved.furniturePlacements);
         this.saveState.set('saved');
+        this.drafts.clear(project.id);
       } else {
         this.saveState.set('dirty'); // hubo ediciones mientras se guardaba
         this.saveTimer = setTimeout(() => void this.flush(), AUTOSAVE_MS);
@@ -373,12 +444,41 @@ export class DesignProjectStore {
     } catch (err) {
       const e = ApiError.from(err);
       if (e.status === 409) {
-        this.saveState.set('conflict');
+        await this.rebaseOrConflict(project.id);
+      } else if (isTransient(e.status)) {
+        // Falló la red o el servidor: los cambios siguen aquí y se reintenta solo, cada vez más espaciado.
+        this.saveState.set('error');
+        if (this.retries === 0 && !this.offline()) this.toast.error(`No se pudo guardar: ${e.userMessage} Se reintentará solo.`);
+        if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.retryTimer = setTimeout(() => void this.retrySave(), retryDelayMs(this.retries++));
       } else {
         this.saveState.set('error');
         this.toast.error(`No se pudo guardar: ${e.userMessage}`);
       }
     }
+  }
+
+  /**
+   * El servidor tiene otra revisión. Si su escena es la misma que ya conocíamos (cambió otra cosa:
+   * una versión guardada, el enlace compartido), los cambios locales valen: se toma la revisión
+   * nueva y se reenvían. Si la escena también cambió, es un conflicto de verdad y decide el usuario.
+   */
+  private async rebaseOrConflict(projectId: string): Promise<void> {
+    if (!this.rebased) {
+      try {
+        const fresh = await this.api.get(projectId);
+        if (sceneKey(sceneOf(fresh)) === this.baseline) {
+          this.rebased = true;
+          this.project.set(fresh);
+          this.saveState.set('dirty');
+          this.saveTimer = setTimeout(() => void this.flush(), 0);
+          return;
+        }
+      } catch {
+        // Sin poder comprobarlo se trata como conflicto: nunca se pisa a ciegas.
+      }
+    }
+    this.saveState.set('conflict');
   }
 
   /** Resuelve un conflicto descartando los cambios locales y cargando la versión del servidor. */
@@ -388,6 +488,11 @@ export class DesignProjectStore {
   }
 
   async retrySave(): Promise<void> {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    if (this.saveState() !== 'error') return;
     this.saveState.set('dirty');
     await this.flush();
   }

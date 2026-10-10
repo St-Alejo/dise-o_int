@@ -15,6 +15,7 @@ import { ChatPanelComponent } from '../chat/chat-panel.component';
 import { DesignChatService } from '../chat/design-chat.service';
 import { OutlinerComponent } from '../outliner/outliner.component';
 import { DesignProjectStore } from '../project/design-project.store';
+import { agoLabel } from '../project/save-resilience';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { planSvg } from '../floor-plan/floor-plan-model';
@@ -99,12 +100,26 @@ function initialView(): ViewMode {
           @case ('saved') { ✓ Guardado }
           @case ('dirty') { Cambios sin guardar… }
           @case ('saving') { Guardando… }
-          @case ('error') { Error al guardar <button class="btn btn-sm" type="button" (click)="store.retrySave()">Reintentar</button> }
+          @case ('error') {
+            @if (store.offline()) {
+              Sin conexión: tus cambios se guardarán al volver
+            } @else {
+              No se pudo guardar; reintentando <button class="btn btn-sm" type="button" (click)="store.retrySave()">Reintentar ahora</button>
+            }
+          }
           @case ('conflict') { }
         }
       </span>
     </div>
 
+    @if (store.recoverable(); as draft) {
+      <div class="alert alert-warning row" role="status">
+        <span>Encontramos cambios de tu última visita ({{ ago(draft.savedAt) }}) que no llegaron a guardarse.</span>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-sm btn-primary" (click)="store.recoverDraft()">Recuperarlos</button>
+        <button type="button" class="btn btn-sm" (click)="store.discardDraft()">Descartar</button>
+      </div>
+    }
     @if (store.saveState() === 'conflict') {
       <div class="alert alert-warning row" role="alert">
         <span>El proyecto cambió en otra pestaña o el generador lo actualizó. Tus últimos cambios no se guardaron.</span>
@@ -437,6 +452,10 @@ export class EditorComponent {
   protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);
   protected readonly roomType = computed(() => this.store.project()?.roomType ?? null);
   protected readonly confidence = computed(() => Math.round((this.shell()?.scaleConfidence ?? 0) * 100));
+
+  protected ago(savedAt: number): string {
+    return agoLabel(savedAt, Date.now());
+  }
 
   protected setView(mode: ViewMode): void {
     this.viewMode.set(mode);
