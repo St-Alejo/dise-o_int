@@ -179,6 +179,15 @@ test('editor: lista de objetos, duplicar, arrastrar del catálogo, vaciar y expo
   const png = Buffer.concat(await (await image.createReadStream()).toArray());
   expect(png.subarray(1, 4).toString()).toBe('PNG');
   expect(png.length).toBeGreaterThan(5_000);
+
+  // Y la lista de compras para una hoja de cálculo: una línea por producto y el total.
+  await page.getByText('Exportar', { exact: true }).click();
+  const [shopping] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Para abrir en una hoja de cálculo/ }).click()]);
+  expect(shopping.suggestedFilename()).toBe('compras-cuarto-para-editar.csv');
+  const csv = Buffer.concat(await (await shopping.createReadStream()).toArray()).toString('utf8');
+  const lines = csv.trimEnd().split('\r\n');
+  expect(lines[0]).toContain('Mueble;Categoría;Detalle;Cantidad');
+  expect(lines.at(-1)).toMatch(/^Total;;;3;;[\d,]+;USD;$/);
 });
 
 test('plano editable: añadir una ventana, partir una pared, quitar la esquina y cambiar el alto', async ({ page }) => {

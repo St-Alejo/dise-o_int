@@ -40,3 +40,62 @@ export function describeVariant(
   }
   return parts.length ? parts.join(' · ') : null;
 }
+
+/** Una línea de la lista de compras: piezas iguales (mismo producto y misma variante) van juntas. */
+export interface ShoppingRow {
+  name: string;
+  category: string;
+  variant: string | null;
+  quantity: number;
+  unitPrice: number | null;
+  currency: string;
+  url: string | null;
+}
+
+/** Agrupa lo que hay en el cuarto en líneas de compra, ordenadas por categoría y nombre. */
+export function shoppingRows(placements: readonly FurniturePlacement[], catalog: ReadonlyMap<string, CatalogItem>): ShoppingRow[] {
+  const rows = new Map<string, ShoppingRow>();
+  for (const p of placements) {
+    const item = catalog.get(p.catalogItemId);
+    if (!item) continue;
+    const variant = describeVariant(item, p);
+    const key = `${item.id}|${variant ?? ''}`;
+    const row = rows.get(key);
+    if (row) row.quantity += 1;
+    else {
+      rows.set(key, {
+        name: item.name,
+        category: CATEGORY_LABELS_ES[item.category],
+        variant,
+        quantity: 1,
+        unitPrice: item.price ?? null,
+        currency: item.currency ?? 'USD',
+        url: item.productUrl ?? null,
+      });
+    }
+  }
+  return [...rows.values()].sort((a, b) => a.category.localeCompare(b.category, 'es') || a.name.localeCompare(b.name, 'es'));
+}
+
+/**
+ * La lista de compras como CSV para abrir en una hoja de cálculo: separado por punto y coma (el
+ * que espera Excel en español), con BOM para que los acentos se lean bien y una fila de total.
+ * Las celdas que empiezan por =, +, - o @ se neutralizan para que no se ejecuten como fórmulas.
+ */
+export function shoppingCsv(rows: readonly ShoppingRow[]): string {
+  const cell = (value: string | number | null): string => {
+    let text = value === null ? '' : String(value);
+    if (/^[=+\-@]/.test(text)) text = `'${text}`;
+    return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const money = (v: number | null) => (v === null ? '' : v.toFixed(2).replace('.', ','));
+  const lines = [['Mueble', 'Categoría', 'Detalle', 'Cantidad', 'Precio unitario', 'Subtotal', 'Moneda', 'Enlace']];
+  let total = 0;
+  for (const r of rows) {
+    const subtotal = r.unitPrice === null ? null : r.unitPrice * r.quantity;
+    total += subtotal ?? 0;
+    lines.push([r.name, r.category, r.variant ?? '', String(r.quantity), money(r.unitPrice), money(subtotal), r.currency, r.url ?? '']);
+  }
+  lines.push(['Total', '', '', String(rows.reduce((n, r) => n + r.quantity, 0)), '', money(total), rows[0]?.currency ?? '', '']);
+  return `\uFEFF${lines.map((line) => line.map(cell).join(';')).join('\r\n')}\r\n`;
+}

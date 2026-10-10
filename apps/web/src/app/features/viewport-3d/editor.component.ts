@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
-import { RoomPlan, clampToRoom, effectiveDimensions, footprint, type CatalogItem } from '@interiores/shared-types';
+import { RoomPlan, clampToRoom, effectiveDimensions, footprint, shoppingCsv, shoppingRows, type CatalogItem } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
@@ -105,6 +105,10 @@ function initialView(): ViewMode {
           <button type="button" class="menu-item" (click)="exportPlan(); exportMenu.open = false">
             <strong>Plano con medidas</strong>
             <span class="muted">Para imprimir o enviar (SVG)</span>
+          </button>
+          <button type="button" class="menu-item" (click)="exportShopping(); exportMenu.open = false" [disabled]="!store.placements().length">
+            <strong>Lista de compras</strong>
+            <span class="muted">Para abrir en una hoja de cálculo (CSV)</span>
           </button>
         </div>
       </details>
@@ -517,6 +521,12 @@ export class EditorComponent {
       return;
     }
     downloadBlob(blob, `${fileSlug(this.store.project()?.name ?? '')}.png`);
+  }
+
+  /** Lo que hay en el cuarto, agrupado y con precios, para una hoja de cálculo. */
+  protected exportShopping(): void {
+    const csv = shoppingCsv(shoppingRows(this.store.placements(), this.store.catalog()));
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `compras-${fileSlug(this.store.project()?.name ?? '')}.csv`);
   }
 
   /** El plano con cotas y los muebles, listo para imprimir. */

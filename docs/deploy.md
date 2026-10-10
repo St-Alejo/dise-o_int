@@ -65,7 +65,7 @@ Proyecto `interiores-ia` · web pública: https://web-production-2bde9.up.railwa
 | web | `railway up --service web` (raíz) | `RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile`, `API_UPSTREAM=api.railway.internal:3000`, `NGINX_RESOLVER_IPV6=on`, `PORT=8080` |
 | api | `railway up --service api` (raíz) | `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`, `PORT=3000`, `LISTEN_HOST=::`, `TRUST_PROXY=2` |
 | worker | `railway up --service worker` (raíz) | igual que api + `APP_ENTRY=dist/worker.js` |
-| ai | `railway up services/ai --path-as-root --service ai` | `UVICORN_HOST=::` |
+| ai | `railway up services/ai --path-as-root --service ai` | `UVICORN_HOST=::`, `ROOM_ANALYZER=vision`, `GROQ_API_KEY` (secreto), `VISION_PER_DAY=40` |
 | Postgres / Redis | plantillas de Railway | `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `REDIS_URL=${{Redis.REDIS_URL}}?family=0` |
 | bucket `interiores-media` | Railway Buckets | `S3_ENDPOINT=https://t3.storageapi.dev`, `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=false` |
 
@@ -80,6 +80,13 @@ Proyecto `interiores-ia` · web pública: https://web-production-2bde9.up.railwa
   docker run --rm -e DATABASE_URL=postgresql://…@<dominio>:<puerto>/railway interiores-api-migrate:local
   railway tcp-proxy delete <dominio:puerto> --service Postgres --yes
   ```
+- **Solo el catálogo** (cambió qué mueble va en qué cuarto, sin tocar el esquema): se resiembra
+  desde dentro del servicio `api`, que ya tiene la red privada y las variables:
+  `railway ssh --service api -- node dist/cli/seed.js`. Es idempotente.
+- **Visión:** la clave de Groq vive solo como variable del servicio `ai`. Sin ella (o si se agota
+  el tope diario) el análisis local responde en su lugar.
+- **Límites por IP:** en producción `RATE_LIMIT_MULTIPLIER` no se define (vale 1). La suite e2e
+  completa no se corre contra producción: supera esos límites y gastaría llamadas de visión.
 - Verificación: `node e2e/smoke.mjs https://web-production-2bde9.up.railway.app` (17 comprobaciones) y
   Playwright con `BASE_URL` apuntando a la misma URL.
 
