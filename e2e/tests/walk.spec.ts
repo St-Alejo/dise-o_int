@@ -8,6 +8,8 @@ import { apiSession } from './helpers';
 interface Scene {
   cameraMode: 'orbit' | 'walk';
   camera: { x: number; y: number; z: number };
+  timeOfDay: 'day' | 'night';
+  lamps: number;
   walls: number;
 }
 const scene = (page: Page) => page.evaluate(() => (window as unknown as { __scene: Scene }).__scene);
@@ -42,6 +44,14 @@ test('recorrer: baja a la altura de los ojos, camina sin atravesar paredes y vue
   await expect.poll(async () => (await scene(page)).cameraMode).toBe('orbit');
   const orbit = (await scene(page)).camera;
   expect(orbit.y).toBeGreaterThan(3); // la vista de órbita mira el cuarto desde arriba
+
+  // De noche alumbran las lámparas del cuarto (el dormitorio trae una colgante y una de pie).
+  await expect.poll(async () => (await scene(page)).lamps).toBeGreaterThan(0);
+  const night = page.getByRole('button', { name: 'Modo noche' });
+  await expect(night).toHaveAttribute('aria-pressed', 'false');
+  await night.click();
+  await expect(night).toHaveAttribute('aria-pressed', 'true');
+  expect((await scene(page)).timeOfDay).toBe('night');
 
   await page.getByRole('button', { name: 'Recorrer' }).click();
   await expect(page.getByRole('button', { name: 'Salir del recorrido' })).toHaveAttribute('aria-pressed', 'true');

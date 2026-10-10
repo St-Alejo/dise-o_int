@@ -1,4 +1,4 @@
-import { WALKER, buildWalkWorld, createRectangularShell, walkStart } from '@interiores/shared-types';
+import { WALKER, buildWalkWorld, createRectangularShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CameraDirector, TRANSITION_S } from './camera-director';
@@ -85,10 +85,11 @@ describe('CameraDirector', () => {
 describe('WalkMode', () => {
   function walker() {
     const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 100);
+    // Un punto de partida fijo: lo que se prueba aquí es el modo, no dónde elige empezar.
     const mode = new WalkMode(
       camera,
       () => world,
-      () => walkStart(shell, world),
+      () => ({ x: 2, z: 2.5, yaw: 0 }),
     );
     mode.enter();
     return { camera, mode };
@@ -99,19 +100,19 @@ describe('WalkMode', () => {
     return moved;
   };
 
-  it('empieza en el centro del cuarto, a la altura de los ojos y mirando al fondo', () => {
+  it('empieza a la altura de los ojos, donde le indican y mirando hacia allí', () => {
     const { camera, mode } = walker();
-    expect(camera.position.toArray()).toEqual([2, WALKER.eyeHeightM, 1.5]);
+    expect(camera.position.toArray()).toEqual([2, WALKER.eyeHeightM, 2.5]);
     expect(camera.getWorldDirection(new THREE.Vector3()).z).toBeCloseTo(-1);
     expect(mode.entryPose().fov).toBe(WALK_FOV);
-    expect(mode.entryPose().target.z).toBeCloseTo(0.5);
+    expect(mode.entryPose().target.z).toBeCloseTo(1.5);
   });
 
   it('las teclas mueven a la persona y al soltarlas se detiene', () => {
     const { camera, mode } = walker();
     expect(mode.key('KeyW', true)).toBe(true);
     expect(run(mode, 0.5)).toBe(true);
-    expect(camera.position.z).toBeCloseTo(1.5 - WALKER.walkMps * 0.5, 1);
+    expect(camera.position.z).toBeCloseTo(2.5 - WALKER.walkMps * 0.5, 1);
     mode.key('KeyW', false);
     expect(run(mode, 0.2)).toBe(false);
 
@@ -145,10 +146,10 @@ describe('WalkMode', () => {
 
   it('ir a un punto camina hasta él, y una tecla lo cancela', () => {
     const { camera, mode } = walker();
-    mode.goTo({ x: 3.2, z: 2.2 });
+    mode.goTo({ x: 3.2, z: 1.2 });
     run(mode, 2);
     expect(camera.position.x).toBeCloseTo(3.2, 1);
-    expect(camera.position.z).toBeCloseTo(2.2, 1);
+    expect(camera.position.z).toBeCloseTo(1.2, 1);
     expect(run(mode, 0.2)).toBe(false);
 
     mode.goTo({ x: 0.5, z: 0.5 });

@@ -45,6 +45,9 @@ import { SceneService } from './scene.service';
     ></canvas>
     @if (scene.sceneReady() && !contextLost()) {
       <div class="modes">
+        <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="night()" (click)="scene.setTimeOfDay(night() ? 'day' : 'night')" title="De día alumbra el sol; de noche, las lámparas del cuarto">
+          Modo noche
+        </button>
         <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="walking()" (click)="toggleWalk()">
           {{ walking() ? 'Salir del recorrido' : 'Recorrer' }}
         </button>
@@ -102,6 +105,8 @@ import { SceneService } from './scene.service';
       position: absolute;
       top: 12px;
       right: 12px;
+      display: flex;
+      gap: 8px;
     }
     .mode {
       box-shadow: var(--shadow-sm);
@@ -160,6 +165,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   readonly readOnly = input(false);
   readonly contextLost = signal(false);
   protected readonly walking = computed(() => this.scene.cameraMode() === 'walk');
+  protected readonly night = computed(() => this.scene.timeOfDay() === 'night');
   protected readonly orbitLabel =
     'Vista 3D del cuarto. Arrastra para mover muebles; flechas para desplazar el seleccionado, R para rotar, Supr para quitar.';
   protected readonly walkLabel = 'Recorrido del cuarto a pie. W, A, S, D o flechas para caminar; Escape para salir.';

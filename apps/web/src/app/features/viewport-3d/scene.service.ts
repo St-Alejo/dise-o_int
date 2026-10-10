@@ -21,7 +21,7 @@ import { ORBIT_FOV, OrbitMode } from './camera/orbit-mode';
 import { WalkMode } from './camera/walk-mode';
 import { DragController } from './scene/drag-controller';
 import { FurnitureView } from './scene/furniture-view';
-import { LightingRig } from './scene/lighting-rig';
+import { LightingRig, type TimeOfDay } from './scene/lighting-rig';
 import type { FrameSystem, SceneContext } from './scene/render-loop';
 import { RoomView } from './scene/room-view';
 import { SelectionActions } from './scene/selection-actions';
@@ -34,6 +34,9 @@ export interface SceneSnapshot {
   cameraMode: CameraModeId;
   /** Posición de la cámara, redondeada al centímetro. */
   camera: { x: number; y: number; z: number };
+  timeOfDay: TimeOfDay;
+  /** Lámparas del cuarto que están alumbrando. */
+  lamps: number;
   placements: number;
 }
 
@@ -100,9 +103,10 @@ export class SceneService implements SceneContext {
   private readonly raycaster = new THREE.Raycaster();
   private readonly floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-  constructor() {
-    this.scene.background = new THREE.Color('#e9e3da');
+  /** Hora del día con la que se ilumina el cuarto. */
+  readonly timeOfDay = signal<TimeOfDay>('day');
 
+  constructor() {
     // Estado → escena (signals). Cada efecto solo depende de lo que lee.
     effect(() => {
       const shell = this.store.shell();
@@ -114,6 +118,7 @@ export class SceneService implements SceneContext {
       untracked(() => {
         this.walkWorld = null;
         this.furniture.sync(placements, catalog, (id) => this.dragController.holds(id));
+        this.syncLamps();
       });
     });
     effect(() => {
@@ -169,6 +174,8 @@ export class SceneService implements SceneContext {
       hasCeiling: this.room.hasCeiling,
       cameraMode: this.cameraMode(),
       camera: { x: r2(x), y: r2(y), z: r2(z) },
+      timeOfDay: this.timeOfDay(),
+      lamps: this.lighting.lampCount,
       placements: this.furniture.count,
     };
   }
@@ -231,6 +238,30 @@ export class SceneService implements SceneContext {
     const placement = this.store.selected();
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
     this.selection.update(placement && item ? { placement, item, pose: this.dragController.poseOf(placement.id), invalid } : null);
+  }
+
+  // ------------------------------------------------------------------ luz
+  /** De día alumbra el sol; de noche, las lámparas del cuarto. */
+  setTimeOfDay(time: TimeOfDay): void {
+    this.timeOfDay.set(time);
+    this.lighting.setTimeOfDay(time);
+    this.invalidate();
+  }
+
+  /** Cada lámpara colocada alumbra desde donde está su pantalla. */
+  private syncLamps(): void {
+    const catalog = this.store.catalog();
+    this.lighting.syncLamps(
+      this.store.placements().flatMap((p) => {
+        const item = catalog.get(p.catalogItemId);
+        if (!item || item.category !== 'lighting') return [];
+        const dims = effectiveDimensions(item.dimensionsM, p);
+        // Las colgantes alumbran por abajo; las de pie y de mesa, cerca de su parte alta.
+        const y = item.mount === 'ceiling' ? p.position.y + 0.1 : p.position.y + dims.y * 0.85;
+        return [{ id: p.id, x: p.position.x, y, z: p.position.z }];
+      }),
+    );
+    this.invalidate();
   }
 
   // ------------------------------------------------------------------ cámara
