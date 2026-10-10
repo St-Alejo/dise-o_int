@@ -220,3 +220,28 @@ test('plano editable: añadir una ventana, partir una pared, quitar la esquina y
   await expect.poll(async () => (await shell()).openings.length, { intervals: [500, 1000] }).toBe(openingsBefore);
   expect((await shell()).heightM).toBe(2.6);
 });
+
+test('otra distribución se deshace con Ctrl+Z', async ({ page }) => {
+  const { id, headers } = await createRoom(page);
+  const signature = async () =>
+    (await get(page, id, headers)).furniturePlacements
+      .map((p) => `${p.id}@${p.position.x.toFixed(2)},${p.position.z.toFixed(2)}`)
+      .sort()
+      .join('|');
+  const original = await signature();
+  await page.goto(`/proyectos/${id}?vista=3d`);
+  await expect(page.locator('app-plan-editor polygon.item').first()).toBeVisible({ timeout: 30_000 });
+
+  // Se pide otra distribución hasta que salga una distinta (la semilla es aleatoria).
+  const undo = page.getByRole('button', { name: /^Deshacer Otra distribución/ });
+  await expect(async () => {
+    await page.getByRole('button', { name: /Otra distribución/ }).first().click();
+    await expect(undo).toBeEnabled({ timeout: 15_000 });
+  }).toPass({ timeout: 60_000 });
+  expect(await signature()).not.toBe(original);
+
+  // Ctrl+Z vuelve a la distribución anterior y la guarda.
+  await page.locator('app-plan-editor svg').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+z');
+  await expect.poll(signature, { intervals: [500, 1000], timeout: 20_000 }).toBe(original);
+});

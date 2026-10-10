@@ -424,6 +424,17 @@ export class CommandHistory {
     return next;
   }
 
+  /**
+   * Anota un cambio que YA ocurrió (lo hizo el servidor: otra distribución) para que se pueda
+   * deshacer. No toca el estado: solo deja el comando en la pila.
+   */
+  record(cmd: SceneCommand): void {
+    this.undoStack.push(cmd);
+    if (this.undoStack.length > this.limit) this.undoStack.shift();
+    this.redoStack = [];
+    this.lastAt = -Infinity;
+  }
+
   undo(state: SceneState): SceneState {
     const cmd = this.undoStack.pop();
     if (!cmd) return state;

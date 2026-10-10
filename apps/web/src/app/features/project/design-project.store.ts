@@ -177,18 +177,21 @@ export class DesignProjectStore {
     }
   }
 
-  /** Recarga tras un job del worker (o para resolver un conflicto). */
-  async reload(): Promise<void> {
+  /**
+   * Recarga tras un job del worker (o para resolver un conflicto). Con `undoLabel`, lo que cambie
+   * la escena queda en el historial con ese nombre: "Otra distribución" se deshace con Ctrl+Z.
+   */
+  async reload(undoLabel?: string): Promise<void> {
     const current = this.project();
     if (!current) return;
     try {
-      this.replaceFromServer(await this.api.get(current.id));
+      this.replaceFromServer(await this.api.get(current.id), undoLabel);
     } catch (err) {
       this.toast.error(ApiError.from(err).userMessage);
     }
   }
 
-  replaceFromServer(project: DesignProject): void {
+  replaceFromServer(project: DesignProject, undoLabel?: string): void {
     // Una recarga que salió antes de un guardado puede llegar después de él: traería una revisión
     // vieja y el siguiente guardado chocaría (409). Lo más nuevo nunca se pisa con lo anterior.
     const current = this.project();
@@ -200,11 +203,25 @@ export class DesignProjectStore {
     this.project.set(project);
     if (unchanged && this.saveState() === 'saved') return;
     if (!localEdits) {
+      const before = { shell: this.shell(), placements: this.placements(), finishes: this.finishes() };
+      const changed = sceneKey(before) !== sceneKey(sceneOf(project));
       this.baseline = sceneKey(sceneOf(project));
       this.adoptShell(project.roomShell);
       this.placements.set(project.furniturePlacements);
       this.finishes.set(project.finishes ?? null);
-      this.history.clear();
+      if (undoLabel && before.shell && project.roomShell) {
+        // El cambio lo hizo el servidor: se anota para poder volver atrás, sin perder lo anterior.
+        if (changed) {
+          this.history.record(
+            new MacroCommand(undoLabel, [
+              new SetRoomCommand(undoLabel, { shell: before.shell, placements: before.placements }, { shell: project.roomShell, placements: project.furniturePlacements }),
+              new SetFinishesCommand(before.finishes, project.finishes ?? null),
+            ]),
+          );
+        }
+      } else {
+        this.history.clear();
+      }
       this.bumpHistory();
       this.saveState.set('saved');
       if (this.selectedId() && !project.furniturePlacements.some((p) => p.id === this.selectedId())) this.selectedId.set(null);

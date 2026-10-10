@@ -125,6 +125,7 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       border-radius: var(--radius);
       overflow: hidden;
       background: #e9e3da;
+      container: visor / inline-size;
     }
     canvas {
       display: block;
@@ -145,6 +146,15 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       text-align: center;
       color: var(--text-muted);
       background: color-mix(in srgb, var(--bg) 70%, transparent);
+    }
+    /* En un visor angosto (vista dividida) las dos barras no caben en una fila: las vistas bajan. */
+    @container visor (max-width: 620px) {
+      .modes {
+        top: 54px;
+      }
+      .room-actions {
+        top: 98px;
+      }
     }
     .labels {
       position: absolute;

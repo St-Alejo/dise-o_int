@@ -262,3 +262,32 @@ describe('SetRoomCommand', () => {
     expect(s.shell).toBe(small);
   });
 });
+
+describe('CommandHistory.record', () => {
+  it('anota un cambio que ya ocurrió: se puede deshacer y rehacer sin haberlo aplicado', () => {
+    const h = new CommandHistory();
+    const before = scene(p('a', 1));
+    // El servidor ya dejó el mueble en x = 4: el estado local ya es el nuevo.
+    let s = scene(p('a', 4));
+    h.record(new MoveCommand('a', { x: 1, y: 0, z: 1 }, { x: 4, y: 0, z: 1 }));
+    expect(h.nextUndoLabel).toBe('Mover mueble');
+    s = h.undo(s);
+    expect(s.placements[0]!.position.x).toBe(before.placements[0]!.position.x);
+    s = h.redo(s);
+    expect(s.placements[0]!.position.x).toBe(4);
+  });
+
+  it('conserva lo que había antes en el historial y descarta lo rehacible', () => {
+    const h = new CommandHistory();
+    let s = h.execute(new MoveCommand('a', { x: 1, y: 0, z: 1 }, { x: 2, y: 0, z: 1 }), scene(p('a', 1)));
+    s = h.execute(new MoveCommand('a', { x: 2, y: 0, z: 1 }, { x: 3, y: 0, z: 1 }), s);
+    s = h.undo(s);
+    expect(h.canRedo).toBe(true);
+    h.record(new MoveCommand('a', { x: 2, y: 0, z: 1 }, { x: 5, y: 0, z: 1 }));
+    expect(h.canRedo).toBe(false);
+    s = h.undo({ ...s, placements: [p('a', 5)] });
+    s = h.undo(s);
+    expect(s.placements[0]!.position.x).toBe(1);
+    expect(h.canUndo).toBe(false);
+  });
+});
