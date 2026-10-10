@@ -20,7 +20,7 @@ import { IconComponent } from '../../shared/ui/icon.component';
 import { RoomActionsComponent } from '../floor-plan/room-actions.component';
 import { PaintPaletteComponent } from './tools/paint-palette.component';
 import { VIEWPORT_TOOLS } from './tools/tools';
-import { SceneService } from './scene.service';
+import { SceneService, VIEW_PRESETS } from './scene.service';
 
 /**
  * Viewport 3D como "caja negra" aislada (§5 del documento):
@@ -34,7 +34,7 @@ import { SceneService } from './scene.service';
   selector: 'app-three-viewport',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent, PaintPaletteComponent, RoomActionsComponent],
-  host: { '(dragover)': 'onDragOver($event)', '(drop)': 'onDrop($event)' },
+  host: { '(dragover)': 'onDragOver($event)', '(dragleave)': 'scene.showGhost(null)', '(drop)': 'onDrop($event)' },
   template: `
     <canvas
       #canvas
@@ -80,6 +80,16 @@ import { SceneService } from './scene.service';
     }
     @if (scene.sceneReady() && !contextLost()) {
       <div class="modes">
+        @if (!walking()) {
+          <details class="views" #viewsMenu>
+            <summary class="btn btn-sm mode" title="Mirar el cuarto desde otro lado">Vista</summary>
+            <div class="views-list">
+              @for (v of presets; track v.id) {
+                <button type="button" class="view-item" (click)="scene.viewFrom(v.id); viewsMenu.open = false">{{ v.label }}</button>
+              }
+            </div>
+          </details>
+        }
         <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="night()" (click)="scene.setTimeOfDay(night() ? 'day' : 'night')" title="De día alumbra el sol; de noche, las lámparas del cuarto">
           Modo noche
         </button>
@@ -237,6 +247,43 @@ import { SceneService } from './scene.service';
     .mode {
       box-shadow: var(--shadow-sm);
     }
+    .views {
+      position: relative;
+    }
+    .views summary {
+      list-style: none;
+      cursor: pointer;
+    }
+    .views summary::-webkit-details-marker {
+      display: none;
+    }
+    .views-list {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 6;
+      display: grid;
+      min-width: 190px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .view-item {
+      padding: 7px 10px;
+      border: none;
+      border-radius: 6px;
+      background: none;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.85rem;
+      text-align: left;
+      cursor: pointer;
+    }
+    .view-item:hover {
+      background: var(--surface-2);
+    }
     .mode[aria-pressed='true'] {
       background: var(--primary);
       border-color: var(--primary);
@@ -295,6 +342,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly walking = computed(() => this.scene.cameraMode() === 'walk');
   protected readonly night = computed(() => this.scene.timeOfDay() === 'night');
   protected readonly tools = VIEWPORT_TOOLS;
+  protected readonly presets = VIEW_PRESETS;
   protected readonly step = Math.PI / 12;
   /** Se puede editar: no es la vista pública, la escena está lista y no se está recorriendo. */
   protected readonly editable = computed(() => !this.readOnly() && this.scene.sceneReady() && !this.contextLost() && !this.walking());
@@ -418,6 +466,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     if (!this.edits?.dragged() || this.walking()) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    this.scene.showGhost(this.edits?.dragged() ?? null, event.clientX, event.clientY);
   }
 
   protected onDrop(event: DragEvent): void {
@@ -425,6 +474,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     const item = edits?.dragged();
     if (!edits || !item || this.walking()) return;
     event.preventDefault();
+    this.scene.showGhost(null);
     edits.dragged.set(null);
     edits.add(item, this.scene.floorPointAt(event.clientX, event.clientY) ?? undefined);
   }
@@ -446,6 +496,11 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     if (tool && this.editable()) {
       event.preventDefault();
       this.scene.setTool(tool.id);
+      return;
+    }
+    if (event.key.toLowerCase() === 'f' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      this.scene.frameSelection();
       return;
     }
     if (event.key === 'Escape' && this.scene.tool() !== 'select') {

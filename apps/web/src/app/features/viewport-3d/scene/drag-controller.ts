@@ -12,7 +12,7 @@ import {
 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import type { SceneCommand } from '../commands';
-import { MOUNT_STRATEGIES, type MountPose, type MountStrategy, type SupportCandidate } from '../mounts/mount-strategies';
+import { MOUNT_STRATEGIES, supportCandidates, type MountPose, type MountStrategy, type SupportCandidate } from '../mounts/mount-strategies';
 import type { SceneContext } from './render-loop';
 import { moveCommandFor } from './move-command';
 import { delta, shifted } from './vec';
@@ -229,17 +229,7 @@ export class DragController {
 
   /** Muebles de piso donde se puede apoyar algo (menos la pieza arrastrada y lo que lleva encima). */
   private supportsFor(placementId: string): SupportCandidate[] {
-    const shell = this.store.shell();
-    return this.store
-      .placements()
-      .filter((p) => p.id !== placementId && p.supportId !== placementId)
-      .flatMap((p) => {
-        const item = this.store.catalog().get(p.catalogItemId);
-        if (!item || item.mount !== 'floor' || item.subcategory === 'rug') return [];
-        const dims = effectiveDimensions(item.dimensionsM, p);
-        if (shell && dims.y > shell.heightM - 0.3) return []; // un armario hasta el techo no es una mesa
-        return [{ id: p.id, position: p.position, rotationY: p.rotationY, dims }];
-      });
+    return supportCandidates(this.store.placements(), this.store.catalog(), this.store.shell(), placementId);
   }
 
   /** Apunta el rayo al cursor. */

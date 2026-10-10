@@ -34,7 +34,7 @@ import {
   type WallFrame,
 } from '@interiores/shared-types';
 import { SetRoomCommand, newGestureKey, type RoomSnapshot, type SceneCommand } from '../viewport-3d/commands';
-import { snapToWalls } from '../viewport-3d/mounts/mount-strategies';
+import { MOUNT_STRATEGIES, snapToWalls, supportCandidates } from '../viewport-3d/mounts/mount-strategies';
 import { moveCommandFor, type MovedPose } from '../viewport-3d/scene/move-command';
 
 /** Lo que los gestos necesitan del proyecto abierto (lo cumple `DesignProjectStore`). */
@@ -43,7 +43,14 @@ export interface PlanContext {
   placements(): readonly FurniturePlacement[];
   catalog(): ReadonlyMap<string, CatalogItem>;
   dependentsOf(id: string): FurniturePlacement[];
-  isPoseValid(placementId: string, catalogItemId: string, position: Vector3, rotationY: number, dimensionsM?: Vector3): boolean;
+  isPoseValid(
+    placementId: string,
+    catalogItemId: string,
+    position: Vector3,
+    rotationY: number,
+    dimensionsM?: Vector3,
+    extra?: Pick<FurniturePlacement, 'supportId'>,
+  ): boolean;
   execute(cmd: SceneCommand): void;
 }
 
@@ -75,9 +82,9 @@ const step = (v: number) => cm(Math.round(v / PLAN_STEP_M) * PLAN_STEP_M);
 
 // ------------------------------------------------------------------ muebles
 
-/** ¿Se puede arrastrar esta pieza en el plano? Lo apoyado sobre otro mueble se mueve con su soporte. */
-export function draggableInPlan(p: FurniturePlacement): boolean {
-  return !p.supportId;
+/** En el plano se arrastra todo: lo apoyado se mueve sobre su soporte o salta a otro, como en el 3D. */
+export function draggableInPlan(_p: FurniturePlacement): boolean {
+  return true;
 }
 
 export class MoveItemGesture implements PlanGesture {
@@ -97,15 +104,18 @@ export class MoveItemGesture implements PlanGesture {
     this.dims = effectiveDimensions(item.dimensionsM, start);
     this.offset = { x: start.position.x - grab.x, z: start.position.z - grab.z };
     this.dependents = ctx.dependentsOf(start.id);
-    this.lastValid = { position: start.position, rotationY: start.rotationY };
+    this.lastValid = { position: start.position, rotationY: start.rotationY, wallId: start.wallId, supportId: start.supportId };
   }
 
   move(point: Point2): PlanPreview {
     const shell = this.ctx.shell();
     if (!shell) return {};
     const target = { x: point.x + this.offset.x, z: point.z + this.offset.z };
-    const { pose, guides, blocked } = this.item.mount === 'wall' ? this.onWall(shell, point) : this.onFloor(shell, target);
-    const valid = !blocked && this.ctx.isPoseValid(this.start.id, this.start.catalogItemId, pose.position, pose.rotationY, this.dims);
+    const { pose, guides, blocked } =
+      this.item.mount === 'wall' ? this.onWall(shell, point) : this.item.mount === 'surface' ? this.onSurface(shell, target) : this.onFloor(shell, target);
+    const valid =
+      !blocked &&
+      this.ctx.isPoseValid(this.start.id, this.start.catalogItemId, pose.position, pose.rotationY, this.dims, this.item.mount === 'surface' ? { supportId: pose.supportId } : undefined);
     if (valid) {
       this.lastValid = pose;
       this.changed = true;
@@ -122,7 +132,7 @@ export class MoveItemGesture implements PlanGesture {
   end(): null {
     const to = this.lastValid;
     const from = this.start;
-    const moved = Math.hypot(to.position.x - from.position.x, to.position.z - from.position.z) > 1e-3 || to.wallId !== from.wallId;
+    const moved = Math.hypot(to.position.x - from.position.x, to.position.z - from.position.z) > 1e-3 || to.wallId !== from.wallId || to.supportId !== from.supportId;
     if (this.changed && moved) this.ctx.execute(moveCommandFor(from, to, this.item, this.dependents));
     return null;
   }
@@ -138,6 +148,25 @@ export class MoveItemGesture implements PlanGesture {
     // Una guía solo se dibuja si, tras meter la pieza en el cuarto, sigue alineada con ella.
     const guides = guidesFor(snap.guides, this.boxAt(position));
     return { pose: { position, rotationY: rot }, guides, blocked: false };
+  }
+
+  /**
+   * Lo que va sobre otro mueble: queda encima del que haya bajo el cursor (centrado si no cabe
+   * entero) o, si no hay ninguno, en el piso. Es la misma estrategia del 3D, mirando desde arriba.
+   */
+  private onSurface(shell: RoomShell, target: Point2): { pose: MovedPose; guides: SnapGuide[]; blocked: boolean } {
+    const pose = MOUNT_STRATEGIES.surface.poseFor(
+      { origin: { x: target.x, y: 50, z: target.z }, direction: { x: 0, y: -1, z: 0 } },
+      {
+        shell,
+        dims: this.dims,
+        rotationY: this.start.rotationY,
+        grabOffset: { x: 0, z: 0 },
+        supports: supportCandidates(this.ctx.placements(), this.ctx.catalog(), shell, this.start.id),
+      },
+    );
+    if (!pose) return { pose: { position: this.start.position, rotationY: this.start.rotationY, supportId: this.start.supportId }, guides: [], blocked: true };
+    return { pose: { position: pose.position, rotationY: pose.rotationY, supportId: pose.supportId }, guides: [], blocked: false };
   }
 
   /** Lo colgado se desliza por la pared más cercana al cursor, sin tapar puertas ni ventanas. */

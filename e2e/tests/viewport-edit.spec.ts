@@ -138,6 +138,16 @@ test('visor 3D: mover una pared, pintarla y medir', async ({ page }) => {
   await drag(page, { x: box.x + box.width * 0.35, y: box.y + box.height * 0.65 }, { x: box.x + box.width * 0.65, y: box.y + box.height * 0.65 });
   await expect(page.locator('.scene-label-measure')).toHaveText(/^\d,\d\d m$/);
   if (process.env.SHOTS) await page.screenshot({ path: 'shots/visor-medir.png' });
+  // Vistas rápidas: desde arriba la cámara queda sobre el centro del cuarto; "Esquina" la devuelve.
+  const camera = async () => (await page.evaluate(() => (window as unknown as { __scene: { camera: { x: number; y: number; z: number } } }).__scene)).camera;
+  await page.getByText('Vista', { exact: true }).click();
+  await page.getByRole('button', { name: 'Desde arriba' }).click();
+  await expect.poll(async () => (await camera()).y).toBeGreaterThan(9);
+  expect((await camera()).x).toBeCloseTo(2.5, 1);
+  await page.getByText('Vista', { exact: true }).click();
+  await page.getByRole('button', { name: 'Esquina' }).click();
+  await expect.poll(async () => (await camera()).y).toBeLessThan(8);
+
   // Escape vuelve a la herramienta de mover.
   await canvas.focus();
   await page.keyboard.press('Escape');

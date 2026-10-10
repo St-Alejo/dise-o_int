@@ -13,6 +13,7 @@ import {
   alongOf,
   clampToRoom,
   distanceFromWall,
+  effectiveDimensions,
   footprint,
   footprintBounds,
   guidesFor,
@@ -26,6 +27,8 @@ import {
   type SnapBox,
   type SnapGuide,
   type WallFrame,
+  type CatalogItem,
+  type FurniturePlacement,
   type Mount,
   type RoomShell,
   type Vector3,
@@ -201,6 +204,27 @@ export class SurfaceMount implements MountStrategy {
       supportId: s.id,
     };
   }
+}
+
+/**
+ * Muebles sobre los que se puede apoyar algo: los de piso que no sean alfombras ni lleguen al
+ * techo, sin contar la pieza que se mueve ni lo que lleva encima.
+ */
+export function supportCandidates(
+  placements: readonly FurniturePlacement[],
+  catalog: ReadonlyMap<string, CatalogItem>,
+  shell: Pick<RoomShell, 'heightM'> | null,
+  movingId: string,
+): SupportCandidate[] {
+  return placements
+    .filter((p) => p.id !== movingId && p.supportId !== movingId)
+    .flatMap((p) => {
+      const item = catalog.get(p.catalogItemId);
+      if (!item || item.mount !== 'floor' || item.subcategory === 'rug') return [];
+      const dims = effectiveDimensions(item.dimensionsM, p);
+      if (shell && dims.y > shell.heightM - 0.3) return []; // un armario hasta el techo no es una mesa
+      return [{ id: p.id, position: p.position, rotationY: p.rotationY, dims }];
+    });
 }
 
 /** Registro de estrategias por montaje. */

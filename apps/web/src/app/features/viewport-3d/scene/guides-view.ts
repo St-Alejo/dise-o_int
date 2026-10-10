@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { disposeObject } from '../room-builder';
 import type { SceneContext } from './render-loop';
 
-export type GuideLayer = 'snap' | 'clearance' | 'measure' | 'selection';
+export type GuideLayer = 'snap' | 'clearance' | 'measure' | 'selection' | 'ghost';
 export type Segment = readonly [{ x: number; y: number; z: number }, { x: number; y: number; z: number }];
 
 const STYLE: Record<GuideLayer, { color: string; dashed: boolean }> = {
@@ -10,6 +10,7 @@ const STYLE: Record<GuideLayer, { color: string; dashed: boolean }> = {
   clearance: { color: '#3f8f72', dashed: true },
   measure: { color: '#c62828', dashed: false },
   selection: { color: '#d49a79', dashed: false },
+  ghost: { color: '#3f8f72', dashed: true },
 };
 
 /**

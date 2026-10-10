@@ -49,9 +49,11 @@ function project(placements: FurniturePlacement[], shell: RoomShell = { ...creat
     placements: () => state.placements,
     catalog: () => catalog,
     dependentsOf: (id) => state.placements.filter((p) => p.supportId === id),
-    isPoseValid: (id, _item, position, rotationY, d) => {
+    isPoseValid: (id, itemId, position, rotationY, d) => {
       const me = footprint(position, d!, rotationY);
       if (!isInsideRoom(me, state.shell!)) return false;
+      // Lo que va sobre un mueble no choca con él (el store real lo decide por capas).
+      if (catalog.get(itemId)?.mount === 'surface') return true;
       return !state.placements.some((o) => o.id !== id && !o.supportId && !o.wallId && footprintsOverlap(me, footprint(o.position, dims(o), o.rotationY)));
     },
     execute: (cmd) => {
@@ -135,6 +137,27 @@ describe('mover un mueble en el plano', () => {
     gesture.end();
     expect(p.at('c')).toMatchObject({ wallId: 'w-left', position: { y: 1.4 } });
     expect(p.at('c').rotationY).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('una lámpara de mesa se mueve sobre su soporte, salta a otro o baja al piso', () => {
+    const p = project([piece('t1', 'table', 1.5, 2), piece('t2', 'table', 3.5, 2), piece('l', 'lamp', 1.5, 2, { supportId: 't1', position: { x: 1.5, y: 0.45, z: 2 } })]);
+    const lamp = catalog.get('lamp')!;
+    // Dentro de la misma mesa: sigue apoyada en ella.
+    const within = new MoveItemGesture(p.ctx, p.at('l'), lamp, { x: 1.5, z: 2 });
+    expect(within.move({ x: 1.7, z: 2.1 }).moved?.get('l')?.position).toMatchObject({ ...near(1.7, 2.1), y: 0.45 });
+    within.end();
+    expect(p.at('l')).toMatchObject({ supportId: 't1' });
+    // Sobre la otra mesa: cambia de soporte.
+    const jump = new MoveItemGesture(p.ctx, p.at('l'), lamp, { x: 1.7, z: 2.1 });
+    jump.move({ x: 3.5, z: 2 });
+    jump.end();
+    expect(p.at('l')).toMatchObject({ supportId: 't2', position: { y: 0.45 } });
+    // Fuera de toda mesa: queda en el piso, sin soporte.
+    const down = new MoveItemGesture(p.ctx, p.at('l'), lamp, { x: 3.5, z: 2 });
+    down.move({ x: 2.5, z: 3.4 });
+    down.end();
+    expect(p.at('l').supportId).toBeUndefined();
+    expect(p.at('l').position.y).toBe(0);
   });
 
   it('un clic sin arrastrar no deja nada en el historial', () => {

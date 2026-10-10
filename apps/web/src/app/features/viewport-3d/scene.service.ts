@@ -37,6 +37,16 @@ import { SelectionActions } from './scene/selection-actions';
 import { SelectionView } from './scene/selection-view';
 import { MeasureTool, PaintTool, RoomTool, SelectTool, ToolManager, type PaintTarget, type ToolEvent, type ViewportToolId } from './tools/tools';
 
+/** Vistas rápidas de la cámara de órbita. */
+export type ViewPreset = 'corner' | 'top' | 'front' | 'left' | 'right';
+export const VIEW_PRESETS: readonly { id: ViewPreset; label: string }[] = [
+  { id: 'corner', label: 'Esquina' },
+  { id: 'top', label: 'Desde arriba' },
+  { id: 'front', label: 'De frente' },
+  { id: 'left', label: 'Desde la izquierda' },
+  { id: 'right', label: 'Desde la derecha' },
+];
+
 /** Lo que las pruebas e2e pueden leer de la escena sin comparar píxeles. */
 export interface SceneSnapshot {
   walls: number;
@@ -317,6 +327,70 @@ export class SceneService implements SceneContext {
     }
     this.room.updateCutaway();
     this.invalidate();
+  }
+
+  /** Lleva la cámara de órbita a una vista conocida del cuarto. */
+  viewFrom(preset: ViewPreset): void {
+    const shell = this.store.shell();
+    if (!shell || this.cameraMode() === 'walk') return;
+    if (preset === 'corner') return this.frameRoom(shell);
+    const centre = roomCenter(shell);
+    const span = Math.max(shell.widthM, shell.depthM);
+    const target = new THREE.Vector3(centre.x, 0.6, centre.z);
+    const away = span * 1.5 + 1.5;
+    const position: Record<Exclude<ViewPreset, 'corner'>, THREE.Vector3> = {
+      // Casi vertical: justo encima, los controles de órbita pierden la referencia del "arriba".
+      top: new THREE.Vector3(centre.x, span * 1.9 + 2, centre.z + 0.01),
+      front: new THREE.Vector3(centre.x, shell.heightM * 0.7, shell.depthM + away),
+      left: new THREE.Vector3(-away, shell.heightM * 0.7, centre.z),
+      right: new THREE.Vector3(shell.widthM + away, shell.heightM * 0.7, centre.z),
+    };
+    this.lookFromPose(position[preset], preset === 'top' ? new THREE.Vector3(centre.x, 0, centre.z) : target);
+  }
+
+  /** Acerca la cámara a la pieza seleccionada (o encuadra el cuarto si no hay ninguna). Tecla F. */
+  frameSelection(): void {
+    const placement = this.store.selected();
+    const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
+    if (!placement || !item) return this.frameRoom();
+    if (this.cameraMode() === 'walk') return;
+    const dims = effectiveDimensions(item.dimensionsM, placement);
+    const target = new THREE.Vector3(placement.position.x, placement.position.y + dims.y / 2, placement.position.z);
+    // Se conserva la dirección desde la que se mira; solo cambia a dónde y desde qué distancia.
+    const from = this.camera.position.clone().sub(this.controls?.target ?? target);
+    const distance = Math.max(1.6, Math.hypot(dims.x, dims.y, dims.z) * 2.2);
+    this.lookFromPose(target.clone().add(from.normalize().multiplyScalar(distance)), target);
+  }
+
+  private lookFromPose(position: THREE.Vector3, target: THREE.Vector3): void {
+    this.camera.position.copy(position);
+    this.camera.lookAt(target);
+    if (this.controls) {
+      this.controls.target.copy(target);
+      this.controls.update();
+    }
+    this.room.updateCutaway();
+    this.invalidate();
+  }
+
+  /**
+   * Silueta en el piso del mueble que se arrastra desde el catálogo, donde caería al soltarlo
+   * (null la quita).
+   */
+  showGhost(item: CatalogItem | null, clientX = 0, clientY = 0): void {
+    const at = item ? this.floorPointAt(clientX, clientY) : null;
+    if (!item || !at) return this.guides.set('ghost', []);
+    const corners = footprint({ x: at.x, y: 0, z: at.z }, item.dimensionsM, 0).corners;
+    this.guides.set(
+      'ghost',
+      corners.map((c, i) => {
+        const d = corners[(i + 1) % corners.length]!;
+        return [
+          { x: c.x, y: 0.03, z: c.z },
+          { x: d.x, y: 0.03, z: d.z },
+        ] as const;
+      }),
+    );
   }
 
   private refreshSelection(invalid = false): void {
