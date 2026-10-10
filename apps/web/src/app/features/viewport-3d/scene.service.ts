@@ -124,6 +124,7 @@ export class SceneService implements SceneContext {
         shell: () => this.store.shell(),
         panBy: (dx, dz) => this.panBy(dx, dz),
         message: (text) => this.toolMessage.set(text),
+        target: (target) => this.store.roomTarget.set(target),
       }),
       new PaintTool({
         shell: () => this.store.shell(),

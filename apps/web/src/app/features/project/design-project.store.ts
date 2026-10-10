@@ -24,6 +24,9 @@ import { planPlacement, type PlacementPlan } from './placement-planner';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'conflict' | 'error';
 
+/** Parte del cuarto elegida con la herramienta de paredes (en el plano o en el 3D). */
+export type RoomTarget = { kind: 'wall'; wallId: string } | { kind: 'opening'; openingId: string } | { kind: 'vertex'; index: number };
+
 const AUTOSAVE_MS = 1200;
 
 /**
@@ -50,6 +53,7 @@ export class DesignProjectStore {
   readonly finishes = signal<RoomFinishes | null>(null);
   readonly catalog = signal<ReadonlyMap<string, CatalogItem>>(new Map());
   readonly selectedId = signal<string | null>(null);
+  readonly roomTarget = signal<RoomTarget | null>(null);
   readonly saveState = signal<SaveState>('saved');
   readonly loadError = signal<string | null>(null);
 

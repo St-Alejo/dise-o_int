@@ -168,3 +168,174 @@ export function carryPlacements(
     return extra ? { ...p, position: { x: p.position.x + extra.x, y: p.position.y, z: p.position.z + extra.z } } : p;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Puertas, ventanas, esquinas y alto
+// ---------------------------------------------------------------------------
+
+/** Medidas con las que nace una puerta o una ventana nueva. */
+export const NEW_OPENING = {
+  door: { widthM: 0.9, heightM: 2.05, sillHeightM: 0 },
+  window: { widthM: 1.2, heightM: 1.2, sillHeightM: 0.9 },
+} as const;
+
+const same = (shell: RoomShell): RoomEdit => ({ shell, shift: { x: 0, z: 0 } });
+const withWindowFlags = (shell: RoomShell): RoomShell => ({
+  ...shell,
+  walls: shell.walls.map((w) => ({ ...w, hasWindow: shell.openings.some((o) => o.wallId === w.id && o.type === 'window') })),
+});
+const freeId = (taken: readonly string[], prefix: string): string => {
+  for (let n = 1; ; n++) if (!taken.includes(`${prefix}-${n}`)) return `${prefix}-${n}`;
+};
+
+/**
+ * Añade una puerta o una ventana a una pared, lo más cerca posible de `nearM` (por defecto, el
+ * centro) donde quepa sin pisar otra abertura. Si la pared está llena o es muy corta, lanza.
+ */
+export function addOpening(shell: RoomShell, wallId: string, type: Opening['type'], nearM?: number): RoomShell {
+  const wall = shell.walls.find((w) => w.id === wallId);
+  if (!wall) throw new RoomGeometryError(`La pared ${wallId} no existe`);
+  const length = wallLength(wall);
+  const size = NEW_OPENING[type];
+  const margin = ROOM_LIMITS.openingMarginM;
+  const widthM = Math.min(size.widthM, length - 2 * margin);
+  const heightM = Math.min(size.heightM, shell.heightM - size.sillHeightM - margin);
+  const label = type === 'door' ? 'una puerta' : 'una ventana';
+  if (widthM < 0.4 || heightM < 0.4) throw new RoomGeometryError(`En esa pared no cabe ${label}`);
+  const half = widthM / 2;
+  const wanted = Math.min(length - margin - half, Math.max(margin + half, nearM ?? length / 2));
+  const others = shell.openings.filter((o) => o.wallId === wallId);
+  const fits = (at: number) =>
+    at - half >= margin - 1e-9 && at + half <= length - margin + 1e-9 && others.every((o) => Math.abs(o.offsetM - at) >= o.widthM / 2 + half + margin - 1e-9);
+  // Se prueba cada 5 cm, alejándose del punto pedido hacia los dos lados.
+  let offsetM: number | null = null;
+  for (let d = 0; d <= length && offsetM === null; d += 0.05) {
+    if (fits(wanted + d)) offsetM = wanted + d;
+    else if (fits(wanted - d)) offsetM = wanted - d;
+  }
+  if (offsetM === null) throw new RoomGeometryError(`En esa pared no queda sitio para ${label}`);
+  const opening: Opening = {
+    id: freeId(
+      shell.openings.map((o) => o.id),
+      type === 'door' ? 'door' : 'win',
+    ),
+    type,
+    wallId,
+    widthM: r3(widthM),
+    heightM: r3(heightM),
+    offsetM: r3(offsetM),
+    sillHeightM: size.sillHeightM,
+  };
+  const next = withWindowFlags({ ...shell, openings: [...shell.openings, opening] });
+  validateOpenings(next);
+  return next;
+}
+
+export function removeOpening(shell: RoomShell, openingId: string): RoomShell {
+  if (!shell.openings.some((o) => o.id === openingId)) throw new RoomGeometryError(`La abertura ${openingId} no existe`);
+  return withWindowFlags({ ...shell, openings: shell.openings.filter((o) => o.id !== openingId) });
+}
+
+/** Cambia el ancho, el alto o el alféizar de una abertura; si así no cabe o pisa a otra, lanza. */
+export function resizeOpening(shell: RoomShell, openingId: string, size: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillHeightM'>>): RoomShell {
+  if (!shell.openings.some((o) => o.id === openingId)) throw new RoomGeometryError(`La abertura ${openingId} no existe`);
+  for (const v of Object.values(size)) if (!Number.isFinite(v) || (v as number) < 0) throw new RoomGeometryError('Esa medida no es válida');
+  if ((size.widthM ?? 1) < 0.4 || (size.heightM ?? 1) < 0.4) throw new RoomGeometryError('Una abertura mide al menos 40 cm');
+  const next = { ...shell, openings: shell.openings.map((o) => (o.id === openingId ? { ...o, ...size } : o)) };
+  validateOpenings(next);
+  return next;
+}
+
+/** Punto del cuarto donde está el centro de una abertura. */
+function openingCentre(shell: RoomShell, o: Opening): Point2 | null {
+  const wall = shell.walls.find((w) => w.id === o.wallId);
+  if (!wall) return null;
+  const len = wallLength(wall) || 1;
+  return { x: wall.start.x + ((wall.end.x - wall.start.x) / len) * o.offsetM, z: wall.start.z + ((wall.end.z - wall.start.z) / len) * o.offsetM };
+}
+
+/** Arma el cuarto con otra lista de paredes (cambió su número): cada abertura va a la pared nueva que la contiene. */
+function rewall(shell: RoomShell, walls: RoomShell['walls']): RoomEdit {
+  const openings = dropOverlappingOpenings(
+    shell.openings.flatMap((o) => {
+      const centre = openingCentre(shell, o);
+      if (!centre) return [];
+      let best: { wall: RoomShell['walls'][number]; along: number; d: number } | null = null;
+      for (const wall of walls) {
+        const len = wallLength(wall) || 1;
+        const along = ((centre.x - wall.start.x) * (wall.end.x - wall.start.x) + (centre.z - wall.start.z) * (wall.end.z - wall.start.z)) / len;
+        const t = Math.min(len, Math.max(0, along));
+        const d = Math.hypot(wall.start.x + ((wall.end.x - wall.start.x) / len) * t - centre.x, wall.start.z + ((wall.end.z - wall.start.z) / len) * t - centre.z);
+        if (!best || d < best.d - 1e-9) best = { wall, along: t, d };
+      }
+      // Una abertura que quedó lejos de toda pared (se quitó la esquina que la sostenía) se pierde.
+      if (!best || best.d > 0.05) return [];
+      return [fitOpening({ ...o, wallId: best.wall.id, offsetM: r3(best.along) }, wallLength(best.wall), shell.heightM)];
+    }),
+  );
+  const { shape: _shape, ...rest } = shell;
+  const draft = withWindowFlags({ ...rest, walls, openings });
+  const next: RoomShell = isBoxRoom(draft) ? draft : { ...draft, shape: 'free' };
+  validateRoomShell(next);
+  return same(next);
+}
+
+/** Parte una pared en dos añadiendo una esquina (por defecto en su mitad): después se puede mover. */
+export function splitWall(shell: RoomShell, wallId: string, fraction = 0.5): RoomEdit {
+  const index = shell.walls.findIndex((w) => w.id === wallId);
+  const wall = shell.walls[index];
+  if (!wall) throw new RoomGeometryError(`La pared ${wallId} no existe`);
+  if (shell.walls.length >= 64) throw new RoomGeometryError('El cuarto ya tiene demasiadas paredes');
+  const t = Math.min(0.9, Math.max(0.1, fraction));
+  const mid = { x: r3(wall.start.x + (wall.end.x - wall.start.x) * t), y: 0, z: r3(wall.start.z + (wall.end.z - wall.start.z) * t) };
+  const second = {
+    ...wall,
+    id: freeId(
+      shell.walls.map((w) => w.id),
+      'w',
+    ),
+    start: mid,
+  };
+  const walls = [...shell.walls.slice(0, index), { ...wall, end: mid }, second, ...shell.walls.slice(index + 1)];
+  return rewall(shell, walls);
+}
+
+/** Quita una esquina (donde empieza la pared `index`): sus dos paredes pasan a ser una sola. */
+export function removeVertex(shell: RoomShell, index: number): RoomEdit {
+  const n = shell.walls.length;
+  if (index < 0 || index >= n) throw new RoomGeometryError('Esa esquina no existe');
+  if (n <= 3) throw new RoomGeometryError('Un cuarto necesita al menos tres paredes');
+  const before = shell.walls[(index - 1 + n) % n]!;
+  const removed = shell.walls[index]!;
+  // Se conserva el id histórico (w-back, w-left…) si alguna de las dos lo tenía.
+  const numbered = (id: string) => /^w-\d+$/.test(id);
+  const merged = { ...before, id: numbered(before.id) && !numbered(removed.id) ? removed.id : before.id, end: removed.end };
+  const walls = shell.walls.filter((_, i) => i !== index).map((w) => (w === before ? merged : w));
+  const b = polygonBounds(walls.map((w) => ({ x: w.start.x, z: w.start.z })));
+  const shift = { x: r3(-b.minX), z: r3(-b.minZ) };
+  const slide = (v: Vector3): Vector3 => ({ x: r3(v.x + shift.x), y: 0, z: r3(v.z + shift.z) });
+  // Las aberturas se buscan en el cuarto ya corrido: se corre también el de partida.
+  const shifted: RoomShell = {
+    ...shell,
+    widthM: r3(b.maxX - b.minX),
+    depthM: r3(b.maxZ - b.minZ),
+    walls: shell.walls.map((w) => ({ ...w, start: slide(w.start), end: slide(w.end) })),
+  };
+  const edit = rewall(
+    shifted,
+    walls.map((w) => ({ ...w, start: slide(w.start), end: slide(w.end) })),
+  );
+  return { shell: edit.shell, shift };
+}
+
+/** Cambia el alto del cuarto; las puertas y ventanas que ya no caben se recortan. */
+export function setRoomHeight(shell: RoomShell, heightM: number): RoomShell {
+  const { minHeightM, maxHeightM } = ROOM_LIMITS;
+  if (!Number.isFinite(heightM) || heightM < minHeightM || heightM > maxHeightM) {
+    throw new RoomGeometryError(`El alto del cuarto debe estar entre ${minHeightM} y ${maxHeightM} m`);
+  }
+  const walls = new Map(shell.walls.map((w) => [w.id, w]));
+  const next = { ...shell, heightM: r3(heightM), openings: shell.openings.map((o) => fitOpening(o, wallLength(walls.get(o.wallId)!), heightM)) };
+  validateOpenings(next);
+  return next;
+}

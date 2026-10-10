@@ -200,11 +200,15 @@ describe('ProjectsService', () => {
       const edited = moveWall(before, 'w-right', -1).shell;
       const saved = await service.updateScene(alice, p.id, {
         revision: p.revision,
-        // Del cliente solo se toma la geometría: el id y el alto no se pueden cambiar por aquí.
-        roomShell: { ...edited, id: 'otro', heightM: 9, scaleConfidence: 1, needsCalibration: false },
+        // Del cliente solo se toma la geometría: el id y la confianza de la escala no cambian por aquí.
+        roomShell: { ...edited, id: 'otro', heightM: 3, scaleConfidence: 1, needsCalibration: false },
         furniturePlacements: [{ id: 'p1', catalogItemId: 'sofa-test', position: { x: before.widthM - 0.5, y: 0, z: 1 }, rotationY: 0, lockedByUser: true }],
       });
-      expect(saved.roomShell).toMatchObject({ id: before.id, widthM: before.widthM - 1, heightM: before.heightM, needsCalibration: before.needsCalibration });
+      expect(saved.roomShell).toMatchObject({ id: before.id, widthM: before.widthM - 1, heightM: 3, needsCalibration: before.needsCalibration });
+      // Un alto fuera de los límites se rechaza.
+      await expect(
+        service.updateScene(alice, p.id, { revision: saved.revision, roomShell: { ...edited, heightM: 9 }, furniturePlacements: [] }),
+      ).rejects.toBeInstanceOf(ValidationError);
       expect(saved.furniturePlacements[0]!.position.x).toBeLessThan(before.widthM - 1);
     });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FurniturePlacement, Opening, RoomShell } from './domain.js';
 import { createRectangularShell, footprint, isBoxRoom, isInsideRoom, RoomGeometryError, validateRoomShell, wallLength } from './geometry.js';
-import { carryPlacements, moveOpening, moveVertex, moveWall } from './room-edit.js';
+import { addOpening, carryPlacements, moveOpening, moveVertex, moveWall, removeOpening, removeVertex, resizeOpening, setRoomHeight, splitWall } from './room-edit.js';
 import { RoomPlan } from './room-plan.js';
 import { buildRoomShape } from './room-templates.js';
 import { snapMove } from './snapping.js';
@@ -167,5 +167,91 @@ describe('guías de alineación', () => {
     expect(0.73 + free.dx).toBeCloseTo(0.75);
     expect(2.12 + free.dz).toBeCloseTo(2.1);
     expect(snapMove(box(0.73, 2.12), [], { gridM: 0 })).toMatchObject({ dx: 0, dz: 0 });
+  });
+});
+
+describe('puertas y ventanas', () => {
+  it('añade una abertura donde cabe, lo más cerca del punto pedido', () => {
+    const shell = addOpening(rect(), 'w-back', 'window');
+    expect(shell.openings).toEqual([expect.objectContaining({ id: 'win-1', type: 'window', wallId: 'w-back', offsetM: 2, widthM: 1.2, sillHeightM: 0.9 })]);
+    expect(shell.walls[0]!.hasWindow).toBe(true);
+    // La segunda no puede ir encima: se corre lo justo.
+    const two = addOpening(shell, 'w-back', 'door', 2);
+    const door = two.openings[1]!;
+    expect(door).toMatchObject({ id: 'door-1', type: 'door', sillHeightM: 0 });
+    expect(Math.abs(door.offsetM - 2)).toBeGreaterThanOrEqual(0.6 + 0.45 + 0.05 - 1e-6);
+    expect(() => validateRoomShell(two)).not.toThrow();
+  });
+
+  it('avisa cuando la pared está llena o no existe', () => {
+    let shell = rect();
+    shell = addOpening(shell, 'w-right', 'window', 0.8);
+    shell = addOpening(shell, 'w-right', 'window', 2.2);
+    expect(() => addOpening(shell, 'w-right', 'door')).toThrow(/no queda sitio/);
+    expect(() => addOpening(rect(), 'nada', 'door')).toThrow(RoomGeometryError);
+  });
+
+  it('quita y cambia de tamaño sin dejar el cuarto inválido', () => {
+    const shell = addOpening(rect(), 'w-back', 'window');
+    expect(resizeOpening(shell, 'win-1', { widthM: 2 }).openings[0]!.widthM).toBe(2);
+    expect(() => resizeOpening(shell, 'win-1', { widthM: 9 })).toThrow(RoomGeometryError);
+    expect(() => resizeOpening(shell, 'win-1', { heightM: 3 })).toThrow(RoomGeometryError);
+    const empty = removeOpening(shell, 'win-1');
+    expect(empty.openings).toEqual([]);
+    expect(empty.walls[0]!.hasWindow).toBe(false);
+    expect(() => removeOpening(empty, 'win-1')).toThrow(RoomGeometryError);
+  });
+});
+
+describe('esquinas y alto', () => {
+  it('partir una pared añade una esquina y reparte sus aberturas', () => {
+    const shell = withOpening(withOpening(rect(), { wallId: 'w-back', offsetM: 1 }), { wallId: 'w-back', offsetM: 3.2 });
+    const { shell: split, shift } = splitWall(shell, 'w-back');
+    expect(shift).toEqual({ x: 0, z: 0 });
+    expect(split.walls).toHaveLength(5);
+    expect(split.walls.map((w) => w.id)).toEqual(['w-back', 'w-1', 'w-right', 'w-front', 'w-left']);
+    expect(split.shape).toBe('free');
+    expect(RoomPlan.from(split).area()).toBeCloseTo(12);
+    // La primera ventana sigue en la mitad izquierda; la segunda pasó a la pared nueva, a 1,2 m de su inicio.
+    expect(split.openings.map((o) => [o.wallId, o.offsetM])).toEqual([
+      ['w-back', 1],
+      ['w-1', 1.2],
+    ]);
+    // La esquina nueva se puede mover: el cuarto deja de ser un rectángulo.
+    const moved = moveVertex(split, 1, { x: 2, z: -0.8 });
+    expect(moved.shell.depthM).toBe(3.8);
+    expect(moved.shift).toEqual({ x: 0, z: 0.8 });
+  });
+
+  it('quitar una esquina une sus dos paredes', () => {
+    const { shell: split } = splitWall(rect(), 'w-back');
+    const back = removeVertex(split, 1);
+    expect(back.shell.walls.map((w) => w.id)).toEqual(['w-back', 'w-right', 'w-front', 'w-left']);
+    expect(isBoxRoom(back.shell)).toBe(true);
+    expect(back.shell.shape).toBeUndefined();
+    // En una L, quitar la esquina entrante la convierte en un pentágono válido.
+    const l = lRoom();
+    const plan = RoomPlan.from(l);
+    const inner = plan.polygon.findIndex((_, i) => !plan.convexAt(i));
+    const penta = removeVertex(l, inner);
+    expect(penta.shell.walls).toHaveLength(5);
+    expect(() => validateRoomShell(penta.shell)).not.toThrow();
+    expect(RoomPlan.from(penta.shell).area()).toBeGreaterThan(plan.area());
+  });
+
+  it('no deja un cuarto con menos de tres paredes ni quita esquinas que no existen', () => {
+    const triangle = removeVertex(rect(), 2);
+    expect(triangle.shell.walls).toHaveLength(3);
+    expect(() => removeVertex(triangle.shell, 0)).toThrow(/tres paredes/);
+    expect(() => removeVertex(rect(), 7)).toThrow(RoomGeometryError);
+  });
+
+  it('el alto cambia dentro de los límites y recorta lo que ya no cabe', () => {
+    const shell = addOpening(rect(), 'w-back', 'door');
+    const lower = setRoomHeight(shell, 2);
+    expect(lower.heightM).toBe(2);
+    expect(lower.openings[0]!.heightM).toBeLessThan(2);
+    expect(() => setRoomHeight(shell, 1)).toThrow(/alto/);
+    expect(() => setRoomHeight(shell, 9)).toThrow(RoomGeometryError);
   });
 });

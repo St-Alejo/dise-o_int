@@ -234,7 +234,7 @@ describe('herramientas del visor', () => {
     const p = project([piece('s', 'sofa', 3.8, 2)]);
     const messages: (string | null)[] = [];
     const pans: [number, number][] = [];
-    const tool = new RoomTool(p.store, { shell: p.store.shell, panBy: (dx, dz) => pans.push([dx, dz]), message: (m) => messages.push(m) });
+    const tool = new RoomTool(p.store, { shell: p.store.shell, panBy: (dx, dz) => pans.push([dx, dz]), message: (m) => messages.push(m), target: () => undefined });
     // Se agarra la pared derecha (x = 5) a un metro de alto y se lleva hacia dentro.
     expect(tool.cursor(at(ray([1, 2, 2], [5, 1, 2])))).toBe('move');
     expect(tool.down(at(ray([1, 2, 2], [5, 1, 2])))).toBe(true);
@@ -253,7 +253,7 @@ describe('herramientas del visor', () => {
   it('Paredes: empujar la del fondo corre el origen y la cámara lo acompaña', () => {
     const p = project([]);
     const pans: [number, number][] = [];
-    const tool = new RoomTool(p.store, { shell: p.store.shell, panBy: (dx, dz) => pans.push([dx, dz]), message: () => undefined });
+    const tool = new RoomTool(p.store, { shell: p.store.shell, panBy: (dx, dz) => pans.push([dx, dz]), message: () => undefined, target: () => undefined });
     tool.down(at(aim(1, 1, 0)));
     tool.move(at(aim(1, 1, -0.5)));
     expect(p.state.shell?.depthM).toBe(4.5);
@@ -265,7 +265,7 @@ describe('herramientas del visor', () => {
 
   it('Paredes: sobre una ventana la desliza en vez de mover la pared', () => {
     const p = project([]);
-    const tool = new RoomTool(p.store, { shell: p.store.shell, panBy: () => undefined, message: () => undefined });
+    const tool = new RoomTool(p.store, { shell: p.store.shell, panBy: () => undefined, message: () => undefined, target: () => undefined });
     expect(tool.cursor(at(aim(2.5, 1.5, 0)))).toBe('ew-resize');
     tool.down(at(aim(2.5, 1.5, 0)));
     tool.move(at(aim(3.5, 1.5, 0)));

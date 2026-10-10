@@ -230,8 +230,8 @@ export class ProjectsService {
   }
 
   /**
-   * Planta editada en el plano: del cliente solo se acepta la geometría (paredes, aberturas y la
-   * caja que las envuelve). El id, el alto y la confianza de la escala siguen siendo los guardados.
+   * Planta editada en el editor: del cliente solo se acepta la geometría (paredes, aberturas, la
+   * caja que las envuelve y el alto). El id y la confianza de la escala siguen siendo los guardados.
    */
   private editedShell(current: RoomShell, edited: RoomShell): RoomShell {
     const { shape: _shape, ...kept } = current;
@@ -239,13 +239,17 @@ export class ProjectsService {
       ...kept,
       widthM: edited.widthM,
       depthM: edited.depthM,
+      heightM: edited.heightM,
       walls: edited.walls,
       openings: edited.openings,
       ...(edited.shape ? { shape: edited.shape } : {}),
     };
-    const { minSideM, maxSideM } = ROOM_LIMITS;
+    const { minSideM, maxSideM, minHeightM, maxHeightM } = ROOM_LIMITS;
     if (Math.min(next.widthM, next.depthM) < minSideM || Math.max(next.widthM, next.depthM) > maxSideM) {
       throw new ValidationError(`El cuarto debe medir entre ${minSideM} y ${maxSideM} m de lado`);
+    }
+    if (next.heightM < minHeightM || next.heightM > maxHeightM) {
+      throw new ValidationError(`El alto del cuarto debe estar entre ${minHeightM} y ${maxHeightM} m`);
     }
     try {
       validateRoomShell(next);

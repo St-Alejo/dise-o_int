@@ -114,6 +114,8 @@ export interface RoomToolHost {
   shell(): RoomShell | null;
   /** El origen del cuarto se corrió: la cámara lo acompaña. */
   panBy(dx: number, dz: number): void;
+  /** Qué parte del cuarto se tocó (para ofrecer sus acciones); null = ninguna. */
+  target(target: { kind: 'wall'; wallId: string } | { kind: 'opening'; openingId: string } | null): void;
   message(text: string | null): void;
 }
 
@@ -131,8 +133,12 @@ export class RoomTool implements ViewportTool {
   down(e: ToolEvent): boolean {
     const shell = this.host.shell();
     const hit = shell ? hitWall(e.ray, shell) : null;
-    if (!shell || !hit) return false;
+    if (!shell || !hit) {
+      this.host.target(null);
+      return false;
+    }
     const openingId = openingAt(shell, hit);
+    this.host.target(openingId ? { kind: 'opening', openingId } : { kind: 'wall', wallId: hit.wall.id });
     this.gesture = openingId ? new MoveOpeningGesture(this.ctx, openingId, hit.point) : new MoveWallGesture(this.ctx, hit.wall.id, hit.point);
     // El cursor se sigue sobre el plano horizontal a la altura donde se agarró la pared.
     this.grabY = Math.max(0.05, hit.y);

@@ -17,6 +17,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { IconComponent } from '../../shared/ui/icon.component';
+import { RoomActionsComponent } from '../floor-plan/room-actions.component';
 import { PaintPaletteComponent } from './tools/paint-palette.component';
 import { VIEWPORT_TOOLS } from './tools/tools';
 import { SceneService } from './scene.service';
@@ -32,7 +33,7 @@ import { SceneService } from './scene.service';
 @Component({
   selector: 'app-three-viewport',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, PaintPaletteComponent],
+  imports: [IconComponent, PaintPaletteComponent, RoomActionsComponent],
   host: { '(dragover)': 'onDragOver($event)', '(drop)': 'onDrop($event)' },
   template: `
     <canvas
@@ -69,6 +70,9 @@ import { SceneService } from './scene.service';
       </div>
       @if (scene.paintTarget(); as paint) {
         <app-paint-palette [target]="paint.target" [style.left.px]="paletteLeft(paint.x)" [style.top.px]="paint.y + 12" (closed)="scene.paintTarget.set(null)" />
+      }
+      @if (scene.tool() === 'room' && edits) {
+        <app-room-actions class="room-actions" />
       }
       @if (toolNote(); as note) {
         <p class="tool-note" role="status" [class.warn]="note.warn">{{ note.text }}</p>
@@ -195,6 +199,16 @@ import { SceneService } from './scene.service';
     }
     .ctx.danger {
       color: var(--danger);
+    }
+    .room-actions {
+      position: absolute;
+      top: 56px;
+      left: 12px;
+      max-width: calc(100% - 24px);
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      box-shadow: var(--shadow-sm);
     }
     .tool-note {
       position: absolute;

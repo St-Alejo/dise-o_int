@@ -180,3 +180,43 @@ test('editor: lista de objetos, duplicar, arrastrar del catálogo, vaciar y expo
   expect(png.subarray(1, 4).toString()).toBe('PNG');
   expect(png.length).toBeGreaterThan(5_000);
 });
+
+test('plano editable: añadir una ventana, partir una pared, quitar la esquina y cambiar el alto', async ({ page }) => {
+  const { id, headers } = await createRoom(page);
+  const shell = async () => (await get(page, id, headers)).roomShell as unknown as { walls: unknown[]; openings: { type: string }[]; heightM: number };
+  const openingsBefore = (await shell()).openings.length;
+  await page.goto(`/proyectos/${id}?vista=3d`);
+  const plan = page.locator('app-plan-editor');
+  await plan.getByRole('button', { name: 'Editar paredes' }).click();
+  const actions = plan.locator('app-room-actions');
+  await expect(actions.getByText('Toca una pared')).toBeVisible();
+
+  // Un clic en la pared de la derecha la elige y ofrece sus acciones.
+  const right = await centreOf(plan.locator('line.wall-grip').nth(1));
+  await page.mouse.click(right.x, right.y);
+  await expect(actions.getByText('Pared de 4,00 m')).toBeVisible();
+  await actions.getByRole('button', { name: '+ Ventana' }).click();
+  await expect(actions.getByText('Ventana', { exact: true })).toBeVisible();
+  await expect.poll(async () => (await shell()).openings.length, { intervals: [500, 1000] }).toBe(openingsBefore + 1);
+
+  // Partir la pared añade una esquina, que queda elegida; quitarla devuelve las cuatro paredes.
+  await page.mouse.click(right.x, right.y + 60);
+  await actions.getByRole('button', { name: 'Partir' }).click();
+  await expect(plan.locator('circle.vertex')).toHaveCount(5);
+  await expect(actions.getByText('Esquina', { exact: true })).toBeVisible();
+  await actions.getByRole('button', { name: 'Quitar esquina' }).click();
+  await expect(plan.locator('circle.vertex')).toHaveCount(4);
+
+  // El alto del cuarto se cambia desde la misma barra.
+  const height = actions.getByLabel('Alto del cuarto en metros');
+  await height.fill('2.8');
+  await height.blur();
+  await expect.poll(async () => (await shell()).heightM, { intervals: [500, 1000] }).toBe(2.8);
+  expect((await shell()).walls).toHaveLength(4);
+
+  // Todo fueron pasos de deshacer: cuatro Ctrl+Z dejan el cuarto como estaba.
+  await plan.locator('svg').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await shell()).openings.length, { intervals: [500, 1000] }).toBe(openingsBefore);
+  expect((await shell()).heightM).toBe(2.6);
+});

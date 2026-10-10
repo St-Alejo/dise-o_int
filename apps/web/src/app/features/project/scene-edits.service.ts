@@ -1,8 +1,25 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { mountY, type CatalogItem, type FurniturePlacement, type Point2 } from '@interiores/shared-types';
+import {
+  RoomGeometryError,
+  addOpening,
+  carryPlacements,
+  effectiveDimensions,
+  mountY,
+  removeOpening,
+  removeVertex,
+  resizeOpening,
+  setRoomHeight,
+  splitWall,
+  type CatalogItem,
+  type FurniturePlacement,
+  type Opening,
+  type Point2,
+  type RoomEdit,
+  type RoomShell,
+} from '@interiores/shared-types';
 import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
-import { AddCommand, DuplicateCommand, MacroCommand, RemoveCommand, SetLockCommand } from '../viewport-3d/commands';
+import { AddCommand, DuplicateCommand, MacroCommand, RemoveCommand, SetLockCommand, SetRoomCommand } from '../viewport-3d/commands';
 import { DesignProjectStore } from './design-project.store';
 
 /**
@@ -109,5 +126,78 @@ export class SceneEditsService {
       ),
     );
     this.toast.show('Cuarto vacío. Ctrl+Z devuelve los muebles');
+  }
+
+  // ------------------------------------------------------------------ el cuarto
+  addOpening(wallId: string, type: Opening['type']): void {
+    const label = type === 'door' ? 'Añadir puerta' : 'Añadir ventana';
+    const done = this.editRoom(label, (shell) => addOpening(shell, wallId, type));
+    if (done) {
+      const added = done.openings.at(-1);
+      if (added) this.store.roomTarget.set({ kind: 'opening', openingId: added.id });
+    }
+  }
+
+  removeOpening(openingId: string): void {
+    if (this.editRoom('Quitar abertura', (shell) => removeOpening(shell, openingId))) this.store.roomTarget.set(null);
+  }
+
+  resizeOpening(openingId: string, widthM: number): void {
+    this.editRoom('Cambiar abertura', (shell) => resizeOpening(shell, openingId, { widthM }));
+  }
+
+  splitWall(wallId: string): void {
+    const done = this.editRoom('Partir pared', (shell) => splitWall(shell, wallId));
+    if (done) {
+      // La esquina nueva es donde empieza la segunda mitad: queda elegida para moverla o quitarla.
+      const index = done.walls.findIndex((w) => w.id === wallId) + 1;
+      this.store.roomTarget.set({ kind: 'vertex', index });
+    }
+  }
+
+  removeVertex(index: number): void {
+    if (this.editRoom('Quitar esquina', (shell) => removeVertex(shell, index))) this.store.roomTarget.set(null);
+  }
+
+  setRoomHeight(heightM: number): void {
+    this.editRoom('Cambiar alto del cuarto', (shell) => setRoomHeight(shell, heightM));
+  }
+
+  /**
+   * Aplica una edición de la planta como un paso de deshacer; los muebles se reacomodan con ella
+   * (lo colgado del techo sube o baja con él). Si el cuarto resultante no es válido, se explica.
+   */
+  private editRoom(label: string, edit: (shell: RoomShell) => RoomEdit | RoomShell): RoomShell | null {
+    const shell = this.store.shell();
+    if (!shell) return null;
+    let result: RoomEdit;
+    try {
+      const out = edit(shell);
+      result = 'shell' in out ? out : { shell: out, shift: { x: 0, z: 0 } };
+    } catch (err) {
+      if (!(err instanceof RoomGeometryError)) throw err;
+      this.toast.error(err.message);
+      return null;
+    }
+    const catalog = this.store.catalog();
+    const before = this.store.placements();
+    const carried = carryPlacements(
+      before,
+      (p) => {
+        const item = catalog.get(p.catalogItemId);
+        return item ? effectiveDimensions(item.dimensionsM, p) : undefined;
+      },
+      result,
+    ).map((p) => {
+      const item = catalog.get(p.catalogItemId);
+      if (!item) return p;
+      const dims = effectiveDimensions(item.dimensionsM, p);
+      const top = Math.max(0, result.shell.heightM - dims.y);
+      if (item.mount === 'ceiling') return { ...p, position: { ...p.position, y: top } };
+      // Lo colgado en la pared no puede quedar atravesando un techo más bajo.
+      return p.wallId && p.position.y > top ? { ...p, position: { ...p.position, y: top }, elevationM: top } : p;
+    });
+    this.store.execute(new SetRoomCommand(label, { shell, placements: before }, { shell: result.shell, placements: carried }));
+    return result.shell;
   }
 }

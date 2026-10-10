@@ -4,6 +4,7 @@ import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { SceneService } from '../viewport-3d/scene.service';
 import { captionFor, clearancesOf, floorPlanOf, metres } from './floor-plan-model';
+import { RoomActionsComponent } from './room-actions.component';
 import {
   MeasureGesture,
   MoveItemGesture,
@@ -49,6 +50,7 @@ interface PlanPiece {
 @Component({
   selector: 'app-plan-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RoomActionsComponent],
   template: `
     <div class="bar">
       <div class="tools" role="group" aria-label="Herramientas del plano">
@@ -60,6 +62,10 @@ interface PlanPiece {
         <span class="area" title="Superficie del piso">{{ a }}</span>
       }
     </div>
+
+    @if (tool() === 'room') {
+      <app-room-actions />
+    }
 
     @if (plan(); as plan) {
       <svg
@@ -113,17 +119,17 @@ interface PlanPiece {
 
           @if (tool() === 'room') {
             @for (wall of plan.walls; track wall.id) {
-              <line class="grip wall-grip" [attr.x1]="wall.from.x" [attr.y1]="wall.from.y" [attr.x2]="wall.to.x" [attr.y2]="wall.to.y" (pointerdown)="onWall($event, wall.id)">
+              <line class="grip wall-grip" [class.chosen]="chosen('wall', wall.id)" [attr.x1]="wall.from.x" [attr.y1]="wall.from.y" [attr.x2]="wall.to.x" [attr.y2]="wall.to.y" (pointerdown)="onWall($event, wall.id)">
                 <title>Arrastra para mover esta pared ({{ wall.label.text }})</title>
               </line>
             }
             @for (o of plan.openings; track o.id) {
-              <line class="grip opening-grip" [attr.x1]="o.from.x" [attr.y1]="o.from.y" [attr.x2]="o.to.x" [attr.y2]="o.to.y" (pointerdown)="onOpening($event, o.id)">
+              <line class="grip opening-grip" [class.chosen]="chosen('opening', o.id)" [attr.x1]="o.from.x" [attr.y1]="o.from.y" [attr.x2]="o.to.x" [attr.y2]="o.to.y" (pointerdown)="onOpening($event, o.id)">
                 <title>Arrastra para deslizar esta {{ o.type === 'door' ? 'puerta' : 'ventana' }} por su pared</title>
               </line>
             }
             @for (wall of plan.walls; track wall.id; let i = $index) {
-              <circle class="vertex" [attr.cx]="wall.from.x" [attr.cy]="wall.from.y" [attr.r]="fontM() * 0.55" (pointerdown)="onVertex($event, i)">
+              <circle class="vertex" [class.chosen]="chosen('vertex', i)" [attr.cx]="wall.from.x" [attr.cy]="wall.from.y" [attr.r]="fontM() * 0.55" (pointerdown)="onVertex($event, i)">
                 <title>Arrastra para mover esta esquina</title>
               </circle>
             }
@@ -299,8 +305,15 @@ interface PlanPiece {
       stroke-width: 0.045;
       cursor: move;
     }
-    .vertex:hover {
+    .vertex:hover,
+    .vertex.chosen {
       fill: var(--primary);
+    }
+    .wall-grip.chosen {
+      stroke: color-mix(in srgb, var(--primary) 45%, transparent);
+    }
+    .opening-grip.chosen {
+      stroke: color-mix(in srgb, var(--accent) 60%, transparent);
     }
     .clearance {
       stroke: var(--accent);
@@ -502,15 +515,25 @@ export class PlanEditorComponent {
     this.begin(event, new MoveItemGesture(this.store, placement, item, this.pointOf(event)));
   }
 
+  /** ¿Es esta la parte del cuarto elegida? */
+  protected chosen(kind: 'wall' | 'opening' | 'vertex', id: string | number): boolean {
+    const t = this.store.roomTarget();
+    if (!t || t.kind !== kind) return false;
+    return t.kind === 'wall' ? t.wallId === id : t.kind === 'opening' ? t.openingId === id : t.index === id;
+  }
+
   protected onWall(event: PointerEvent, wallId: string): void {
+    this.store.roomTarget.set({ kind: 'wall', wallId });
     this.begin(event, new MoveWallGesture(this.store, wallId, this.pointOf(event)));
   }
 
   protected onVertex(event: PointerEvent, index: number): void {
+    this.store.roomTarget.set({ kind: 'vertex', index });
     this.begin(event, new MoveVertexGesture(this.store, index, this.pointOf(event)));
   }
 
   protected onOpening(event: PointerEvent, openingId: string): void {
+    this.store.roomTarget.set({ kind: 'opening', openingId });
     this.begin(event, new MoveOpeningGesture(this.store, openingId, this.pointOf(event)));
   }
 
@@ -520,6 +543,8 @@ export class PlanEditorComponent {
       this.begin(event, new MeasureGesture(this.store, this.pointOf(event)));
     } else if (this.tool() === 'select') {
       this.store.select(null);
+    } else {
+      this.store.roomTarget.set(null);
     }
   }
 
