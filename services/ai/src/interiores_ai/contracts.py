@@ -57,11 +57,16 @@ class Opening(Model):
     sillHeightM: float = Field(default=0, ge=0, le=10)
 
 
+RoomShape = Literal["rect", "L", "T", "U", "free"]
+
+
 class RoomShell(Model):
     id: str = Field(min_length=1, max_length=64)
+    # Caja que envuelve al cuarto; la planta real son las paredes, en orden y cerrando.
     widthM: Meters
     depthM: Meters
     heightM: Meters
+    shape: RoomShape | None = None
     walls: list[WallSegment] = Field(min_length=3, max_length=64)
     openings: list[Opening] = Field(max_length=64)
     scaleConfidence: float = Field(ge=0, le=1)

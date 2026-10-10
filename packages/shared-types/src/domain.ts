@@ -50,11 +50,18 @@ export const OpeningSchema = z.object({
 });
 export type Opening = z.infer<typeof OpeningSchema>;
 
+/** Forma de la planta. `free` = paredes dibujadas a mano. Sin valor = rectangular (proyectos anteriores). */
+export const ROOM_SHAPES = ['rect', 'L', 'T', 'U', 'free'] as const;
+export const RoomShapeSchema = z.enum(ROOM_SHAPES);
+export type RoomShape = z.infer<typeof RoomShapeSchema>;
+
 export const RoomShellSchema = z.object({
   id: z.string().min(1).max(64),
+  /** Caja que envuelve al cuarto; la planta real son las paredes, en orden y cerrando. */
   widthM: positiveMeters,
   depthM: positiveMeters,
   heightM: positiveMeters,
+  shape: RoomShapeSchema.optional(),
   walls: z.array(WallSegmentSchema).min(3).max(64),
   openings: z.array(OpeningSchema).max(64),
   scaleConfidence: finite.min(0).max(1),

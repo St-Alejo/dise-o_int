@@ -54,7 +54,7 @@ def test_respuestas_de_python_cumplen_el_schema_de_typescript(schemas, catalog):
 
 
 def test_peticiones_de_typescript_se_aceptan_en_python(schemas, catalog):
-    shell = rectangular_shell(4, 3, 2.5).model_dump(mode="json")
+    shell = rectangular_shell(4, 3, 2.5).model_dump(mode="json", exclude_none=True)
     samples = {
         "AnalyzeRoomRequest": (AnalyzeRoomRequest, {"photoKey": "projects/p/source.jpg", "roomType": "bedroom"}),
         "GenerateStyleRequest": (
