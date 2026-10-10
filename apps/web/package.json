@@ -8,7 +8,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
-    "test": "ng test --watch=false"
+    "test": "ng test --watch=false",
+    "lint": "eslint src --max-warnings 0"
   },
   "dependencies": {
     "@angular/common": "^22.2.0",
@@ -31,8 +32,11 @@
     "@angular/cli": "^22.2.0",
     "@angular/compiler-cli": "^22.2.0",
     "@types/three": "~0.183.1",
+    "angular-eslint": "^22.5.0",
+    "eslint": "^10.12.0",
     "jsdom": "^30.0.0",
     "typescript": "~6.0.2",
+    "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.0"
   }
 }

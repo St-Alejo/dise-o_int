@@ -39,8 +39,8 @@ test: test-api test-web test-ai ## Todas las pruebas unitarias
 test-api: ## Pruebas de tipos compartidos + API (Vitest)
 	./scripts/toolbox.sh "npm ci --no-audit --no-fund && npm run build:types && npm test -w @interiores/shared-types && npm test -w api"
 
-test-web: ## Pruebas y build de la web (Angular + Vitest)
-	./scripts/toolbox.sh "npm run build:types && npm test -w web && npm run build -w web"
+test-web: ## Lint, pruebas y build de la web (Angular + Vitest)
+	./scripts/toolbox.sh "npm run build:types && npm run lint -w web && npm test -w web && npm run build -w web"
 
 test-ai: ## Lint, tipos y pruebas del servicio de IA (pytest)
 	docker build --target dev -t interiores-ai:dev services/ai

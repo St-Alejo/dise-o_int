@@ -57,8 +57,9 @@ jobs:
           npm run typecheck -w api
           npm run lint -w api
           npm run test:cov -w api
-      - name: Web — tests y build de producción (con presupuestos de bundle)
+      - name: Web — lint, tests y build de producción (con presupuestos de bundle)
         run: |
+          npm run lint -w web
           npm test -w web
           npm run build -w web
 

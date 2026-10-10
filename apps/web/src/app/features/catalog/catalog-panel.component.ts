@@ -30,7 +30,7 @@ export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
         <h3 style="margin: 0">{{ mode() === 'swap' ? 'Cambiar por…' : 'Añadir mueble' }}</h3>
         <span class="spacer"></span>
         @if (mode() === 'swap') {
-          <button type="button" class="btn btn-sm btn-ghost" (click)="cancel.emit()">Cancelar</button>
+          <button type="button" class="btn btn-sm btn-ghost" (click)="cancelled.emit()">Cancelar</button>
         }
       </div>
       <input class="input" type="search" placeholder="Buscar: lámpara de mesa, closet, cuadro…" aria-label="Buscar en el catálogo" [value]="query()" (input)="query.set($any($event.target).value)" />
@@ -146,7 +146,7 @@ export class CatalogPanelComponent {
   readonly currentItemId = input<string | null>(null);
 
   readonly picked = output<CatalogItem>();
-  readonly cancel = output<void>();
+  readonly cancelled = output<void>();
 
   protected readonly categories = CATALOG_CATEGORIES;
   protected readonly labels = CATEGORY_LABELS;

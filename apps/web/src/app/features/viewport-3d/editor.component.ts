@@ -89,7 +89,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
             [styleId]="styleId()"
             [roomType]="roomType()"
             (picked)="swap($event)"
-            (cancel)="swapMode.set(false)"
+            (cancelled)="swapMode.set(false)"
           />
         } @else if (store.selected() && selectedItem()) {
           <app-inspector (swap)="swapMode.set(true)" (ar)="ar.open($event)" />
