@@ -3,8 +3,17 @@
  * de las medidas totales y del tamaño de su muesca; el cuarto se construye siempre igual
  * (`buildRoomShape`). Añadir una forma es añadir una plantilla al registro.
  */
-import type { RoomShell } from './domain.js';
-import { createPolygonShell, createRectangularShell, MIN_WALL_M, type PolygonShellOptions } from './geometry.js';
+import { z } from 'zod';
+import { OpeningSchema, type Opening, type RoomShell } from './domain.js';
+import {
+  createPolygonShell,
+  createRectangularShell,
+  MIN_WALL_M,
+  ROOM_LIMITS,
+  validateRoomShell,
+  wallLength,
+  type PolygonShellOptions,
+} from './geometry.js';
 import type { Point2 } from './polygon.js';
 
 export const ROOM_SHAPE_IDS = ['rect', 'L', 'T', 'U'] as const;
@@ -116,4 +125,76 @@ export function buildRoomShape(shape: RoomShapeId, params: RoomShapeParams, opts
       ? createRectangularShell(params.widthM, params.depthM, params.heightM, { ...opts, door: false, window: false })
       : createPolygonShell(ROOM_TEMPLATES[shape].outline(params.widthM, params.depthM, resolveNotch(shape, params)), params.heightM, opts);
   return { ...base, shape };
+}
+
+/**
+ * Lo que el usuario decide al crear un cuarto a mano: forma, medidas y, si quiere, dónde van
+ * puertas y ventanas (`wallId` son los ids que produce la plantilla). Es el contrato del asistente
+ * de "nuevo proyecto"; con él no hace falta foto.
+ */
+export const RoomSpecSchema = z.object({
+  shape: z.enum(ROOM_SHAPE_IDS),
+  widthM: z.number().min(ROOM_LIMITS.minSideM).max(ROOM_LIMITS.maxSideM),
+  depthM: z.number().min(ROOM_LIMITS.minSideM).max(ROOM_LIMITS.maxSideM),
+  heightM: z.number().min(ROOM_LIMITS.minHeightM).max(ROOM_LIMITS.maxHeightM),
+  notchWidthM: z.number().positive().max(ROOM_LIMITS.maxSideM).optional(),
+  notchDepthM: z.number().positive().max(ROOM_LIMITS.maxSideM).optional(),
+  /** Si falta, el cuarto nace con una ventana al fondo y una puerta al frente. */
+  openings: z.array(OpeningSchema).max(24).optional(),
+});
+export type RoomSpec = z.infer<typeof RoomSpecSchema>;
+
+/** Una ventana centrada en la pared del fondo y una puerta hacia un extremo de la del frente. */
+export function defaultOpenings(shell: RoomShell): Opening[] {
+  const length = (id: string) => {
+    const wall = shell.walls.find((w) => w.id === id);
+    return wall ? wallLength(wall) : 0;
+  };
+  const openings: Opening[] = [];
+  const back = length('w-back');
+  if (back >= 1.2) {
+    openings.push({
+      id: 'o-window-1',
+      type: 'window',
+      wallId: 'w-back',
+      widthM: round2(Math.min(1.6, back * 0.4)),
+      heightM: round2(Math.min(1.3, shell.heightM * 0.5)),
+      offsetM: round2(back / 2),
+      sillHeightM: round2(Math.min(0.9, shell.heightM * 0.35)),
+    });
+  }
+  const front = length('w-front');
+  if (front >= 1.1) {
+    const widthM = round2(Math.min(0.9, front * 0.5));
+    openings.push({
+      id: 'o-door-1',
+      type: 'door',
+      wallId: 'w-front',
+      widthM,
+      heightM: round2(Math.min(2.05, shell.heightM * 0.85)),
+      // Hacia el extremo de la pared, sin pegarse a la esquina.
+      offsetM: round2(Math.max(widthM / 2 + 0.15, Math.min(front * 0.8, front - widthM / 2 - 0.15))),
+      sillHeightM: 0,
+    });
+  }
+  return openings;
+}
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * El cuarto que describe un `RoomSpec`, ya validado: medidas exactas (no necesita calibración),
+ * sus aberturas (o las de por defecto) y `hasWindow` al día. Lanza `RoomGeometryError` si las
+ * aberturas no caben o apuntan a una pared que la forma no tiene.
+ */
+export function buildRoomFromSpec(spec: RoomSpec, id = 'room'): RoomShell {
+  const bare = buildRoomShape(spec.shape, spec, { id, scaleConfidence: 1, needsCalibration: false });
+  const openings = spec.openings ?? defaultOpenings(bare);
+  const shell: RoomShell = {
+    ...bare,
+    openings,
+    walls: bare.walls.map((w) => ({ ...w, hasWindow: openings.some((o) => o.wallId === w.id && o.type === 'window') })),
+  };
+  validateRoomShell(shell);
+  return shell;
 }

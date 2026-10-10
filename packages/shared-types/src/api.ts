@@ -12,6 +12,7 @@ import {
   RoomTypeSchema,
   StyleIdSchema,
 } from './domain.js';
+import { RoomSpecSchema } from './room-templates.js';
 
 // ---------- Medidas del cuarto ----------
 // (límites duplicados de geometry.ts:ROOM_LIMITS para no crear un ciclo de imports)
@@ -80,6 +81,24 @@ export const CreateProjectFieldsSchema = z.object({
   widthM: optionalNumberField(side),
   depthM: optionalNumberField(side),
   heightM: optionalNumberField(height),
+  /**
+   * Cuarto definido a mano (forma, medidas y aberturas), como JSON. Con él la foto es opcional y
+   * manda sobre lo que se estime de ella.
+   */
+  roomSpec: z
+    .union([z.string(), RoomSpecSchema])
+    .optional()
+    .transform((v, ctx) => {
+      if (typeof v !== 'string') return v;
+      if (v.trim() === '') return undefined;
+      try {
+        return JSON.parse(v) as unknown;
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'roomSpec no es JSON válido' });
+        return z.NEVER;
+      }
+    })
+    .pipe(RoomSpecSchema.optional()),
 }).refine(
   (f) => [f.widthM, f.depthM, f.heightM].every((v) => v === undefined) || [f.widthM, f.depthM, f.heightM].every((v) => v !== undefined),
   { message: 'Indica ancho, largo y alto juntos (o ninguno)', path: ['widthM'] },
