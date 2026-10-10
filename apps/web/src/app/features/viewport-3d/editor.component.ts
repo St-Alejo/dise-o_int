@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { RoomPlan, clampToRoom, effectiveDimensions, footprint, type CatalogItem } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
@@ -21,6 +21,7 @@ import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { planSvg } from '../floor-plan/floor-plan-model';
 import { SwapCommand } from './commands';
 import { SceneService } from './scene.service';
+import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
 export type ViewMode = '3d' | 'split' | 'plan';
@@ -62,6 +63,7 @@ function initialView(): ViewMode {
     RoomDimensionsDialogComponent,
     InspectorComponent,
     GroupPanelComponent,
+    ShortcutsDialogComponent,
     FinishesPanelComponent,
     ChatPanelComponent,
     ArViewerComponent,
@@ -106,6 +108,7 @@ function initialView(): ViewMode {
           </button>
         </div>
       </details>
+      <button type="button" class="btn btn-sm btn-ghost" (click)="shortcuts.open()" title="Atajos de teclado (?)">Atajos</button>
       <span class="spacer"></span>
       <span class="save" [class]="'save save-' + store.saveState()" aria-live="polite">
         @switch (store.saveState()) {
@@ -223,6 +226,7 @@ function initialView(): ViewMode {
     <app-room-dimensions-dialog #roomDims (calibrate)="calibration.open()" />
     <app-calibration-dialog #calibration />
     <app-ar-viewer #ar />
+    <app-shortcuts-dialog #shortcuts />
   `,
   styles: `
     :host {
@@ -468,6 +472,7 @@ export class EditorComponent {
   readonly busy = input(false);
   readonly autoLayout = output<void>();
 
+  private readonly shortcuts = viewChild.required<ShortcutsDialogComponent>('shortcuts');
   protected readonly views = VIEWS;
   /** Vista elegida: solo 3D, plano y 3D lado a lado, o solo plano. Se recuerda entre visitas. */
   protected readonly viewMode = signal<ViewMode>(initialView());
@@ -552,6 +557,11 @@ export class EditorComponent {
   onGlobalKey(e: KeyboardEvent): void {
     const target = e.target as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    if (e.key === '?') {
+      e.preventDefault();
+      this.shortcuts().open();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) this.store.redo();

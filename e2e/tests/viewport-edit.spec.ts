@@ -148,6 +148,14 @@ test('visor 3D: mover una pared, pintarla y medir', async ({ page }) => {
   await page.getByRole('button', { name: 'Esquina' }).click();
   await expect.poll(async () => (await camera()).y).toBeLessThan(8);
 
+  // La tecla ? abre la lista de atajos.
+  await canvas.focus();
+  await page.keyboard.press('?');
+  const keys = page.getByRole('dialog', { name: 'Atajos de teclado' });
+  await expect(keys.getByText('Girarlo 15°')).toBeVisible();
+  await keys.getByRole('button', { name: 'Entendido' }).click();
+  await expect(keys).toBeHidden();
+
   // Escape vuelve a la herramienta de mover.
   await canvas.focus();
   await page.keyboard.press('Escape');

@@ -5,7 +5,13 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Seis tipos de cuarto.** Sala, dormitorio, comedor, oficina, cocina (hilera de gabinetes con fregadero, estufa y nevera, e isla con taburetes si hay paso) y baño.
 - **Un cuarto con su forma real.** Rectangular, en L, en T o en U, con piso y techo de esa forma, puertas y ventanas donde van. Se crea con un asistente que muestra el plano con cotas mientras escribes las medidas, con foto o sin ella.
 - **La foto decide.** Con un modelo de visión (opcional), cada foto aporta medidas aproximadas, la pared de cada puerta y ventana, los muebles que había y los colores. Sin él, el análisis local hace el trabajo. Detalle y resultados con seis fotos reales en [`docs/pruebas-vision/`](docs/pruebas-vision).
-- **Editor con plano y 3D a la vez.** Vista 3D, plano o los dos lado a lado. En el plano se arrastran los muebles con guías de alineación y cotas hasta las paredes, y se mueven paredes, esquinas, puertas y ventanas. Hay lista de objetos, duplicar, copiar y pegar, arrastrar del catálogo y exportar la imagen o el plano con medidas. Todo se deshace con Ctrl+Z.
+- **Editor con plano y 3D a la vez.** Vista 3D, plano o los dos lado a lado, y se edita en cualquiera de los dos:
+  - *Sobre el 3D:* un aro para girar el mueble y tiradores para cambiar su ancho, fondo y alto; herramientas para mover paredes, pintar con un clic y medir; guías de alineación y cotas hasta las paredes; vistas rápidas de cámara.
+  - *Sobre el plano:* arrastrar muebles, paredes, esquinas, puertas y ventanas; añadir o quitar aberturas, partir una pared, cambiar el alto.
+  - *Varios a la vez:* Shift+clic o un marco de selección, y alinear, repartir, duplicar o quitar en grupo.
+  - Lista de objetos, copiar y pegar, arrastrar del catálogo y exportar la imagen o el plano con medidas. Todo se deshace con Ctrl+Z, también "Otra distribución".
+- **Revisión del diseño.** Avisa si un mueble bloquea la puerta, si no se llega a otro, si algo tapa una ventana o si el cuarto quedó demasiado lleno, y lleva al mueble implicado.
+- **No se pierde trabajo.** Si la red falla, los cambios esperan y se envían al volver; si se cierra la pestaña, al regresar se ofrecen recuperar.
 - **Recorrer el cuarto.** La cámara baja a la altura de los ojos y se camina con el teclado sin atravesar paredes ni muebles, también en el enlace público. De noche el cuarto lo alumbran sus lámparas.
 - **Otra distribución.** Un botón reacomoda los muebles de otra forma válida, sin tapar ventanas ni bloquear la puerta, respetando los que fijaste.
 - **Track A — propuestas 2D.** Varios estilos a la vez, con un comparador antes/después y un control de intensidad.
@@ -82,7 +88,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Patrón | Implementación |
 |---|---|
 | Strategy | `services/ai/.../providers/*` (mock / visión / Replicate), `layout/rules_engine.py` (`LayoutEngine`) y los presets de luz (`lighting-rig.ts`) |
-| State | Modos de cámara (`camera/`: `OrbitMode`, `WalkMode` con `CameraDirector`), gestos del plano (`floor-plan/plan-gestures.ts`) y pasos del asistente (`wizard.store.ts`) |
+| State | Modos de cámara (`camera/`: `OrbitMode`, `WalkMode` con `CameraDirector`), herramientas del visor (`viewport-3d/tools/tools.ts` con `ToolManager`), gestos del plano (`floor-plan/plan-gestures.ts`) y pasos del asistente (`wizard.store.ts`) |
 | Decorator | `FallbackRoomAnalyzer`: si la visión falla o se agota, responde el análisis local |
 | Objeto de valor | `RoomPlan` (`shared-types`): la planta sabe su área, dónde cabe un mueble y cuál es "la pared del fondo" |
 | Facade | `apps/web/.../viewport-3d/scene.service.ts` |
@@ -93,7 +99,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Adapter | `HttpAiClient`, `S3FileStorage`, `BullMqJobQueue`, `ReplicateClient` |
 | Factory | `FurnitureFactory` (receta o GLB → Object3D), `RecipeRegistry` (`kind → receta`), plantillas de forma (`ROOM_TEMPLATES`), `room-factory.ts` y `cli/catalog/procedural.ts` |
 | Builder + Composite | `packages/furniture-kit/src/builder.ts` (piezas y grupos anidados por slot de material) |
-| Flyweight | caché de modelos por medidas (`buildCached`) y de geometrías/materiales en GPU (`ParametricRenderer`) |
+| Flyweight | caché de modelos por medidas (`buildCached`), de geometrías/materiales en GPU (`ParametricRenderer`) y de texturas del piso (`TextureLibrary`) |
 
 ## Robustez (más allá del documento)
 
@@ -110,7 +116,8 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
   - Se eliminan el EXIF y el GPS de todas las fotos.
   - Los proyectos que no se guardan se borran a las 24 horas (job repetible).
   - Borrar un proyecto es un **borrado real** en S3, no solo en la base de datos.
-- **Concurrencia.** Control optimista por revisión: si dos pestañas o el worker editan a la vez, responde 409 y la UI ofrece recargar.
+- **Concurrencia.** Control optimista por revisión: si dos pestañas o el worker editan a la vez, responde 409. Si lo que cambió en el servidor no es la escena, el editor toma la revisión nueva y reenvía solo; si la escena también cambió, ofrece recargar.
+- **Guardado resistente.** Un guardado a la vez, reintentos con espera creciente cuando falla la red, copia local recuperable y aviso antes de salir con cambios pendientes ([ADR-0015](docs/adr/0015-guardado-resistente-y-revision-del-diseno.md)).
 - **Jobs:**
   - Ids idempotentes, reintentos con backoff exponencial y errores no reintentables (`UnrecoverableError`).
   - Auditoría de cada job en `job_audit`.
@@ -141,7 +148,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Web | `npm test -w web` | Command/undo, construcción del cuarto sin WebGL, gestos del plano, modos de cámara, asistente |
 | IA | `pytest` (`services/ai`) | Layout con **Hypothesis** (sin solapes, todo dentro, nunca bloquea puertas), API, Replicate simulado, **contrato zod ↔ Pydantic** |
 | Humo | `node e2e/smoke.mjs <url>` | Flujo completo del backend por nginx (17 comprobaciones) |
-| UI + a11y | `make e2e` | Playwright: flujo completo, asistente, formas de cuarto, recorrido, plano editable, link público y **axe** (WCAG 2.1 AA) en desktop y móvil |
+| UI + a11y | `make e2e` | Playwright: flujo completo, asistente, formas de cuarto, recorrido, plano y visor editables (se arrastran los tiradores reales), multiselección, guardado sin conexión, revisión del diseño, gestión de proyectos, link público y **axe** (WCAG 2.1 AA) en desktop y móvil |
 | Resiliencia | `node e2e/resilience.mjs <url> "<parar ia>" "<arrancar ia>"` | IA caída → 503 + reintentos + error claro → recuperación con "Reintentar" |
 
 Las E2E lanzan toda la suite desde una sola IP en menos de un minuto y esperan el análisis local: levanta el stack con `RATE_LIMIT_MULTIPLIER=20 ROOM_ANALYZER=mock docker compose up -d --wait` antes de correrlas.
