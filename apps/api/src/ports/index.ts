@@ -239,6 +239,8 @@ export interface BuildSceneJob {
   keepLocked: boolean;
   /** Es el trabajo que termina de crear el proyecto (cuarto definido a mano, sin foto): al acabar queda listo. */
   finalize?: boolean;
+  /** Variante de la distribución que se pide ("otra distribución"). */
+  seed?: number;
   requestId?: string;
 }
 export interface JobPayloads {

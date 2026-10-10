@@ -375,6 +375,7 @@ export class ProjectsService {
       projectId: id,
       styleId,
       keepLocked: req.keepLocked ?? true,
+      ...(req.seed !== undefined ? { seed: req.seed } : {}),
       ...(actor.requestId ? { requestId: actor.requestId } : {}),
     });
     await this.publishQueued(id, jobId, 'build-scene');

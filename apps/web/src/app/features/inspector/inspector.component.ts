@@ -158,7 +158,7 @@ import {
             <button type="button" class="btn btn-danger" (click)="scene.removeSelected()">🗑 Quitar</button>
           </div>
           <p class="small muted">
-            {{ p.lockedByUser ? 'Bloqueado: "Reacomodar" no lo moverá.' : 'Libre: "Reacomodar" puede moverlo.' }}
+            {{ p.lockedByUser ? 'Bloqueado: "Otra distribución" no lo moverá.' : 'Libre: "Otra distribución" puede moverlo.' }}
           </p>
         </div>
       }

@@ -129,7 +129,7 @@ export class PipelineService {
     const project = await this.projects.findById(data.projectId);
     if (!project?.roomShell) return;
     await this.report(project.id, ctx, 'scene', 20);
-    await this.writeLayout(project.id, data.styleId, data.keepLocked, data.finalize ? { status: 'ready', lastError: null } : {}, ctx);
+    await this.writeLayout(project.id, data.styleId, data.keepLocked, data.finalize ? { status: 'ready', lastError: null } : {}, ctx, [], data.seed);
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 
@@ -145,12 +145,13 @@ export class PipelineService {
     extra: { status?: 'ready'; lastError?: null },
     ctx: JobContext,
     inventory: InventoryItem[] = [],
+    seed?: number,
   ): Promise<void> {
     for (let attempt = 1; ; attempt++) {
       const project = await this.projects.findById(projectId);
       if (!project?.roomShell) return; // borrado mientras se calculaba
       const locked = keepLocked ? project.placements.filter((p) => p.lockedByUser) : [];
-      const placements = await this.layout(project, project.roomShell, styleId, locked, ctx, inventory);
+      const placements = await this.layout(project, project.roomShell, styleId, locked, ctx, inventory, seed);
       try {
         await this.projects.update(
           projectId,
@@ -276,6 +277,7 @@ export class PipelineService {
     locked: FurniturePlacement[],
     ctx: JobContext,
     inventory: InventoryItem[] = [],
+    seed?: number,
   ): Promise<FurniturePlacement[]> {
     // Con inventario de la foto pueden hacer falta piezas de otro tipo de cuarto (el comedor de
     // una sala abierta), así que se ofrece el catálogo entero; sin él, solo lo propio del cuarto.
@@ -294,7 +296,7 @@ export class PipelineService {
       return locked;
     }
     const res = await this.ai.placeFurniture(
-      { roomShell: shell, roomType: project.roomType, styleId, candidates, locked, ...(inventory.length ? { inventory } : {}) },
+      { roomShell: shell, roomType: project.roomType, styleId, candidates, locked, ...(inventory.length ? { inventory } : {}), ...(seed !== undefined ? { seed } : {}) },
       this.aiCtx(ctx),
     );
     const lockedIds = new Set(locked.map((p) => p.id));

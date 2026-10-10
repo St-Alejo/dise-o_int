@@ -268,7 +268,7 @@ export class ProjectPage implements OnInit {
         this.job.set(null);
         void this.store.reload();
         if (e.status === 'failed' && !alreadyHandled) this.toast.error(e.error ?? e.message);
-        if (e.status === 'completed' && e.kind === 'build-scene' && !alreadyHandled) this.toast.success('Muebles reacomodados');
+        if (e.status === 'completed' && e.kind === 'build-scene' && !alreadyHandled) this.toast.success('Lista otra distribución');
       }
       return;
     }
@@ -302,7 +302,8 @@ export class ProjectPage implements OnInit {
     if (!project) return;
     await this.store.flush();
     try {
-      await this.api.autoLayout(project.id, { keepLocked: true });
+      // Cada vez una semilla nueva: el motor devuelve otra distribución igual de válida.
+      await this.api.autoLayout(project.id, { keepLocked: true, seed: Math.floor(Math.random() * 2_147_483_647) });
     } catch (err) {
       this.toast.error(ApiError.from(err).userMessage);
     }

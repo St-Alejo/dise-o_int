@@ -190,6 +190,8 @@ export const AutoLayoutRequestSchema = z.object({
   styleId: StyleIdSchema.nullable().optional(),
   /** Si es true (por defecto) los muebles movidos a mano no se re-optimizan. */
   keepLocked: z.boolean().default(true),
+  /** Variante de la distribución: cada valor da otra igual de válida. Sin él, la mejor de siempre. */
+  seed: z.number().int().min(0).max(2_147_483_647).optional(),
 });
 export type AutoLayoutRequest = z.input<typeof AutoLayoutRequestSchema>;
 

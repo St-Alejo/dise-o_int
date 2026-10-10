@@ -80,6 +80,12 @@ describe('PipelineService', () => {
     expect(project.placements.map((p) => p.id)).toEqual(['mine', 'auto-1']);
   });
 
+  it('build-scene con semilla pide al motor esa variante; sin semilla, la de siempre', async () => {
+    await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+    await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true, seed: 1234 }, { ...ctx(), kind: 'build-scene' });
+    expect(ai.layoutRequests.map((r) => r.seed)).toEqual([undefined, 1234]);
+  });
+
   it('markFailed deja el proyecto en estado fallido con un mensaje entendible', async () => {
     await pipeline.markFailed(
       'analyze-room',

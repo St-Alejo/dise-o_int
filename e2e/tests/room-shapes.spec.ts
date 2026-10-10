@@ -43,3 +43,34 @@ for (const room of SHAPES) {
       .toMatchObject({ walls: room.walls, hasCeiling: true, placements: project.furniturePlacements.length });
   });
 }
+
+test('otra distribución: cada semilla reacomoda los muebles de otra forma', async ({ page }) => {
+  const headers = await register(page);
+  const created = await page.request.post('/api/projects', {
+    headers,
+    multipart: { name: 'Sala para reacomodar', roomType: 'living', styles: 'moderno', roomSpec: JSON.stringify({ shape: 'rect', widthM: 5.5, depthM: 4.5, heightM: 2.6 }) },
+  });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  const { id } = await created.json();
+  const get = async () => (await page.request.get(`/api/projects/${id}`, { headers })).json();
+  await expect.poll(async () => (await get()).status, { timeout: 60_000 }).toBe('ready');
+
+  type Placement = { catalogItemId: string; position: { x: number; z: number }; rotationY: number };
+  const signature = (project: { furniturePlacements: Placement[] }) =>
+    project.furniturePlacements
+      .map((p) => `${p.catalogItemId}@${p.position.x.toFixed(1)},${p.position.z.toFixed(1)},${p.rotationY.toFixed(1)}`)
+      .sort()
+      .join('|');
+
+  const variants = new Set([signature(await get())]);
+  for (const seed of [11, 22, 33, 44]) {
+    const before = (await get()).revision;
+    const res = await page.request.post(`/api/projects/${id}/layout`, { headers, data: { keepLocked: true, seed } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    await expect.poll(async () => (await get()).revision, { timeout: 30_000 }).toBeGreaterThan(before);
+    const project = await get();
+    expect(project.furniturePlacements.length).toBeGreaterThan(2);
+    variants.add(signature(project));
+  }
+  expect(variants.size).toBeGreaterThanOrEqual(3);
+});

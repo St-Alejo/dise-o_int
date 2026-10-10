@@ -44,7 +44,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
       <span class="sep" aria-hidden="true"></span>
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()">Centrar vista</button>
       <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas">📏 Medidas del cuarto</button>
-      <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="El motor de colocación redistribuye los muebles que no moviste a mano">✨ Reacomodar</button>
+      <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están">✨ Otra distribución</button>
       <span class="spacer"></span>
       <span class="save" [class]="'save save-' + store.saveState()" aria-live="polite">
         @switch (store.saveState()) {
