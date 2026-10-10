@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from ..contracts import DetectedObject, RoomShell, RoomType, StyleId
+from ..contracts import DetectedObject, RoomShell, RoomSuggestions, RoomType, StyleId
 from ..imaging import RGB
 
 
@@ -11,6 +11,9 @@ from ..imaging import RGB
 class RoomAnalysis:
     shell: RoomShell
     objects: list[DetectedObject]
+    suggestions: RoomSuggestions | None = None
+    # Quién respondió de verdad (un analizador con respaldo puede no ser el configurado).
+    provider: str | None = None
 
 
 class RoomAnalyzer(Protocol):

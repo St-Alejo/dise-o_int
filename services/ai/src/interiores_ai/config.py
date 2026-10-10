@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ai_internal_token: str = Field(min_length=16, alias="AI_INTERNAL_TOKEN")
 
     # Strategy: qué proveedor implementa cada capacidad.
-    room_analyzer: Literal["mock", "replicate"] = Field(default="mock", alias="ROOM_ANALYZER")
+    room_analyzer: Literal["mock", "replicate", "vision"] = Field(default="mock", alias="ROOM_ANALYZER")
     style_generator: Literal["mock", "replicate"] = Field(default="mock", alias="STYLE_GENERATOR")
 
     replicate_api_token: str | None = Field(default=None, alias="REPLICATE_API_TOKEN")
@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     replicate_depth_model: str = Field(default="chenxwh/depth-anything-v2", alias="REPLICATE_DEPTH_MODEL")
     replicate_style_model: str = Field(default="adirik/interior-design", alias="REPLICATE_STYLE_MODEL")
     replicate_timeout_s: float = Field(default=150.0, alias="REPLICATE_TIMEOUT_S")
+
+    # Visión (ROOM_ANALYZER=vision): un modelo multimodal lee la foto. Groq tiene capa gratuita.
+    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
+    vision_model: str = Field(default="qwen/qwen3.8-27b", alias="VISION_MODEL")
+    vision_timeout_s: float = Field(default=45.0, alias="VISION_TIMEOUT_S")
+    # Tope de fotos analizadas por día con el modelo de visión; pasado el tope responde el análisis
+    # local. Se cuenta por proceso: con dos workers de uvicorn el tope efectivo es el doble.
+    vision_per_day: int = Field(default=20, ge=0, alias="VISION_PER_DAY")
 
     s3_endpoint: str | None = Field(default=None, alias="S3_ENDPOINT")
     s3_region: str = Field(default="us-east-1", alias="S3_REGION")
@@ -33,7 +41,9 @@ class Settings(BaseSettings):
     max_image_side: int = Field(default=2048, alias="MAX_IMAGE_SIDE")
 
     def resolved_room_analyzer(self) -> str:
-        """Si se pidió Replicate pero no hay token, se degrada a mock (y se registra)."""
+        """Si se pidió un proveedor externo pero falta su credencial, se degrada a mock (y se registra)."""
+        if self.room_analyzer == "vision":
+            return "vision" if self.groq_api_key else "mock"
         return self.room_analyzer if self.room_analyzer == "mock" or self.replicate_api_token else "mock"
 
     def resolved_style_generator(self) -> str:

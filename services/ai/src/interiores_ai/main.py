@@ -98,8 +98,9 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         image = decode_rgb(c.storage.get_bytes(req.photoKey), c.settings.max_image_side)
         result = c.room_analyzer.analyze(image, req.roomType)
         ms = (time.perf_counter() - started) * 1000
-        log.info("room_analyzed", provider=c.room_analyzer.name, ms=round(ms), width=result.shell.widthM, depth=result.shell.depthM)
-        return AnalyzeRoomResponse(roomShell=result.shell, detectedObjects=result.objects, provider=c.room_analyzer.name, durationMs=ms)
+        provider = result.provider or c.room_analyzer.name
+        log.info("room_analyzed", provider=provider, ms=round(ms), width=result.shell.widthM, depth=result.shell.depthM)
+        return AnalyzeRoomResponse(roomShell=result.shell, detectedObjects=result.objects, provider=provider, durationMs=ms, suggestions=result.suggestions)
 
     @app.post("/v1/styles/generate", dependencies=auth)
     def generate_style(req: GenerateStyleRequest, c: Dep) -> GenerateStyleResponse:

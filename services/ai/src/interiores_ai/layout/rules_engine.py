@@ -17,11 +17,12 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol
 
 from ..contracts import (
     FurniturePlacement,
+    InventoryItem,
     LayoutCandidate,
     PlaceFurnitureRequest,
     PlaceFurnitureResponse,
@@ -106,6 +107,119 @@ TEMPLATES: dict[RoomType, list[Role]] = {
         Role("plant", is_("decor", "plant"), "corner"),
     ],
 }
+
+
+# Cada rol, tal como lo define la primera plantilla que lo usa: para colocar algo que se vio en la
+# foto aunque no sea típico de ese tipo de cuarto (un escritorio en el dormitorio).
+ROLE_LIBRARY: dict[str, Role] = {}
+for _roles in TEMPLATES.values():
+    for _role in _roles:
+        ROLE_LIBRARY.setdefault(_role.name, _role)
+
+# Cómo llama un modelo de visión a cada rol. Lo que no está aquí (una nevera, una isla) no tiene
+# rol todavía y se ignora.
+INVENTORY_ROLES: dict[str, str] = {
+    "sofa": "sofa",
+    "couch": "sofa",
+    "sectional": "sofa",
+    "loveseat": "sofa",
+    "coffee table": "coffee-table",
+    "center table": "coffee-table",
+    "tv stand": "tv-stand",
+    "tv unit": "tv-stand",
+    "media console": "tv-stand",
+    "tv": "tv-stand",
+    "television": "tv-stand",
+    "armchair": "armchair",
+    "lounge chair": "armchair",
+    "ottoman": "armchair",
+    "rug": "rug",
+    "carpet": "rug",
+    "shelf": "shelf",
+    "shelve": "shelf",
+    "bookshelf": "shelf",
+    "bookshelve": "shelf",
+    "bookcase": "shelf",
+    "shelving": "shelf",
+    "lamp": "floor-lamp",
+    "floor lamp": "floor-lamp",
+    "pendant": "pendant",
+    "pendant lamp": "pendant",
+    "pendant light": "pendant",
+    "chandelier": "pendant",
+    "ceiling lamp": "pendant",
+    "plant": "plant",
+    "bed": "bed",
+    "nightstand": "nightstand",
+    "bedside table": "nightstand",
+    "side table": "nightstand",
+    "dresser": "dresser",
+    "chest of drawers": "dresser",
+    "wardrobe": "wardrobe",
+    "closet": "wardrobe",
+    "dining table": "dining-table",
+    "dining chair": "dining-chair",
+    "sideboard": "sideboard",
+    "buffet": "sideboard",
+    "console": "sideboard",
+    "desk": "desk",
+    "office chair": "desk-chair",
+    "desk chair": "desk-chair",
+}
+# Palabras genéricas cuyo rol depende del tipo de cuarto.
+CONTEXT_ROLES: dict[str, dict[RoomType, str]] = {
+    "chair": {"living": "armchair", "bedroom": "armchair", "dining": "dining-chair", "office": "desk-chair"},
+    "table": {"living": "coffee-table", "dining": "dining-table", "office": "desk"},
+    "cabinet": {"living": "shelf", "bedroom": "dresser", "dining": "sideboard", "office": "shelf"},
+}
+
+
+def inventory_role(category: str, room_type: RoomType) -> str | None:
+    """Rol al que corresponde lo que nombró el modelo de visión, o None si no hay ninguno."""
+    key = " ".join(category.lower().replace("-", " ").replace("_", " ").split())
+    for candidate in (key, key[:-1] if key.endswith("s") else key):
+        if candidate in CONTEXT_ROLES:
+            return CONTEXT_ROLES[candidate].get(room_type)
+        if candidate in INVENTORY_ROLES:
+            return INVENTORY_ROLES[candidate]
+    return None
+
+
+def roles_for(room_type: RoomType, inventory: list[InventoryItem] | None) -> list[Role]:
+    """Qué se coloca y cuántos.
+
+    Sin inventario, la plantilla completa del tipo de cuarto. Con inventario (lo que se vio en la
+    foto), los roles imprescindibles más los que estaban en la foto, incluidos los que no son
+    típicos de ese cuarto: dos fotos distintas dan dos distribuciones distintas.
+    """
+    template = TEMPLATES[room_type]
+    if not inventory:
+        return template
+    seen: dict[str, int] = {}
+    for item in inventory:
+        role = inventory_role(item.category, room_type)
+        if role is not None:
+            seen[role] = seen.get(role, 0) + item.count
+    if not seen:
+        return template
+
+    def sized(role: Role) -> Role:
+        # Un rol múltiple (mesitas de noche, sillas de comedor) pone tantos como se vieron.
+        return replace(role, count=max(1, min(role.count, seen[role.name]))) if role.count > 1 and role.name in seen else role
+
+    roles = [sized(r) for r in template if r.required or r.name in seen]
+    placed = {r.name for r in roles}
+    for name in seen:
+        extra = ROLE_LIBRARY.get(name)
+        if extra is None or name in placed:
+            continue
+        # Lo que se apoya en otra pieza (sillas alrededor de la mesa) solo va si esa pieza también va.
+        if extra.ref is not None and extra.ref not in placed and extra.ref not in seen:
+            continue
+        roles.append(replace(sized(extra), required=False))
+        placed.add(name)
+    # Primero las piezas de referencia: una silla de comedor necesita su mesa ya colocada.
+    return sorted(roles, key=lambda r: 0 if r.ref is None else 1 if r.ref in placed else 2)
 
 
 @dataclass
@@ -196,7 +310,7 @@ class RulesLayoutEngine:
         required_total = 0
         required_ok = 0
 
-        for role in TEMPLATES[req.roomType]:
+        for role in roles_for(req.roomType, req.inventory):
             if role.required:
                 required_total += 1
             already = len(scene.by_role(role.name))

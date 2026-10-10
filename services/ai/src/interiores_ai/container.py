@@ -6,9 +6,11 @@ from .config import Settings
 from .layout.rules_engine import LayoutEngine, RulesLayoutEngine
 from .logging import log
 from .providers.base import RoomAnalyzer, StyleGenerator
+from .providers.fallback import FallbackRoomAnalyzer
 from .providers.replicate import ReplicateClient, ReplicateRoomAnalyzer, ReplicateStyleGenerator
 from .providers.room_mock import MockRoomAnalyzer
 from .providers.style_mock import MockStyleGenerator
+from .providers.vision import DailyBudget, GroqVisionClient, VisionRoomAnalyzer
 from .storage import ObjectStorage, S3Storage
 
 
@@ -31,13 +33,20 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
     room_kind = settings.resolved_room_analyzer()
     style_kind = settings.resolved_style_generator()
     if (settings.room_analyzer, settings.style_generator) != (room_kind, style_kind):
-        log.warning("replicate_sin_token", detail="Se pidió Replicate pero falta REPLICATE_API_TOKEN; se usa mock")
+        log.warning("proveedor_sin_credencial", detail="Se pidió un proveedor externo pero falta su credencial; se usa mock")
 
     client = ReplicateClient(settings) if "replicate" in (room_kind, style_kind) else None
     room: RoomAnalyzer
     style: StyleGenerator
     if client and room_kind == "replicate":
         room = ReplicateRoomAnalyzer(client, settings.replicate_depth_model)
+    elif room_kind == "vision" and settings.groq_api_key:
+        vision = VisionRoomAnalyzer(
+            GroqVisionClient(settings.groq_api_key, settings.vision_model, timeout_s=settings.vision_timeout_s),
+            budget=DailyBudget(settings.vision_per_day),
+        )
+        # Si el modelo alcanza su límite, está caído o responde algo inválido, contesta el local.
+        room = FallbackRoomAnalyzer(vision, MockRoomAnalyzer())
     else:
         room = MockRoomAnalyzer()
     if client and style_kind == "replicate":

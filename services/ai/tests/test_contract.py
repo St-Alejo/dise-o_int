@@ -80,3 +80,22 @@ def test_enums_coinciden(schemas):
 
     assert sorted(style_enum) == sorted(get_args(StyleId))
     assert sorted(room_enum) == sorted(get_args(RoomType))
+
+
+def test_lo_que_aporta_la_vision_tambien_cumple_el_contrato(schemas, catalog):
+    from interiores_ai.contracts import InventoryItem, RoomSuggestions
+
+    shell = rectangular_shell(4.5, 5, 2.7)
+    analyze = AnalyzeRoomResponse(
+        roomShell=shell,
+        detectedObjects=[DetectedObject(label="desk", confidence=0.85, bbox=(0, 0, 1, 1), category="desk", count=1, nearWall="back")],
+        provider="vision-x",
+        durationMs=1800,
+        suggestions=RoomSuggestions(roomType="office", styleId="moderno", wallColor="#4a6fa5", floorColor="#8b7355", floorMaterial="wood", confidence=0.85),
+    )
+    check(schemas, "AnalyzeRoomResponse", analyze.model_dump(mode="json", exclude_none=True))
+
+    req = PlaceFurnitureRequest(roomShell=shell, roomType="office", styleId=None, candidates=catalog[:3], locked=[], inventory=[InventoryItem(category="desk", count=1)])
+    payload = req.model_dump(mode="json", exclude_none=True) | {"styleId": None}
+    check(schemas, "PlaceFurnitureRequest", payload)
+    PlaceFurnitureRequest.model_validate(payload)

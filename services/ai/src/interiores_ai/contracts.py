@@ -103,6 +103,26 @@ class DetectedObject(Model):
     label: str
     confidence: float = Field(ge=0, le=1)
     bbox: tuple[float, float, float, float]
+    # Lo que aporta un modelo de visión: qué es, cuántos hay y junto a qué pared (vista desde la cámara).
+    category: str | None = Field(default=None, min_length=1, max_length=40)
+    count: int | None = Field(default=None, ge=1, le=40)
+    nearWall: Literal["back", "left", "right", "front", "center"] | None = None
+
+
+HexColor = Annotated[str, Field(pattern=r"^#[0-9a-f]{6}$")]
+
+
+class RoomSuggestions(Model):
+    """Lo que la foto sugiere además de la geometría: colores, estilo y tipo de cuarto."""
+
+    roomType: str | None = Field(default=None, max_length=40)
+    styleId: StyleId | None = None
+    wallColor: HexColor | None = None
+    floorColor: HexColor | None = None
+    accentColor: HexColor | None = None
+    floorMaterial: Literal["wood", "tile", "carpet", "concrete", "other"] | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    notes: str | None = Field(default=None, max_length=300)
 
 
 class AnalyzeRoomResponse(Model):
@@ -110,6 +130,7 @@ class AnalyzeRoomResponse(Model):
     detectedObjects: list[DetectedObject]
     provider: str
     durationMs: float = Field(ge=0)
+    suggestions: RoomSuggestions | None = None
 
 
 class GenerateStyleRequest(Model):
@@ -136,6 +157,13 @@ class LayoutCandidate(Model):
     price: float | None = None
 
 
+class InventoryItem(Model):
+    """Un tipo de mueble visto en la foto (en palabras del modelo de visión) y cuántos hay."""
+
+    category: str = Field(min_length=1, max_length=40)
+    count: int = Field(default=1, ge=1, le=40)
+
+
 class PlaceFurnitureRequest(Model):
     roomShell: RoomShell
     roomType: RoomType
@@ -143,6 +171,8 @@ class PlaceFurnitureRequest(Model):
     candidates: list[LayoutCandidate]
     locked: list[FurniturePlacement]
     seed: int | None = None
+    # Lo que había en la foto: si viene, la distribución coloca eso en vez de la plantilla completa.
+    inventory: list[InventoryItem] | None = Field(default=None, max_length=40)
 
 
 class PlaceFurnitureResponse(Model):
