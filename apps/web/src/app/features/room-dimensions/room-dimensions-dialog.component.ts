@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { ROOM_LIMITS } from '@interiores/shared-types';
+import { ROOM_LIMITS, footprint } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ToastService } from '../../core/ui/toast.service';
+import { FloorPlanComponent } from '../floor-plan/floor-plan.component';
+import type { PlanFootprint } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
 import {
   wallOptions,
@@ -25,7 +27,7 @@ import {
 @Component({
   selector: 'app-room-dimensions-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, FloorPlanComponent],
   template: `
     <dialog #dialog class="modal wide" aria-labelledby="room-title" (close)="closed.emit()">
       @if (draft(); as d) {
@@ -97,6 +99,10 @@ import {
             @if (pv.error) {
               <p class="alert alert-danger" role="alert">{{ pv.error }}</p>
             } @else {
+              @if (pv.shell; as shell) {
+                <!-- El cuarto tal como quedará: sirve para confirmar lo que se entendió de la foto. -->
+                <app-floor-plan class="plan" [shell]="shell" [footprints]="footprints()" />
+              }
               <p class="alert" style="background: var(--surface-2)" aria-live="polite">
                 Quedará de <strong>{{ d.widthM | number: '1.2-2' }} × {{ d.depthM | number: '1.2-2' }} m</strong>
                 ({{ d.widthM * d.depthM | number: '1.1-1' }} m²) y {{ d.heightM | number: '1.2-2' }} m de alto.
@@ -163,6 +169,12 @@ import {
       font-size: 0.85rem;
       margin: 0;
     }
+    .plan {
+      height: 260px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
     .btn-link {
       background: none;
       border: none;
@@ -201,6 +213,14 @@ export class RoomDimensionsDialogComponent {
     const d = this.draft();
     return d ? wallLengthsFor(d, this.store.shell()) : {};
   });
+
+  /** Huellas de los muebles actuales, para verlos sobre el plano. */
+  protected readonly footprints = computed<PlanFootprint[]>(() =>
+    this.store.placements().flatMap((p) => {
+      const dims = this.store.placementDimensions(p);
+      return dims ? [{ id: p.id, corners: footprint(p.position, dims, p.rotationY).corners }] : [];
+    }),
+  );
 
   protected readonly preview = computed(() => {
     const shell = this.store.shell();

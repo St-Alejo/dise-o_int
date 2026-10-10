@@ -32,6 +32,10 @@ test('cuarto a medida: medidas al crear y edición exacta en el editor', async (
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel('Ancho del cuarto')).toHaveValue('4.2');
   await expect(dialog.getByLabel('Alto del techo')).toHaveValue('2.55');
+  // El plano muestra el cuarto que se va a aplicar, con sus muebles: sirve para confirmar lo entendido de la foto.
+  const plan = dialog.getByRole('img', { name: /Plano del cuarto/ });
+  await expect(plan).toHaveAccessibleName(/4,20 m de ancho por 3,60 m de fondo, 4 paredes/);
+  await expect(plan.locator('polygon.item').first()).toBeVisible();
 
   const axe = await new AxeBuilder({ page }).include('dialog[open]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   const serious = axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
