@@ -96,6 +96,8 @@ jobs:
           ./scripts/init-env.sh
           # CI sin salida a Poly Haven garantizada: catálogo procedural (determinista y rápido)
           sed -i 's/^CATALOG_OFFLINE=.*/CATALOG_OFFLINE=true/' .env
+          # Toda la suite sale de una sola IP en menos de un minuto: los límites por IP no son lo que se prueba.
+          sed -i 's/^RATE_LIMIT_MULTIPLIER=.*/RATE_LIMIT_MULTIPLIER=20/' .env
       - name: Levantar el stack (espera healthchecks)
         run: docker compose up -d --build --wait --wait-timeout 600
       - name: Prueba de humo del backend

@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { perMinute } from '../../common/rate-limit.js';
 import {
   AutoLayoutRequestSchema,
   CalibrateRequestSchema,
@@ -70,7 +71,7 @@ export class ProjectsController {
   }
 
   @Post()
-  @Throttle({ default: { limit: 12, ttl: 60_000 } })
+  @Throttle(perMinute(12))
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { photo: { type: 'string', format: 'binary', description: 'Foto del cuarto (opcional si se envía roomSpec)' }, roomSpec: { type: 'string', description: 'Cuarto definido a mano, como JSON: { shape, widthM, depthM, heightM, notchWidthM?, notchDepthM?, openings? }' }, name: { type: 'string' }, roomType: { type: 'string', enum: ['living', 'bedroom', 'dining', 'office'] }, styles: { type: 'string', description: 'Estilos separados por comas' }, widthM: { type: 'string', description: 'Ancho real en metros (opcional; junto con depthM y heightM)' }, depthM: { type: 'string' }, heightM: { type: 'string' } } } })
   @UseInterceptors(FileInterceptor('photo', { limits: { fileSize: MULTER_HARD_LIMIT, files: 1, fields: 10 } }))
@@ -162,7 +163,7 @@ export class ProjectsController {
 
   @Post(':id/styles')
   @HttpCode(202)
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Throttle(perMinute(20))
   @ApiBody({ schema: openApiSchema(GenerateStylesRequestSchema) })
   generateStyles(
     @CurrentUser() user: AuthPrincipal,

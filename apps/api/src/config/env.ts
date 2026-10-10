@@ -55,6 +55,8 @@ export const EnvSchema = z
     CHAT_PER_DAY: z.coerce.number().int().min(1).default(60),
     CHAT_MAX_TOOL_TURNS: z.coerce.number().int().min(1).max(20).default(8),
     THROTTLE_LIMIT_PER_MIN: z.coerce.number().int().min(10).default(240),
+    /** Relaja todos los límites por IP (solo para las pruebas e2e; ver `common/rate-limit.ts`). */
+    RATE_LIMIT_MULTIPLIER: z.coerce.number().min(1).max(100).default(1),
 
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
     WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3001),

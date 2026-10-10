@@ -49,7 +49,7 @@ test-ai: ## Lint, tipos y pruebas del servicio de IA (pytest)
 smoke: ## Prueba de humo del backend contra el stack levantado
 	node e2e/smoke.mjs $(BASE_URL)
 
-e2e: ## Pruebas E2E de UI (Playwright + axe) contra el stack levantado
+e2e: ## Pruebas E2E de UI (Playwright + axe) contra el stack levantado (súbelo con RATE_LIMIT_MULTIPLIER=20 y ROOM_ANALYZER=mock)
 	docker run --rm -v "$$(pwd -W 2>/dev/null || pwd)/e2e:/e2e" -v interiores_nm_e2e:/e2e/node_modules -w /e2e --ipc=host \
 	  -e BASE_URL=$(subst localhost,host.docker.internal,$(BASE_URL)) mcr.microsoft.com/playwright:v1.63.0-noble \
 	  sh -c "npm install --no-audit --no-fund >/dev/null && npx playwright test"

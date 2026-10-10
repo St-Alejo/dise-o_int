@@ -6,6 +6,7 @@ import { loggerModule } from './common/logger.js';
 import { ProblemDetailsFilter } from './common/problem-details.filter.js';
 import type { AppConfig } from './config/env.js';
 import { CoreModule } from './infrastructure/core.module.js';
+import { RATE_LIMIT_MULTIPLIER } from './common/rate-limit.js';
 import { RedisThrottlerStorage } from './infrastructure/throttler/redis-throttler.storage.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
@@ -22,7 +23,7 @@ import { APP_CONFIG, REDIS } from './ports/index.js';
     ThrottlerModule.forRootAsync({
       inject: [APP_CONFIG, REDIS],
       useFactory: (config: AppConfig, redis: Redis) => ({
-        throttlers: [{ name: 'default', ttl: 60_000, limit: config.THROTTLE_LIMIT_PER_MIN }],
+        throttlers: [{ name: 'default', ttl: 60_000, limit: config.THROTTLE_LIMIT_PER_MIN * RATE_LIMIT_MULTIPLIER }],
         storage: new RedisThrottlerStorage(redis),
       }),
     }),

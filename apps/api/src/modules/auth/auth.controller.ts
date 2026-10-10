@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { perMinute } from '../../common/rate-limit.js';
 import {
   LoginRequestSchema,
   RegisterRequestSchema,
@@ -28,7 +29,7 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(perMinute(10))
   @Post('register')
   @ApiBody({ schema: openApiSchema(RegisterRequestSchema) })
   async register(
@@ -40,7 +41,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(perMinute(10))
   @Post('login')
   @HttpCode(200)
   @ApiBody({ schema: openApiSchema(LoginRequestSchema) })
@@ -53,7 +54,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle(perMinute(30))
   @Post('refresh')
   @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<AuthResponse> {
