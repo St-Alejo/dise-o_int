@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output, si
 import { CurrencyPipe } from '@angular/common';
 import { RoomPlan, clampToRoom, effectiveDimensions, footprint, type CatalogItem } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
 import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
@@ -53,6 +54,7 @@ function initialView(): ViewMode {
     ThreeViewportComponent,
     PlanEditorComponent,
     OutlinerComponent,
+    IconComponent,
     CatalogPanelComponent,
     CalibrationDialogComponent,
     RoomDimensionsDialogComponent,
@@ -65,8 +67,8 @@ function initialView(): ViewMode {
   host: { '(document:keydown)': 'onGlobalKey($event)' },
   template: `
     <div class="toolbar row" role="toolbar" aria-label="Herramientas del editor">
-      <button type="button" class="icon-btn" (click)="store.undo()" [disabled]="!store.canUndo()" [attr.aria-label]="'Deshacer ' + (store.undoLabel() ?? '')" title="Deshacer (Ctrl+Z)">↶</button>
-      <button type="button" class="icon-btn" (click)="store.redo()" [disabled]="!store.canRedo()" [attr.aria-label]="'Rehacer ' + (store.redoLabel() ?? '')" title="Rehacer (Ctrl+Y)">↷</button>
+      <button type="button" class="icon-btn" (click)="store.undo()" [disabled]="!store.canUndo()" [attr.aria-label]="'Deshacer ' + (store.undoLabel() ?? '')" title="Deshacer (Ctrl+Z)"><app-icon name="undo" /></button>
+      <button type="button" class="icon-btn" (click)="store.redo()" [disabled]="!store.canRedo()" [attr.aria-label]="'Rehacer ' + (store.redoLabel() ?? '')" title="Rehacer (Ctrl+Y)"><app-icon name="redo" /></button>
       <span class="sep" aria-hidden="true"></span>
       <div class="views" role="group" aria-label="Vista del editor">
         @for (v of views; track v.id) {
@@ -74,10 +76,10 @@ function initialView(): ViewMode {
         }
       </div>
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
-      <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas">📏 Medidas del cuarto</button>
-      <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están">✨ Otra distribución</button>
+      <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas"><app-icon name="ruler" /> Medidas del cuarto</button>
+      <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están"><app-icon name="shuffle" /> Otra distribución</button>
       <details class="menu" #exportMenu>
-        <summary class="btn btn-sm">Exportar</summary>
+        <summary class="btn btn-sm"><app-icon name="download" /> Exportar</summary>
         <div class="menu-items card">
           <button type="button" class="menu-item" (click)="exportImage(); exportMenu.open = false" [disabled]="viewMode() === 'plan'">
             <strong>Imagen del cuarto</strong>
@@ -110,7 +112,7 @@ function initialView(): ViewMode {
     }
     @if (shell()?.needsCalibration) {
       <div class="alert alert-warning row calib">
-        <span>📏 Medidas aproximadas (confianza {{ confidence() }}%). Escribe las reales si quieres precisión al comprar.</span>
+        <span><app-icon name="ruler" /> Medidas aproximadas (confianza {{ confidence() }}%). Escribe las reales si quieres precisión al comprar.</span>
         <span class="spacer"></span>
         <button type="button" class="btn btn-sm" (click)="roomDims.open()">Escribir medidas</button>
         <button type="button" class="btn btn-sm" (click)="calibration.open()">Calibrar con una medida</button>
@@ -179,7 +181,7 @@ function initialView(): ViewMode {
             </div>
           } @else {
             <div role="tabpanel" id="panel-room" aria-labelledby="tab-room" class="stack">
-              <button type="button" class="btn btn-sm" (click)="roomDims.open()">📏 Medidas, puertas y ventanas</button>
+              <button type="button" class="btn btn-sm" (click)="roomDims.open()"><app-icon name="ruler" /> Medidas, puertas y ventanas</button>
               <app-finishes-panel />
             </div>
           }

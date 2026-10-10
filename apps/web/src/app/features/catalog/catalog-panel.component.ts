@@ -13,6 +13,7 @@ import {
 } from '@interiores/shared-types';
 import { CATEGORY_ICONS, CATEGORY_LABELS, MOUNT_LABELS } from './catalog-labels';
 import { CatalogThumbComponent } from './catalog-thumb.component';
+import { IconComponent } from '../../shared/ui/icon.component';
 
 export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
 
@@ -23,7 +24,7 @@ export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
 @Component({
   selector: 'app-catalog-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, CatalogThumbComponent],
+  imports: [CurrencyPipe, CatalogThumbComponent, IconComponent],
   template: `
     <div class="stack">
       <div class="row">
@@ -38,7 +39,7 @@ export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
         <div class="chips" role="group" aria-label="Categoría">
           <button type="button" class="chip" [attr.aria-pressed]="category() === null" (click)="category.set(null)">Todo</button>
           @for (c of categories; track c) {
-            <button type="button" class="chip" [attr.aria-pressed]="category() === c" (click)="category.set(c)">{{ icons[c] }} {{ labels[c] }}</button>
+            <button type="button" class="chip" [attr.aria-pressed]="category() === c" (click)="category.set(c)"><app-icon [name]="icons[c]" /> {{ labels[c] }}</button>
           }
         </div>
         <div class="chips" role="group" aria-label="Dónde va">

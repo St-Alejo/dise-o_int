@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { IconComponent, type IconName } from '../../shared/ui/icon.component';
 import { STAGE_MESSAGES, type JobProgressEvent, type ProgressStage } from '@interiores/shared-types';
 
-const VISIBLE: { stage: ProgressStage; icon: string }[] = [
-  { stage: 'geometry', icon: '📐' },
-  { stage: 'surfaces', icon: '🔍' },
-  { stage: 'styles', icon: '🎨' },
-  { stage: 'scene', icon: '🧊' },
+const VISIBLE: { stage: ProgressStage; icon: IconName }[] = [
+  { stage: 'geometry', icon: 'ruler' },
+  { stage: 'surfaces', icon: 'search' },
+  { stage: 'styles', icon: 'palette' },
+  { stage: 'scene', icon: 'cube' },
 ];
 const ORDER: ProgressStage[] = ['queued', 'geometry', 'surfaces', 'styles', 'scene', 'done'];
 
@@ -16,6 +17,7 @@ const ORDER: ProgressStage[] = ['queued', 'geometry', 'surfaces', 'styles', 'sce
 @Component({
   selector: 'app-processing-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [IconComponent],
   template: `
     <section class="card panel" aria-labelledby="proc-title">
       <h2 id="proc-title">{{ title() }}</h2>
@@ -27,7 +29,13 @@ const ORDER: ProgressStage[] = ['queued', 'geometry', 'surfaces', 'styles', 'sce
         <ol class="stages">
           @for (s of stages; track s.stage) {
             <li [class.done]="isDone(s.stage)" [class.active]="isActive(s.stage)">
-              <span class="icon" aria-hidden="true">{{ isDone(s.stage) ? '✓' : s.icon }}</span>
+              <span class="icon" aria-hidden="true">
+                @if (isDone(s.stage)) {
+                  ✓
+                } @else {
+                  <app-icon [name]="s.icon" />
+                }
+              </span>
               <span>{{ messages[s.stage] }}</span>
               @if (isActive(s.stage)) {
                 <span class="visually-hidden">(en curso)</span>

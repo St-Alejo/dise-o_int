@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { ROOM_TYPE_LABELS, type ProjectListItem } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
@@ -16,7 +17,7 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
 @Component({
   selector: 'app-projects-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, IconComponent],
   template: `
     <section class="container page">
       <div class="row head">
@@ -47,7 +48,7 @@ const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> 
                 @if (p.thumbnailUrl) {
                   <img [src]="p.thumbnailUrl" alt="" loading="lazy" />
                 } @else {
-                  <div class="thumb-empty" aria-hidden="true">🛋️</div>
+                  <div class="thumb-empty" aria-hidden="true"><app-icon name="sofa" /></div>
                 }
               </a>
               <div class="meta">

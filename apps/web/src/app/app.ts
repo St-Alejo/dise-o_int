@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
+import { ThemeService } from './core/ui/theme.service';
 import { ToastService } from './core/ui/toast.service';
+import { IconComponent } from './shared/ui/icon.component';
 
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent],
   template: `
     <a class="skip-link" href="#main">Saltar al contenido</a>
     <header class="app-header">
@@ -20,6 +22,15 @@ import { ToastService } from './core/ui/toast.service';
           <span>Interiores <strong>IA</strong></span>
         </a>
         <span class="spacer"></span>
+        <button
+          type="button"
+          class="icon-btn theme"
+          (click)="theme.toggle()"
+          [attr.aria-label]="theme.dark() ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
+          [title]="theme.dark() ? 'Tema claro' : 'Tema oscuro'"
+        >
+          <app-icon [name]="theme.dark() ? 'sun' : 'moon'" />
+        </button>
         <nav aria-label="Principal" class="row">
           @if (auth.user(); as user) {
             <a routerLink="/proyectos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-link">Mis proyectos</a>
@@ -100,6 +111,11 @@ import { ToastService } from './core/ui/toast.service';
       font-family: var(--font-display);
       font-size: 1.2rem;
     }
+    .theme {
+      width: 36px;
+      height: 36px;
+      color: var(--text-muted);
+    }
     .brand span {
       color: var(--text);
     }
@@ -175,4 +191,5 @@ import { ToastService } from './core/ui/toast.service';
 export class App {
   protected readonly auth = inject(AuthService);
   protected readonly toast = inject(ToastService);
+  protected readonly theme = inject(ThemeService);
 }

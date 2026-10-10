@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, out
 import { CurrencyPipe } from '@angular/common';
 import { MATERIALS, STYLES, getMaterial, type CatalogItem, type FurniturePlacement, type MaterialSlot } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { CatalogThumbComponent } from '../catalog/catalog-thumb.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
@@ -36,7 +37,7 @@ import {
 @Component({
   selector: 'app-inspector',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, CatalogThumbComponent],
+  imports: [CurrencyPipe, CatalogThumbComponent, IconComponent],
   template: `
     @if (placement(); as p) {
       @if (item(); as it) {
@@ -144,17 +145,17 @@ import {
 
           <div class="actions">
             @if (it.mount !== 'wall') {
-              <button type="button" class="btn" (click)="scene.rotateSelected(-pi / 12)" aria-label="Rotar a la izquierda 15 grados">⟲ Rotar</button>
-              <button type="button" class="btn" (click)="scene.rotateSelected(pi / 12)" aria-label="Rotar a la derecha 15 grados">⟳ Rotar</button>
+              <button type="button" class="btn" (click)="scene.rotateSelected(-pi / 12)" aria-label="Rotar a la izquierda 15 grados"><app-icon name="rotateLeft" /> Rotar</button>
+              <button type="button" class="btn" (click)="scene.rotateSelected(pi / 12)" aria-label="Rotar a la derecha 15 grados"><app-icon name="rotateRight" /> Rotar</button>
             }
-            <button type="button" class="btn" (click)="duplicate()">⧉ Duplicar</button>
-            <button type="button" class="btn" [attr.aria-pressed]="p.lockedByUser" (click)="toggleLock()">{{ p.lockedByUser ? '🔒 Bloqueado' : '🔓 Libre' }}</button>
-            <button type="button" class="btn" (click)="swap.emit()">🔁 Cambiar</button>
-            <button type="button" class="btn" (click)="ar.emit(it)">📱 Ver en mi cuarto</button>
+            <button type="button" class="btn" (click)="duplicate()"><app-icon name="copy" /> Duplicar</button>
+            <button type="button" class="btn" [attr.aria-pressed]="p.lockedByUser" (click)="toggleLock()"><app-icon [name]="p.lockedByUser ? 'lock' : 'unlock'" /> {{ p.lockedByUser ? 'Bloqueado' : 'Libre' }}</button>
+            <button type="button" class="btn" (click)="swap.emit()"><app-icon name="swap" /> Cambiar</button>
+            <button type="button" class="btn" (click)="ar.emit(it)"><app-icon name="phone" /> Ver en mi cuarto</button>
             @if (it.productUrl) {
-              <a class="btn" [href]="it.productUrl" target="_blank" rel="noopener noreferrer">🛒 Buscar similar</a>
+              <a class="btn" [href]="it.productUrl" target="_blank" rel="noopener noreferrer"><app-icon name="cart" /> Buscar similar</a>
             }
-            <button type="button" class="btn btn-danger" (click)="scene.removeSelected()">🗑 Quitar</button>
+            <button type="button" class="btn btn-danger" (click)="scene.removeSelected()"><app-icon name="trash" /> Quitar</button>
           </div>
           <p class="small muted">
             {{ p.lockedByUser ? 'Bloqueado: "Otra distribución" no lo moverá.' : 'Libre: "Otra distribución" puede moverlo.' }}

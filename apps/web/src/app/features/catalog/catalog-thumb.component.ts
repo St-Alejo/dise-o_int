@@ -1,17 +1,19 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, input, signal } from '@angular/core';
 import type { CatalogItem } from '@interiores/shared-types';
 import { CATEGORY_ICONS } from './catalog-labels';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { ThumbnailService } from './thumbnail.service';
 
 /** Miniatura perezosa: se pide solo cuando la tarjeta entra en pantalla; mientras, un ícono. */
 @Component({
   selector: 'app-catalog-thumb',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [IconComponent],
   template: `
     @if (src(); as url) {
       <img [src]="url" alt="" width="48" height="48" decoding="async" />
     } @else {
-      <span class="icon" aria-hidden="true">{{ icons[item().category] }}</span>
+      <app-icon class="icon" [name]="icons[item().category]" />
     }
   `,
   styles: `

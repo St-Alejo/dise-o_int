@@ -18,6 +18,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { ProgressService } from '../../core/realtime/progress.service';
 import { ToastService } from '../../core/ui/toast.service';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { StyleGalleryComponent } from '../style-gallery/style-gallery.component';
 import { EditorComponent } from '../viewport-3d/editor.component';
 import { DesignProjectStore } from './design-project.store';
@@ -29,7 +30,7 @@ type View = 'estilos' | '3d';
   selector: 'app-project-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DesignProjectStore],
-  imports: [RouterLink, DatePipe, ProcessingPanelComponent, StyleGalleryComponent, EditorComponent],
+  imports: [RouterLink, DatePipe, ProcessingPanelComponent, StyleGalleryComponent, EditorComponent, IconComponent],
   template: `
     <section class="container page">
       @if (store.loadError(); as err) {
@@ -41,7 +42,7 @@ type View = 'estilos' | '3d';
       } @else if (store.project(); as p) {
         <header class="head">
           <div class="title">
-            <a routerLink="/proyectos" class="back" aria-label="Volver a mis proyectos">←</a>
+            <a routerLink="/proyectos" class="back" aria-label="Volver a mis proyectos"><app-icon name="back" /></a>
             <div>
               <h1>{{ p.name }}</h1>
               <p class="muted meta">
@@ -59,10 +60,10 @@ type View = 'estilos' | '3d';
           </div>
           @if (p.status === 'ready') {
             <div class="row">
-              <button type="button" class="btn" (click)="saveVersion()" [disabled]="working()">💾 Guardar versión</button>
-              <button type="button" class="btn" (click)="openVersions()">🕘 Versiones ({{ p.versions.length }})</button>
-              <button type="button" class="btn" (click)="share()" [disabled]="working()">🔗 Compartir</button>
-              <button type="button" class="btn" (click)="downloadPdf()" [disabled]="working()">🧾 Lista de compras</button>
+              <button type="button" class="btn" (click)="saveVersion()" [disabled]="working()"><app-icon name="save" /> Guardar versión</button>
+              <button type="button" class="btn" (click)="openVersions()"><app-icon name="history" /> Versiones ({{ p.versions.length }})</button>
+              <button type="button" class="btn" (click)="share()" [disabled]="working()"><app-icon name="share" /> Compartir</button>
+              <button type="button" class="btn" (click)="downloadPdf()" [disabled]="working()"><app-icon name="receipt" /> Lista de compras</button>
             </div>
           }
         </header>
@@ -82,8 +83,8 @@ type View = 'estilos' | '3d';
           <!-- Las propuestas 2D se generan sobre la foto: un cuarto creado sin foto va directo al 3D. -->
           @if (p.sourcePhotoUrl) {
             <div class="tabs" role="tablist" aria-label="Vistas del proyecto">
-              <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === 'estilos'" (click)="setView('estilos')">🎨 Propuestas 2D</button>
-              <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === '3d'" (click)="setView('3d')">🧊 Editor 3D</button>
+              <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === 'estilos'" (click)="setView('estilos')"><app-icon name="palette" /> Propuestas 2D</button>
+              <button role="tab" type="button" class="tab" [attr.aria-selected]="view() === '3d'" (click)="setView('3d')"><app-icon name="cube" /> Editor 3D</button>
             </div>
           }
           @if (job(); as j) {

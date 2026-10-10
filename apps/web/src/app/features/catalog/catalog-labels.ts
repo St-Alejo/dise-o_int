@@ -1,4 +1,5 @@
 import type { CatalogCategory, Mount } from '@interiores/shared-types';
+import type { IconName } from '../../shared/ui/icon.component';
 
 export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   sofa: 'Sofás',
@@ -15,19 +16,19 @@ export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   electronics: 'Electrónica',
 };
 
-export const CATEGORY_ICONS: Record<CatalogCategory, string> = {
-  sofa: '🛋️',
-  table: '🪵',
-  chair: '🪑',
-  bed: '🛏️',
-  storage: '🗄️',
-  lighting: '💡',
-  decor: '🪴',
-  kitchen: '🍳',
-  bathroom: '🛁',
-  'wall-decor': '🖼️',
-  textile: '🧶',
-  electronics: '📺',
+export const CATEGORY_ICONS: Record<CatalogCategory, IconName> = {
+  sofa: 'sofa',
+  table: 'table',
+  chair: 'chair',
+  bed: 'bed',
+  storage: 'storage',
+  lighting: 'lamp',
+  decor: 'plant',
+  kitchen: 'kitchen',
+  bathroom: 'bath',
+  'wall-decor': 'picture',
+  textile: 'curtain',
+  electronics: 'tv',
 };
 
 export const MOUNT_LABELS: Record<Mount, string> = {

@@ -3,6 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { ROOM_LIMITS, footprint } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ToastService } from '../../core/ui/toast.service';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { FloorPlanComponent } from '../floor-plan/floor-plan.component';
 import type { PlanFootprint } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
@@ -27,7 +28,7 @@ import {
 @Component({
   selector: 'app-room-dimensions-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, FloorPlanComponent],
+  imports: [DecimalPipe, FloorPlanComponent, IconComponent],
   template: `
     <dialog #dialog class="modal wide" aria-labelledby="room-title" (close)="closed.emit()">
       @if (draft(); as d) {
@@ -54,7 +55,7 @@ import {
             <legend class="label">Puertas y ventanas</legend>
             @for (o of d.openings; track o.id; let i = $index) {
               <div class="opening" role="group" [attr.aria-label]="(o.type === 'door' ? 'Puerta ' : 'Ventana ') + (i + 1)">
-                <span class="kind" aria-hidden="true">{{ o.type === 'door' ? '🚪' : '🪟' }}</span>
+                <app-icon class="kind" [name]="o.type === 'door' ? 'door' : 'window'" />
                 <div class="field">
                   <label [for]="'o-wall-' + i">Pared</label>
                   <select [id]="'o-wall-' + i" class="input" [value]="o.wallId" (change)="patchOpening(i, { wallId: $any($event.target).value })">
