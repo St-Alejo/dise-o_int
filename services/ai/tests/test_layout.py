@@ -235,3 +235,44 @@ def test_el_cascaron_descarta_ventanas_duplicadas_o_solapadas():
 def test_el_cascaron_conserva_ventanas_separadas():
     shell = rectangular_shell(6.0, 3.0, 2.6, windows=[(0.2, 1.0, 1.0, 0.9), (0.8, 1.0, 1.0, 0.9)])
     assert [o.id for o in shell.openings if o.type == "window"] == ["o-window-1", "o-window-2"]
+
+
+# ---------------------------------------------------------------- otra distribución (semilla)
+def seeded(catalog, room: RoomType, seed: int | None, w: float = 5.0, d: float = 4.5):
+    shell = rectangular_shell(w, d, 2.6, windows=[(0.5, 1.4, 1.2, 0.9)])
+    req = PlaceFurnitureRequest(roomShell=shell, roomType=room, styleId="moderno", candidates=catalog, locked=[], seed=seed)
+    return shell, engine.place(req)
+
+
+def signature(result) -> tuple:
+    return tuple(sorted((p.catalogItemId, round(p.position.x, 1), round(p.position.z, 1), round(p.rotationY, 1)) for p in result.placements))
+
+
+@pytest.mark.parametrize("room", ["living", "bedroom", "dining", "office"])
+def test_cada_semilla_da_otra_distribucion_igual_de_valida(catalog, room):
+    seen = set()
+    for seed in range(8):
+        shell, result = seeded(catalog, room, seed)
+        assert result.unplaced == [], f"semilla {seed}"
+        assert_valid(shell, result, catalog)
+        seen.add(signature(result))
+    assert len(seen) >= 3, "las semillas deberían producir varias distribuciones distintas"
+
+
+def test_la_misma_semilla_repite_la_distribucion_y_sin_semilla_sale_siempre_la_mejor(catalog):
+    assert signature(seeded(catalog, "living", 5)[1]) == signature(seeded(catalog, "living", 5)[1])
+    assert signature(seeded(catalog, "living", None)[1]) == signature(seeded(catalog, "living", None)[1])
+
+
+def test_una_variante_no_rompe_las_reglas_duras(catalog):
+    for seed in range(12):
+        shell, result = seeded(catalog, "living", seed)
+        door = next(o for o in shell.openings if o.type == "door")
+        door_x = shell.widthM - door.offsetM
+        zone = Footprint.rect(door_x - door.widthM / 2, shell.depthM - 0.9, door_x + door.widthM / 2, shell.depthM)
+        for p, item, fp in footprints(result, catalog):
+            if layer_of(item) == "floor":
+                assert not overlaps(fp, zone, 0.0), f"semilla {seed}: {p.catalogItemId} bloquea la puerta"
+        # Los muebles altos siguen lejos de la pared de la cámara.
+        shelf = next((p for p in result.placements if p.catalogItemId == "estanteria"), None)
+        assert shelf is None or shelf.position.z < shell.depthM - 0.5, f"semilla {seed}"

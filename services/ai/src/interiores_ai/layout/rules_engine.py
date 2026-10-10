@@ -40,6 +40,10 @@ Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
 Anchor = Literal["wall", "front-of", "facing-wall", "beside", "around", "corner", "center", "over", "under"]
 
 DOOR_CLEARANCE_M = 0.9
+# Con semilla, cuánto peor que la mejor puede ser una pose para entrar en el sorteo. Las reglas
+# duras (no tapar ventanas, no bloquear la puerta, muebles altos lejos de la cámara) cuestan más
+# que esto, así que una variante nunca las rompe.
+VARIETY_TOLERANCE = {"wall": 1.2, "facing-wall": 0.6, "corner": 0.6}
 CAMERA_WALL_ID = "w-front"  # pared detrás del fotógrafo (ver providers/shell.py)
 WALL_GAP_M = 0.02
 
@@ -289,6 +293,9 @@ class RulesLayoutEngine:
 
     def place(self, req: PlaceFurnitureRequest) -> PlaceFurnitureResponse:
         rng = random.Random(req.seed if req.seed is not None else 7)
+        # Sin semilla se devuelve siempre la mejor distribución; con semilla, una variante válida
+        # distinta para cada valor ("otra distribución").
+        variety = rng if req.seed is not None else None
         shell = req.roomShell
         catalog = {c.id: c for c in req.candidates}
         scene = Scene(shell)
@@ -319,7 +326,7 @@ class RulesLayoutEngine:
                 continue
             # v1 del motor: solo piso/techo; los objetos de pared y superficie los coloca el usuario o el chat.
             floor_or_ceiling = [c for c in req.candidates if c.mount in ("floor", "ceiling")]
-            options = self._select(role, floor_or_ceiling, req.styleId, shell)
+            options = self._select(role, floor_or_ceiling, req.styleId, shell, variety)
             if not options:
                 if role.required:
                     unplaced.append(role.name)
@@ -328,7 +335,7 @@ class RulesLayoutEngine:
             placed_any = False
             for item in options[:4]:  # si el mejor no cabe, se prueba el siguiente
                 for _ in range(role.count - already):
-                    pose = self._best_pose(role, item, scene, blocked)
+                    pose = self._best_pose(role, item, scene, blocked, variety)
                     if pose is None:
                         break
                     placed = Placed(
@@ -370,7 +377,9 @@ class RulesLayoutEngine:
         return None
 
     @staticmethod
-    def _select(role: Role, candidates: list[LayoutCandidate], style: StyleId | None, shell: RoomShell) -> list[LayoutCandidate]:
+    def _select(
+        role: Role, candidates: list[LayoutCandidate], style: StyleId | None, shell: RoomShell, variety: random.Random | None = None
+    ) -> list[LayoutCandidate]:
         longest = max(shell.widthM, shell.depthM)
         shortest = min(shell.widthM, shell.depthM)
 
@@ -385,11 +394,19 @@ class RulesLayoutEngine:
             s -= 0.1 * len(c.styleTags)  # más específico del estilo = mejor
             return (-s, c.id)
 
-        return sorted((c for c in candidates if role.match(c) and fits(c)), key=score)
+        ranked = sorted((c for c in candidates if role.match(c) and fits(c)), key=score)
+        if variety is not None and len(ranked) > 1:
+            # Entre los que encajan igual de bien con el estilo, cualquiera vale: se sortea el orden.
+            in_style = [c for c in ranked if bool(style and style in c.styleTags) == bool(style and style in ranked[0].styleTags)]
+            variety.shuffle(in_style)
+            ranked = in_style + ranked[len(in_style) :]
+        return ranked
 
     # ------------------------------------------------------------------ poses
-    def _best_pose(self, role: Role, item: LayoutCandidate, scene: Scene, blocked: list[Footprint]) -> Pose | None:
-        best: tuple[float, Pose] | None = None
+    def _best_pose(
+        self, role: Role, item: LayoutCandidate, scene: Scene, blocked: list[Footprint], variety: random.Random | None = None
+    ) -> Pose | None:
+        valid: list[tuple[float, Pose]] = []
         layer = layer_of(item)
         d = item.dimensionsM
         for pose in self._poses(role, item, scene):
@@ -400,10 +417,21 @@ class RulesLayoutEngine:
                 continue
             if any(p.layer == layer and overlaps(fp, p.fp) for p in scene.placed):
                 continue
-            cost = pose.base_cost + self._role_cost(role, item, pose, scene)
-            if best is None or cost < best[0]:
-                best = (cost, pose)
-        return best[1] if best else None
+            valid.append((pose.base_cost + self._role_cost(role, item, pose, scene), pose))
+        if not valid:
+            return None
+        best_cost, best = min(valid, key=lambda v: v[0])
+        tolerance = VARIETY_TOLERANCE.get(role.anchor) if variety is not None else None
+        if variety is None or tolerance is None:
+            return best
+        # Una opción por pared (o por rincón): la mejor de cada una, si no es mucho peor que la
+        # mejor de todas. Así la variante cambia de pared, no deja el sofá descentrado.
+        per_spot: dict[object, tuple[float, Pose]] = {}
+        for cost, pose in valid:
+            spot = pose.wall_id if pose.wall_id is not None else (round(pose.x, 2), round(pose.z, 2))
+            if cost <= best_cost + tolerance and (spot not in per_spot or cost < per_spot[spot][0]):
+                per_spot[spot] = (cost, pose)
+        return variety.choice([pose for _, pose in per_spot.values()])
 
     def _poses(self, role: Role, item: LayoutCandidate, scene: Scene) -> Iterator[Pose]:
         d = item.dimensionsM
