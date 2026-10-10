@@ -5,6 +5,7 @@ import {
   ElementRef,
   NgZone,
   OnDestroy,
+  computed,
   input,
   isDevMode,
   signal,
@@ -32,13 +33,28 @@ import { SceneService } from './scene.service';
       #canvas
       tabindex="0"
       role="application"
-      aria-label="Vista 3D del cuarto. Arrastra para mover muebles; flechas para desplazar el seleccionado, R para rotar, Supr para quitar."
+      [attr.aria-label]="walking() ? walkLabel : orbitLabel"
       (pointerdown)="scene.onPointerDown($event)"
       (pointermove)="scene.onPointerMove($event)"
       (pointerup)="scene.onPointerUp($event)"
       (pointercancel)="scene.onPointerUp($event)"
+      (dblclick)="scene.onDoubleClick($event)"
       (keydown)="onKey($event)"
+      (keyup)="onKeyUp($event)"
+      (blur)="scene.releaseWalkKeys()"
     ></canvas>
+    @if (scene.sceneReady() && !contextLost()) {
+      <div class="modes">
+        <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="walking()" (click)="toggleWalk()">
+          {{ walking() ? 'Salir del recorrido' : 'Recorrer' }}
+        </button>
+      </div>
+      @if (walking()) {
+        <p class="walk-help" role="status">
+          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> o flechas para caminar · arrastra para mirar · doble clic para ir a un punto · <kbd>Esc</kbd> para salir
+        </p>
+      }
+    }
     @if (contextLost()) {
       <div class="overlay" role="alert">
         <p>La vista 3D se detuvo (el navegador liberó la GPU).</p>
@@ -82,6 +98,45 @@ import { SceneService } from './scene.service';
       color: var(--text-muted);
       background: color-mix(in srgb, var(--bg) 70%, transparent);
     }
+    .modes {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+    }
+    .mode {
+      box-shadow: var(--shadow-sm);
+    }
+    .mode[aria-pressed='true'] {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--on-primary);
+    }
+    .walk-help {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      margin: 0;
+      max-width: calc(100% - 24px);
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      color: var(--text);
+      font-size: 0.82rem;
+      box-shadow: var(--shadow-sm);
+      text-align: center;
+    }
+    kbd {
+      display: inline-block;
+      min-width: 1.5em;
+      margin: 0 1px;
+      padding: 0 4px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface-2);
+      font: inherit;
+      font-size: 0.78rem;
+    }
     .hint {
       position: absolute;
       left: 50%;
@@ -104,6 +159,10 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
 
   readonly readOnly = input(false);
   readonly contextLost = signal(false);
+  protected readonly walking = computed(() => this.scene.cameraMode() === 'walk');
+  protected readonly orbitLabel =
+    'Vista 3D del cuarto. Arrastra para mover muebles; flechas para desplazar el seleccionado, R para rotar, Supr para quitar.';
+  protected readonly walkLabel = 'Recorrido del cuarto a pie. W, A, S, D o flechas para caminar; Escape para salir.';
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
 
   private renderer: THREE.WebGLRenderer | null = null;
@@ -174,7 +233,24 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     });
   }
 
+  /** Entra o sale del recorrido a pie; al entrar, el canvas toma el foco para que respondan las teclas. */
+  protected toggleWalk(): void {
+    this.scene.setCameraMode(this.walking() ? 'orbit' : 'walk');
+    this.canvasRef().nativeElement.focus();
+  }
+
+  onKeyUp(event: KeyboardEvent): void {
+    this.scene.walkKey(event.code, false);
+  }
+
   onKey(event: KeyboardEvent): void {
+    if (this.walking()) {
+      // Recorriendo, las teclas mueven a la persona; Escape vuelve a la vista de órbita.
+      if (event.key === 'Escape') this.scene.setCameraMode('orbit');
+      else if (!this.scene.walkKey(event.code, true)) return;
+      event.preventDefault();
+      return;
+    }
     const step = event.shiftKey ? 0.25 : 0.05;
     const handled: Record<string, () => void> = {
       ArrowLeft: () => this.scene.nudgeSelected(-step, 0),
