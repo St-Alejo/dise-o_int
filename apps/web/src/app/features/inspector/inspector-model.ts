@@ -4,10 +4,12 @@
  * no se permite cuando no cabe.
  */
 import {
+  alongOf,
   clampDimensions,
   clampToRoom,
   effectiveDimensions,
   mountY,
+  positionOnWall,
   type CatalogItem,
   type FurniturePlacement,
   type ResizeRanges,
@@ -71,10 +73,7 @@ export function proposeResize(ctx: ResizeContext, p: FurniturePlacement, item: C
   let position = clampToRoom(p.position, dims, p.rotationY, shell);
   if (item.mount === 'wall' && p.wallId) {
     const wall = wallFrames(shell).find((w) => w.id === p.wallId);
-    if (wall) {
-      const offset = wall.fixed + wall.inward * (dims.z / 2 + 0.001);
-      position = wall.along === 'x' ? { ...position, z: offset } : { ...position, x: offset };
-    }
+    if (wall) position = positionOnWall(wall, alongOf(wall, position), position.y, dims.z);
   }
   const y =
     item.mount === 'surface'

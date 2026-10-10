@@ -7,6 +7,8 @@
 import {
   effectiveDimensions,
   mountY,
+  positionOnWall,
+  roomCenter,
   wallFrames,
   type CatalogItem,
   type FurniturePlacement,
@@ -48,7 +50,6 @@ function planWall(id: string, item: CatalogItem, ctx: PlannerContext): Placement
   const elevationM = item.elevationDefaultM;
   const y = mountY('wall', dims, ctx.shell, { elevationDefaultM: elevationM });
   for (const wall of wallFrames(ctx.shell)) {
-    if (!ctx.shell.walls.some((w) => w.id === wall.id)) continue;
     const half = dims.x / 2;
     if (wall.length < dims.x) continue;
     // Desde el centro de la pared hacia los extremos, en pasos de 25 cm.
@@ -57,8 +58,7 @@ function planWall(id: string, item: CatalogItem, ctx: PlannerContext): Placement
     for (let k = 0.25; k <= center - half; k += 0.25) offsets.push(k, -k);
     for (const off of offsets) {
       const t = Math.min(wall.length - half, Math.max(half, center + off));
-      const depthOffset = wall.fixed + wall.inward * (dims.z / 2 + 0.001);
-      const position = wall.along === 'x' ? { x: t, y, z: depthOffset } : { x: depthOffset, y, z: t };
+      const position = positionOnWall(wall, t, y, dims.z);
       if (ctx.isPoseValid(id, item, position, wall.rotationY)) {
         return { position, rotationY: wall.rotationY, wallId: wall.id, ...(elevationM !== undefined ? { elevationM: y } : {}) };
       }
@@ -103,7 +103,7 @@ export function planPlacement(id: string, item: CatalogItem, ctx: PlannerContext
     if (onTop) return onTop;
     // Sin soporte: va al piso (luego el usuario lo sube a un mueble).
   }
-  const near = { x: ctx.shell.widthM / 2, y: mountY(item.mount, item.dimensionsM, ctx.shell), z: ctx.shell.depthM / 2 };
+  const near = { ...roomCenter(ctx.shell), y: mountY(item.mount, item.dimensionsM, ctx.shell) };
   // Derecho primero; si no hay hueco así, girado 90° (un sofá largo cabe a lo ancho de otra pared).
   for (const rotationY of [0, Math.PI / 2]) {
     const position = ctx.findFreeSpot(id, item, near, rotationY);

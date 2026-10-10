@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clampToRoom,
   createRectangularShell,
+  distanceFromWall,
   footprint,
   footprintsOverlap,
   wallFrames,
@@ -96,8 +97,7 @@ describe('planPlacement', () => {
     const other = placements.find((p) => p.wallId !== 'w-back')!;
     const frame = wallFrames(shell).find((w) => w.id === other.wallId)!;
     expect(other.rotationY).toBeCloseTo(frame.rotationY);
-    const perpendicular = frame.along === 'x' ? other.position.z : other.position.x;
-    expect(Math.abs(perpendicular - frame.fixed)).toBeCloseTo(0.015, 2);
+    expect(distanceFromWall(frame, other.position)).toBeCloseTo(0.015, 2);
   });
 
   it('si no cabe derecho, lo prueba girado 90°', () => {

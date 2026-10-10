@@ -10,10 +10,14 @@
  * Matemática pura (sin three.js): recibe un rayo y devuelve una pose. Se prueba sin GPU.
  */
 import {
+  alongOf,
   clampToRoom,
+  distanceFromWall,
   footprint,
+  isInsideRoom,
   mountY,
   overlapsOpening,
+  positionOnWall,
   rotateXZ,
   wallFrames,
   type WallFrame,
@@ -71,17 +75,27 @@ export function intersectHorizontal(ray: Ray, h: number): Vector3 | null {
 export const WALL_SNAP_M = 0.15;
 
 /** Pega la pieza a la pared si está a menos de 15 cm (contra la pared es lo habitual). */
-export function snapToWalls(pos: Vector3, dims: Vector3, rotationY: number, shell: Pick<RoomShell, 'widthM' | 'depthM'>): Vector3 {
-  const fp = footprint(pos, dims, rotationY);
-  const xs = fp.corners.map((c) => c.x);
-  const zs = fp.corners.map((c) => c.z);
-  const [minX, maxX, minZ, maxZ] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+export function snapToWalls(pos: Vector3, dims: Vector3, rotationY: number, shell: Pick<RoomShell, 'widthM' | 'depthM' | 'walls'>): Vector3 {
+  const corners = footprint(pos, dims, rotationY).corners;
   const out = { ...pos };
-  if (minX < WALL_SNAP_M) out.x -= minX;
-  else if (shell.widthM - maxX < WALL_SNAP_M) out.x += shell.widthM - maxX;
-  if (minZ < WALL_SNAP_M) out.z -= minZ;
-  else if (shell.depthM - maxZ < WALL_SNAP_M) out.z += shell.depthM - maxZ;
-  return out;
+  const snapped: WallFrame[] = [];
+  for (const wall of wallFrames(shell)) {
+    // Entre dos paredes enfrentadas gana la primera: la pieza no rebota de una a otra.
+    if (snapped.some((s) => s.normal.x * wall.normal.x + s.normal.z * wall.normal.z < -0.99)) continue;
+    const along = corners.map((c) => alongOf(wall, c));
+    if (Math.max(...along) < 0 || Math.min(...along) > wall.length) continue; // no está frente a esta pared
+    const gap = Math.min(...corners.map((c) => distanceFromWall(wall, c)));
+    if (gap < 0 || gap >= WALL_SNAP_M) continue;
+    out.x -= wall.normal.x * gap;
+    out.z -= wall.normal.z * gap;
+    for (const c of corners) {
+      c.x -= wall.normal.x * gap;
+      c.z -= wall.normal.z * gap;
+    }
+    snapped.push(wall);
+  }
+  // En un cuarto de forma libre el imán puede empujar contra una esquina entrante: se descarta.
+  return isInsideRoom(footprint(out, dims, rotationY), shell) ? out : pos;
 }
 
 export class FloorMount implements MountStrategy {
@@ -116,14 +130,12 @@ export class WallMount implements MountStrategy {
     const { shell, dims } = ctx;
     let best: { t: number; wall: WallFrame; along: number; y: number } | null = null;
     for (const wall of wallFrames(shell)) {
-      if (!shell.walls.some((w) => w.id === wall.id)) continue;
-      const axis = wall.along === 'x' ? 'z' : 'x';
-      const d = ray.direction[axis];
+      const d = ray.direction.x * wall.normal.x + ray.direction.z * wall.normal.z;
       // Solo paredes vistas desde dentro: el rayo va hacia la pared (contra su normal interior).
-      if (d * wall.inward >= 0) continue;
-      const t = (wall.fixed - ray.origin[axis]) / d;
+      if (d >= 0) continue;
+      const t = -distanceFromWall(wall, ray.origin) / d;
       if (t <= 0) continue;
-      const along = ray.origin[wall.along] + ray.direction[wall.along] * t;
+      const along = alongOf(wall, { x: ray.origin.x + ray.direction.x * t, z: ray.origin.z + ray.direction.z * t });
       const y = ray.origin.y + ray.direction.y * t;
       if (along < -0.05 || along > wall.length + 0.05 || y < -0.05 || y > shell.heightM + 0.05) continue;
       if (!best || t < best.t) best = { t, wall, along, y };
@@ -133,8 +145,7 @@ export class WallMount implements MountStrategy {
     const half = dims.x / 2;
     const along = Math.min(wall.length - half, Math.max(half, best.along));
     const elevationM = Math.min(Math.max(0, shell.heightM - dims.y), Math.max(0, best.y - dims.y / 2));
-    const offset = wall.fixed + wall.inward * (dims.z / 2 + 0.001);
-    const position = wall.along === 'x' ? { x: along, y: elevationM, z: offset } : { x: offset, y: elevationM, z: along };
+    const position = positionOnWall(wall, along, elevationM, dims.z);
     const pose: MountPose = { position, rotationY: wall.rotationY, wallId: wall.id, elevationM };
     if (overlapsOpening(shell, wall, along, dims.x, elevationM, dims.y)) pose.blockedBy = 'opening';
     return pose;

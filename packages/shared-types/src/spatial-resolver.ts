@@ -6,8 +6,9 @@
  */
 import { bodiesCollide, bodyOf } from './collision.js';
 import type { CatalogItem, FurniturePlacement, RoomShell, Vector3 } from './domain.js';
-import { clampToRoom, effectiveDimensions, footprint, isInsideRoom, mountY, rotateXZ, snapAngle } from './geometry.js';
-import { overlapsOpening, positionOnWall, wallFrames, type WallFrame } from './walls.js';
+import { clampToRoom, effectiveDimensions, footprint, isInsideRoom, mountY, roomCenter, rotateXZ, snapAngle } from './geometry.js';
+import { closestOnSegment } from './polygon.js';
+import { alongOf, overlapsOpening, positionOnWall, wallFrames, type WallFrame } from './walls.js';
 
 export const RELATIONS = [
   'anywhere',
@@ -132,12 +133,14 @@ export class SpatialResolver {
   private anywhere(selfId: string, item: CatalogItem, dims: Vector3): ResolvedPose | null {
     const { shell } = this.scene;
     const y = mountY(item.mount === 'ceiling' ? 'ceiling' : 'floor', dims, shell);
+    // En un cuarto de forma libre el centro de la caja puede caer fuera: se parte de su punto más despejado.
+    const center = roomCenter(shell);
     for (const rotationY of [0, Math.PI / 2]) {
       for (let r = 0; r <= Math.max(shell.widthM, shell.depthM); r += 0.2) {
         const steps = r === 0 ? 1 : Math.ceil((2 * Math.PI * r) / 0.25);
         for (let i = 0; i < steps; i++) {
           const a = (i / steps) * Math.PI * 2;
-          const pos = clampToRoom({ x: shell.widthM / 2 + Math.cos(a) * r, y, z: shell.depthM / 2 + Math.sin(a) * r }, dims, rotationY, shell);
+          const pos = clampToRoom({ x: center.x + Math.cos(a) * r, y, z: center.z + Math.sin(a) * r }, dims, rotationY, shell);
           const pose = { position: pos, rotationY };
           if (this.fits(selfId, item, dims, pose)) return pose;
         }
@@ -149,7 +152,7 @@ export class SpatialResolver {
   /** Contra una pared (la pedida o la primera con espacio), mirando al cuarto. */
   private againstWall(selfId: string, item: CatalogItem, dims: Vector3, wallId?: string): ResolvedPose | null {
     const { shell } = this.scene;
-    const frames = wallFrames(shell).filter((w) => shell.walls.some((sw) => sw.id === w.id));
+    const frames = wallFrames(shell);
     const ordered = wallId ? [...frames.filter((w) => w.id === wallId), ...frames.filter((w) => w.id !== wallId)] : frames;
     for (const wall of ordered) {
       for (const t of this.alongWall(wall, dims.x)) {
@@ -193,7 +196,9 @@ export class SpatialResolver {
     const bz = ref.position.z + back.z;
     let best: { w: WallFrame; d: number } | null = null;
     for (const w of wallFrames(this.scene.shell)) {
-      const d = w.along === 'x' ? Math.abs(bz - w.fixed) : Math.abs(bx - w.fixed);
+      const end = { x: w.base.x + w.dir.x * w.length, z: w.base.z + w.dir.z * w.length };
+      const near = closestOnSegment({ x: bx, z: bz }, w.base, end);
+      const d = Math.hypot(bx - near.x, bz - near.z);
       if (!best || d < best.d) best = { w, d };
     }
     return best?.w ?? null;
@@ -256,7 +261,7 @@ export class SpatialResolver {
       }
       case 'center': {
         const y = mountY(item.mount === 'ceiling' ? 'ceiling' : 'floor', dims, shell);
-        const pose = this.firstFit(selfId, item, dims, [{ position: { x: shell.widthM / 2, y, z: shell.depthM / 2 }, rotationY: 0 }]);
+        const pose = this.firstFit(selfId, item, dims, [{ position: { ...roomCenter(shell), y }, rotationY: 0 }]);
         return pose ? { ok: true, pose } : fail('El centro del cuarto está ocupado');
       }
       case 'against-wall': {
@@ -278,7 +283,7 @@ export class SpatialResolver {
       }
       const wall = this.wallBehind(ref, refDims);
       if (!wall || item.mount !== 'wall') return fail('Solo se puede poner encima en la pared algo que se cuelga');
-      const along = wall.along === 'x' ? ref.position.x : ref.position.z;
+      const along = alongOf(wall, ref.position);
       const top = ref.position.y + refDims.y;
       const elevation = Math.max(top + 0.2, item.elevationDefaultM ?? 0);
       const tries: ResolvedPose[] = [];

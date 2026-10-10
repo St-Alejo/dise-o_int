@@ -13,18 +13,19 @@ import type { DesignOperation } from './design-operations.js';
 import { clampDimensions, defaultResizeRanges, effectiveDimensions, fitPlacementsToRoom, resizeRoomShell, rotateXZ, snapAngle } from './geometry.js';
 import { DEFAULT_FINISHES, getMaterial, materialsForSurface, materialsOfKinds, wallMaterialId } from './materials.js';
 import { searchCatalog } from './catalog-search.js';
-import { positionOnWall, wallFrames } from './walls.js';
+import { alongOf, positionOnWall, wallFrames } from './walls.js';
 import { RELATIONS, SpatialResolver, type ResolvedPose } from './spatial-resolver.js';
 
 // --------------------------------------------------------------------------- entradas de las herramientas
 const Id = z.string().min(1).max(64);
 const Cm = z.number().min(1).max(3000);
-const WALL_IDS = ['w-back', 'w-right', 'w-front', 'w-left'] as const;
+/** Id de una pared del cuarto: las que lista `get_scene` (un cuarto de forma libre tiene más de cuatro). */
+const WallId = z.string().min(1).max(64);
 
 const Placement = {
   relation: z.enum(RELATIONS),
   nearId: Id.optional(),
-  wallId: z.enum(WALL_IDS).optional(),
+  wallId: WallId.optional(),
 };
 
 export const TOOL_INPUTS = {
@@ -55,7 +56,7 @@ export const TOOL_INPUTS = {
   set_finishes: z.object({
     floor: z.string().min(1).max(64).optional(),
     walls: z.string().min(1).max(64).optional(),
-    wallId: z.enum(WALL_IDS).optional(),
+    wallId: WallId.optional(),
     ceiling: z.string().min(1).max(64).optional(),
   }),
   set_room_size: z.object({
@@ -245,14 +246,12 @@ export class DesignToolbox {
   private getScene(): ToolOutcome {
     const s = this.shell;
     const finishes = this.finishes ?? DEFAULT_FINISHES;
-    const walls = wallFrames(s)
-      .filter((w) => s.walls.some((sw) => sw.id === w.id))
-      .map((w) => ({
-        id: w.id,
-        lengthM: r2(w.length),
-        paint: wallMaterialId(finishes, w),
-        openings: s.openings.filter((o) => o.wallId === w.id).map((o) => ({ type: o.type, widthCm: cm(o.widthM), heightCm: cm(o.heightM), sillCm: cm(o.sillHeightM) })),
-      }));
+    const walls = wallFrames(s).map((w) => ({
+      id: w.id,
+      lengthM: r2(w.length),
+      paint: wallMaterialId(finishes, w),
+      openings: s.openings.filter((o) => o.wallId === w.id).map((o) => ({ type: o.type, widthCm: cm(o.widthM), heightCm: cm(o.heightM), sillCm: cm(o.sillHeightM) })),
+    }));
     const placements = this.placements.map((p) => {
       const d = this.dims(p);
       const item = this.itemOf(p);
@@ -273,7 +272,7 @@ export class DesignToolbox {
     return this.success(
       {
         room: { widthM: r2(s.widthM), depthM: r2(s.depthM), heightM: r2(s.heightM), floor: finishes.floor, ceiling: finishes.ceiling, walls },
-        axes: 'x = ancho (0 = pared izquierda w-left), z = fondo (0 = pared del fondo w-back, la de la foto), facingDeg 0 = mira hacia el frente (+z)',
+        axes: 'x = ancho (0 = lado izquierdo), z = fondo (0 = pared del fondo w-back, la de la foto), facingDeg 0 = mira hacia el frente (+z)',
         placements,
       },
       `El cuarto tiene ${placements.length} piezas`,
@@ -307,6 +306,13 @@ export class DesignToolbox {
     return next;
   }
 
+  /** Una pared pedida por id tiene que existir en este cuarto. */
+  private checkWall(wallId: string | undefined): void {
+    if (wallId && !this.shell.walls.some((w) => w.id === wallId)) {
+      throw new Error(`No existe la pared ${wallId} (las de este cuarto: ${this.shell.walls.map((w) => w.id).join(', ')})`);
+    }
+  }
+
   private sameDims(a: Vector3, b: Vector3): boolean {
     return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
   }
@@ -315,6 +321,7 @@ export class DesignToolbox {
     const item = this.catalogById.get(input.catalogItemId);
     if (!item) return this.error(`No existe el mueble ${input.catalogItemId} en el catálogo (búscalo con search_catalog)`);
     if (this.placements.length >= 200) return this.error('El cuarto ya tiene el máximo de 200 piezas');
+    this.checkWall(input.wallId);
     const dims = this.dimsFromCm(item, item.dimensionsM, input);
     const id = this.init.newId();
     const result = this.resolver().resolve(id, item, { relation: input.relation, nearId: input.nearId, wallId: input.wallId, dimensionsM: dims });
@@ -362,6 +369,7 @@ export class DesignToolbox {
   private moveItem(input: ToolInput<'move_item'>): ToolOutcome {
     const { p, item } = this.find(input.id);
     if (input.nearId === p.id) return this.error('Una pieza no se puede mover junto a sí misma');
+    this.checkWall(input.wallId);
     const result = this.resolver().resolve(p.id, item, { relation: input.relation, nearId: input.nearId, wallId: input.wallId, dimensionsM: this.dims(p) });
     if (!result.ok) return this.error(result.reason);
     const next = this.withPose(p, result.pose);
@@ -391,7 +399,7 @@ export class DesignToolbox {
     if (p.wallId) {
       const wall = wallFrames(this.shell).find((w) => w.id === p.wallId);
       if (wall) {
-        const along = wall.along === 'x' ? p.position.x : p.position.z;
+        const along = alongOf(wall, p.position);
         pose = { ...pose, position: positionOnWall(wall, along, p.position.y, dims.z), wallId: p.wallId, elevationM: p.position.y };
       }
     }
@@ -451,6 +459,7 @@ export class DesignToolbox {
       if (!mat.surfaces?.includes(surface)) throw new Error(`"${mat.name}" no sirve para ${surface === 'floor' ? 'el piso' : surface === 'wall' ? 'las paredes' : 'el techo'}`);
       return mat;
     };
+    this.checkWall(input.wallId);
     const cur = this.finishes ?? DEFAULT_FINISHES;
     const next: RoomFinishes = { floor: cur.floor, walls: { ...cur.walls }, ceiling: cur.ceiling };
     const said: string[] = [];
