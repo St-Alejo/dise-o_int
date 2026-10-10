@@ -9,6 +9,7 @@ import {
   RoomGeometryError,
   dropOverlappingOpenings,
   fitPlacementsToRoom,
+  isBoxRoom,
   resizeRoomShell,
   type FurniturePlacement,
   type Opening,
@@ -22,6 +23,20 @@ export const WALL_LABELS: Record<string, string> = {
   'w-front': 'Frente (detrás de la cámara)',
   'w-left': 'Izquierda',
 };
+
+export interface WallOption {
+  id: string;
+  label: string;
+}
+
+/**
+ * Las paredes del cuarto para elegir en un formulario. Las de los lados conservan su nombre de
+ * siempre; las demás (la muesca de una L, por ejemplo) se numeran en el orden de la planta.
+ */
+export function wallOptions(shell: Pick<RoomShell, 'walls'> | null): WallOption[] {
+  if (!shell) return Object.entries(WALL_LABELS).map(([id, label]) => ({ id, label }));
+  return shell.walls.map((w, i) => ({ id: w.id, label: WALL_LABELS[w.id] ?? `Pared ${i + 1}` }));
+}
 
 export interface OpeningDraft {
   id: string;
@@ -103,12 +118,14 @@ export function newOpening(type: 'door' | 'window', existing: OpeningDraft[], le
     type === 'door'
       ? { widthM: 0.9, heightM: 2.05, sillHeightM: 0 }
       : { widthM: 1.2, heightM: 1.2, sillHeightM: 0.9 };
-  const preferred = WALL_PREFERENCE[type];
+  // Primero las paredes habituales; después, cualquier otra que tenga el cuarto.
+  const usual: readonly string[] = WALL_PREFERENCE[type];
+  const preferred = [...usual, ...Object.keys(lengths ?? {}).filter((id) => !usual.includes(id))];
   for (const wallId of preferred) {
     const spot = lengths ? freeSpot(wallId, base.widthM, lengths[wallId] ?? 0, existing) : 0.3;
     if (spot !== null) return { id: `o-${type}-${n}`, type, wallId, fromCornerM: spot, ...base };
   }
-  return { id: `o-${type}-${n}`, type, wallId: preferred[0], fromCornerM: 0.3, ...base };
+  return { id: `o-${type}-${n}`, type, wallId: preferred[0]!, fromCornerM: 0.3, ...base };
 }
 
 /**
@@ -116,11 +133,11 @@ export function newOpening(type: 'door' | 'window', existing: OpeningDraft[], le
  * servidor (posición proporcional en su pared, recortadas si ya no caben): así el usuario no
  * tiene que mover a mano una ventana solo porque achicó el cuarto.
  */
-export function withDimension(draft: RoomDraft, key: 'widthM' | 'depthM' | 'heightM', value: number): RoomDraft {
+export function withDimension(draft: RoomDraft, key: 'widthM' | 'depthM' | 'heightM', value: number, shell?: RoomShell | null): RoomDraft {
   const next = { ...draft, [key]: value };
   if (!Number.isFinite(value) || value <= 0) return next;
-  const before = wallLengthsFor(draft);
-  const after = wallLengthsFor(next);
+  const before = wallLengthsFor(draft, shell);
+  const after = wallLengthsFor(next, shell);
   return {
     ...next,
     openings: draft.openings.map((o) => {
@@ -183,7 +200,14 @@ export function previewRoom(
   }
 }
 
-/** Largo de cada pared con el borrador actual (para mostrar "máx. X m" junto a cada abertura). */
-export function wallLengthsFor(draft: RoomDraft): Record<string, number> {
-  return { 'w-back': draft.widthM, 'w-front': draft.widthM, 'w-right': draft.depthM, 'w-left': draft.depthM };
+/**
+ * Largo de cada pared con el borrador actual (para mostrar "máx. X m" junto a cada abertura).
+ * En un cuarto de forma libre (`shell`), cada pared se estira con el ancho y el largo pedidos,
+ * igual que hará el servidor.
+ */
+export function wallLengthsFor(draft: RoomDraft, shell?: RoomShell | null): Record<string, number> {
+  if (!shell || isBoxRoom(shell)) return { 'w-back': draft.widthM, 'w-front': draft.widthM, 'w-right': draft.depthM, 'w-left': draft.depthM };
+  const sx = draft.widthM / shell.widthM;
+  const sz = draft.depthM / shell.depthM;
+  return Object.fromEntries(shell.walls.map((w) => [w.id, round2(Math.hypot((w.end.x - w.start.x) * sx, (w.end.z - w.start.z) * sz))]));
 }

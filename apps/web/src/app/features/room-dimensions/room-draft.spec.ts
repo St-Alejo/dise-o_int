@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createRectangularShell, type FurniturePlacement } from '@interiores/shared-types';
-import { draftFromShell, newOpening, openingsFromDraft, previewRoom, wallLengthsFor, withDimension } from './room-draft';
+import { buildRoomShape, createRectangularShell, type FurniturePlacement } from '@interiores/shared-types';
+import { draftFromShell, newOpening, openingsFromDraft, previewRoom, wallLengthsFor, wallOptions, withDimension } from './room-draft';
 
 const shell = createRectangularShell(4, 3.5, 2.6);
 const sofa: FurniturePlacement = { id: 's', catalogItemId: 'sofa', position: { x: 3, y: 0, z: 3 }, rotationY: 0, lockedByUser: true };
@@ -94,5 +94,41 @@ describe('room-draft', () => {
     const second = newOpening('window', [first], wallLengthsFor(d));
     expect(first.wallId).toBe('w-back');
     expect(second.wallId).not.toBe('w-back');
+  });
+});
+
+describe('room-draft en un cuarto en L', () => {
+  // 5 × 4 sin la esquina del frente a la derecha (2 × 1,5).
+  const lShell = buildRoomShape('L', { widthM: 5, depthM: 4, heightM: 2.6, notchWidthM: 2, notchDepthM: 1.5 });
+  const draft = draftFromShell(lShell);
+
+  it('lista sus seis paredes: las de los lados con su nombre y las de la muesca numeradas', () => {
+    expect(wallOptions(lShell).map((w) => w.label)).toEqual([
+      'Fondo (la que ves en la foto)',
+      'Derecha',
+      'Pared 3',
+      'Pared 4',
+      'Frente (detrás de la cámara)',
+      'Izquierda',
+    ]);
+    expect(wallOptions(null)).toHaveLength(4);
+  });
+
+  it('el largo de cada pared sigue al ancho y al largo pedidos', () => {
+    expect(wallLengthsFor(draft, lShell)).toEqual({ 'w-back': 5, 'w-right': 2.5, 'w-3': 2, 'w-4': 1.5, 'w-front': 3, 'w-left': 4 });
+    const wider = withDimension(draft, 'widthM', 10, lShell);
+    expect(wallLengthsFor(wider, lShell)['w-3']).toBe(4);
+  });
+
+  it('una abertura nueva puede acabar en una pared de la muesca si las demás están llenas', () => {
+    const lengths = { 'w-back': 0.5, 'w-right': 0.5, 'w-front': 0.5, 'w-left': 0.5, 'w-3': 2 };
+    expect(newOpening('window', [], lengths).wallId).toBe('w-3');
+  });
+
+  it('la vista previa conserva la forma al cambiar las medidas', () => {
+    const preview = previewRoom(lShell, { ...draft, widthM: 6 }, [], dims);
+    expect(preview.error).toBeNull();
+    expect(preview.shell!.walls).toHaveLength(6);
+    expect(preview.shell!.widthM).toBe(6);
   });
 });

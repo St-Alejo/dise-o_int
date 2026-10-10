@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { STYLES, finishesForStyle, materialsForSurface, type MaterialDefinition } from '@interiores/shared-types';
 import { DesignProjectStore } from '../project/design-project.store';
-import { WALL_LABELS } from '../room-dimensions/room-draft';
+import { wallOptions as roomWalls } from '../room-dimensions/room-draft';
 import { SetFinishesCommand } from '../viewport-3d/commands';
 import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish, type FinishSurface, type WallTarget } from './finishes-model';
 
@@ -27,7 +27,7 @@ import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish, type Fin
           <label class="small" for="fin-wall-target">Pintar</label>
           <select id="fin-wall-target" class="input select" [value]="wallTarget()" (change)="wallTarget.set($any($event.target).value)">
             <option value="all">Todas</option>
-            @for (w of walls; track w.id) {
+            @for (w of walls(); track w.id) {
               <option [value]="w.id">{{ w.label }}</option>
             }
           </select>
@@ -103,7 +103,7 @@ export class FinishesPanelComponent {
   protected readonly floorOptions: MaterialDefinition[] = materialsForSurface('floor');
   protected readonly wallOptions: MaterialDefinition[] = materialsForSurface('wall');
   protected readonly ceilingOptions: MaterialDefinition[] = materialsForSurface('ceiling');
-  protected readonly walls = Object.entries(WALL_LABELS).map(([id, label]) => ({ id, label }));
+  protected readonly walls = computed(() => roomWalls(this.store.shell()));
   protected readonly wallTarget = signal<WallTarget>('all');
 
   protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);

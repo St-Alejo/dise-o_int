@@ -5,7 +5,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ToastService } from '../../core/ui/toast.service';
 import { DesignProjectStore } from '../project/design-project.store';
 import {
-  WALL_LABELS,
+  wallOptions,
   draftFromShell,
   newOpening,
   openingsFromDraft,
@@ -56,7 +56,7 @@ import {
                 <div class="field">
                   <label [for]="'o-wall-' + i">Pared</label>
                   <select [id]="'o-wall-' + i" class="input" [value]="o.wallId" (change)="patchOpening(i, { wallId: $any($event.target).value })">
-                    @for (w of walls; track w.id) {
+                    @for (w of walls(); track w.id) {
                       <option [value]="w.id" [selected]="w.id === o.wallId">{{ w.label }}</option>
                     }
                   </select>
@@ -194,12 +194,12 @@ export class RoomDimensionsDialogComponent {
   readonly calibrate = output<void>();
 
   protected readonly limits = ROOM_LIMITS;
-  protected readonly walls = Object.entries(WALL_LABELS).map(([id, label]) => ({ id, label }));
+  protected readonly walls = computed(() => wallOptions(this.store.shell()));
   protected readonly draft = signal<RoomDraft | null>(null);
   protected readonly saving = signal(false);
   protected readonly lengths = computed(() => {
     const d = this.draft();
-    return d ? wallLengthsFor(d) : {};
+    return d ? wallLengthsFor(d, this.store.shell()) : {};
   });
 
   protected readonly preview = computed(() => {
@@ -227,7 +227,7 @@ export class RoomDimensionsDialogComponent {
 
   protected setDim(key: 'widthM' | 'depthM' | 'heightM', event: Event): void {
     const value = this.num(event);
-    this.draft.update((d) => (d ? withDimension(d, key, value) : d));
+    this.draft.update((d) => (d ? withDimension(d, key, value, this.store.shell()) : d));
   }
 
   protected patchOpening(index: number, patch: Partial<OpeningDraft>): void {
@@ -235,7 +235,7 @@ export class RoomDimensionsDialogComponent {
   }
 
   protected addOpening(type: 'door' | 'window'): void {
-    this.draft.update((d) => (d ? { ...d, openings: [...d.openings, newOpening(type, d.openings, wallLengthsFor(d))] } : d));
+    this.draft.update((d) => (d ? { ...d, openings: [...d.openings, newOpening(type, d.openings, wallLengthsFor(d, this.store.shell()))] } : d));
   }
 
   protected removeOpening(index: number): void {

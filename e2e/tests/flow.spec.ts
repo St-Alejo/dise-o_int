@@ -39,6 +39,10 @@ test('flujo completo: de la foto al proyecto compartido', async ({ page, context
   await expect(page.locator('app-three-viewport canvas')).toBeVisible();
   await expect(page.getByText('✓ Guardado')).toBeVisible();
   await expect(page.getByText(/\d+ muebles/)).toBeVisible();
+  // La escena 3D tiene el cuarto montado: sus paredes, techo y los muebles del proyecto.
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __scene?: { walls: number; hasCeiling: boolean; placements: number } }).__scene))
+    .toMatchObject({ walls: 4, hasCeiling: true, cameraMode: 'orbit' });
 
   // Guardar versión: el proyecto deja de estar sujeto a la limpieza de 24 h
   await page.getByRole('button', { name: /Guardar versión/ }).click();

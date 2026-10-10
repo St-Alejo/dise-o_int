@@ -1,4 +1,4 @@
-import { clampToRoom, effectiveDimensions, rotateXZ, snapAngle } from '@interiores/shared-types';
+import { clampToRoom, effectiveDimensions, rotateXZ, snapAngle, wallFrames } from '@interiores/shared-types';
 import type { DesignProjectStore } from '../../project/design-project.store';
 import { MacroCommand, MoveCommand, RemountCommand, RemoveCommand, RotateCommand } from '../commands';
 import { delta, shifted } from './vec';
@@ -36,9 +36,12 @@ export class SelectionActions {
     const shell = this.store.shell();
     if (!p || !item || !shell || this.readOnly()) return;
     if (item.mount === 'wall') {
-      const alongX = Math.abs(Math.sin(p.rotationY)) < 0.5; // pared del fondo o del frente
-      if (alongX) dz = 0;
-      else dx = 0;
+      // Solo cuenta la parte del movimiento que va a lo largo de su pared.
+      const wall = wallFrames(shell).find((w) => w.id === p.wallId);
+      const dir = wall?.dir ?? rotateXZ(1, 0, p.rotationY);
+      const along = dx * dir.x + dz * dir.z;
+      dx = dir.x * along;
+      dz = dir.z * along;
     }
     const dims = effectiveDimensions(item.dimensionsM, p);
     const to = clampToRoom({ x: p.position.x + dx, y: p.position.y, z: p.position.z + dz }, dims, p.rotationY, shell);

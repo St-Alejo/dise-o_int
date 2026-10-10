@@ -1,5 +1,5 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
-import { finishesForStyle, mountY, type CatalogItem, type RoomShell, type Vector3 } from '@interiores/shared-types';
+import { finishesForStyle, mountY, roomCenter, type CatalogItem, type RoomShell, type Vector3 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DesignProjectStore } from '../project/design-project.store';
@@ -199,6 +199,6 @@ export class SceneService implements SceneContext {
   /** Centro del cuarto a la altura correcta para un mueble (para añadir desde el catálogo). */
   roomCenterFor(item: CatalogItem): Vector3 {
     const shell = this.store.shell()!;
-    return { x: shell.widthM / 2, y: mountY(item.mount, item.dimensionsM, shell), z: shell.depthM / 2 };
+    return { ...roomCenter(shell), y: mountY(item.mount, item.dimensionsM, shell) };
   }
 }
