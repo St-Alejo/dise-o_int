@@ -257,25 +257,26 @@ export class ProjectPage implements OnInit {
     this.destroyRef.onDestroy(() => this.sub?.unsubscribe());
   }
 
-  private lastHandled = '';
+  /** Hora del último fin visto de cada job (los de un mismo proyecto comparten id entre ejecuciones). */
+  private readonly finishedAt = new Map<string, string>();
+
   private onProgress(e: JobProgressEvent): void {
-    const finished = e.status !== 'active';
-    // El historial puede repetir el fin de un job viejo: solo se reacciona una vez por job.
-    const key = `${e.jobId}|${e.status}`;
-    if (finished) {
-      const alreadyHandled = this.lastHandled === key;
-      this.lastHandled = key;
-      if (this.job()?.jobId === e.jobId || !alreadyHandled) {
-        this.job.set(null);
-        void this.store.reload();
-        if (e.status === 'failed' && !alreadyHandled) this.toast.error(e.error ?? e.message);
-        if (e.status === 'completed' && e.kind === 'build-scene' && !alreadyHandled) this.toast.success('Lista otra distribución');
-      }
+    // El historial repite eventos viejos: lo que no es posterior al último fin visto ya se atendió.
+    const lastEnd = this.finishedAt.get(e.jobId);
+    if (lastEnd !== undefined && e.at <= lastEnd) return;
+    if (e.status === 'active') {
+      this.job.set(e);
       return;
     }
-    // Un evento "active" de un job ya terminado (llega tarde en el historial) se ignora.
-    if (this.lastHandled.startsWith(`${e.jobId}|`)) return;
-    this.job.set(e);
+    // Solo es "en vivo" si se vio trabajar al job en esta visita (no un fin repetido del historial).
+    const live = this.job()?.jobId === e.jobId;
+    this.finishedAt.set(e.jobId, e.at);
+    this.job.set(null);
+    const relayout = live && e.status === 'completed' && e.kind === 'build-scene';
+    // Una distribución nueva se puede deshacer; el resto de jobs solo refrescan el proyecto.
+    void this.store.reload(relayout ? 'Otra distribución' : undefined);
+    if (e.status === 'failed') this.toast.error(e.error ?? e.message);
+    if (relayout) this.toast.success('Lista otra distribución');
   }
 
   setView(v: View): void {
