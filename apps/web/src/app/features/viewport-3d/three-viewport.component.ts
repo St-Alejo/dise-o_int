@@ -15,6 +15,7 @@ import { inject } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DesignProjectStore } from '../project/design-project.store';
+import { SceneEditsService } from '../project/scene-edits.service';
 import { SceneService } from './scene.service';
 
 /**
@@ -28,6 +29,7 @@ import { SceneService } from './scene.service';
 @Component({
   selector: 'app-three-viewport',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(dragover)': 'onDragOver($event)', '(drop)': 'onDrop($event)' },
   template: `
     <canvas
       #canvas
@@ -159,6 +161,8 @@ import { SceneService } from './scene.service';
 export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   readonly scene = inject(SceneService);
   private readonly store = inject(DesignProjectStore);
+  /** Solo existe dentro del editor: la vista pública no añade muebles. */
+  private readonly edits = inject(SceneEditsService, { optional: true });
   private readonly zone = inject(NgZone);
   private readonly host = inject(ElementRef<HTMLElement>);
 
@@ -207,6 +211,12 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.controls = controls;
     this.scene.attachRenderer(renderer);
     this.scene.frameRoom();
+    // El buffer no se conserva entre frames: se dibuja y se copia en el mismo instante.
+    this.scene.frameCapture = () => {
+      if (!canvas.width || !canvas.height) return Promise.resolve(null);
+      renderer.render(this.scene.scene, this.scene.camera);
+      return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    };
 
     canvas.addEventListener('webglcontextlost', this.onContextLost);
 
@@ -243,6 +253,22 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   protected toggleWalk(): void {
     this.scene.setCameraMode(this.walking() ? 'orbit' : 'walk');
     this.canvasRef().nativeElement.focus();
+  }
+
+  /** Un mueble del catálogo arrastrado sobre el visor se puede soltar en el piso. */
+  protected onDragOver(event: DragEvent): void {
+    if (!this.edits?.dragged() || this.walking()) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  }
+
+  protected onDrop(event: DragEvent): void {
+    const edits = this.edits;
+    const item = edits?.dragged();
+    if (!edits || !item || this.walking()) return;
+    event.preventDefault();
+    edits.dragged.set(null);
+    edits.add(item, this.scene.floorPointAt(event.clientX, event.clientY) ?? undefined);
   }
 
   onKeyUp(event: KeyboardEvent): void {
@@ -293,6 +319,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.controls?.dispose();
     this.scene.controls = null;
     this.scene.canvas = null;
+    this.scene.frameCapture = null;
     void this.scene.dispose();
     this.renderer?.renderLists.dispose();
     this.renderer?.dispose();

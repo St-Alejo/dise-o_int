@@ -62,6 +62,8 @@ export class SceneService implements SceneContext {
 
   controls: OrbitControls | null = null;
   canvas: HTMLCanvasElement | null = null;
+  /** Lo registra el viewport, que es quien tiene el renderer: dibuja un frame y lo devuelve como imagen. */
+  frameCapture: (() => Promise<Blob | null>) | null = null;
 
   private readonly lighting = new LightingRig(this.scene);
   private readonly room = new RoomView(this);
@@ -240,6 +242,34 @@ export class SceneService implements SceneContext {
     this.selection.update(placement && item ? { placement, item, pose: this.dragController.poseOf(placement.id), invalid } : null);
   }
 
+  /**
+   * Vista previa de un arrastre hecho fuera del visor (en el plano): mueve las piezas en la escena
+   * sin tocar el estado. Con `null` vuelven a donde dice el proyecto.
+   */
+  previewPoses(poses: ReadonlyMap<string, { position: Vector3; rotationY: number }> | null): void {
+    if (poses) for (const [id, pose] of poses) this.furniture.place(id, pose.position, pose.rotationY);
+    else for (const p of this.store.placements()) this.furniture.place(p.id, p.position, p.rotationY);
+    this.refreshSelection();
+    this.invalidate();
+  }
+
+  /**
+   * Desplaza la cámara de órbita en planta. El cuarto vive pegado al origen: al empujar su pared
+   * izquierda o la del fondo todo se corre, y la cámara lo acompaña para que no parezca un salto.
+   */
+  panBy(dx: number, dz: number): void {
+    if (this.cameraMode() === 'walk') return;
+    this.camera.position.x += dx;
+    this.camera.position.z += dz;
+    if (this.controls) {
+      this.controls.target.x += dx;
+      this.controls.target.z += dz;
+      this.controls.update();
+    }
+    this.room.updateCutaway();
+    this.invalidate();
+  }
+
   // ------------------------------------------------------------------ luz
   /** De día alumbra el sol; de noche, las lámparas del cuarto. */
   setTimeOfDay(time: TimeOfDay): void {
@@ -336,14 +366,27 @@ export class SceneService implements SceneContext {
 
   /** Doble clic durante el recorrido: caminar hasta ese punto del piso. */
   onDoubleClick(event: MouseEvent): void {
-    if (this.cameraMode() !== 'walk' || !this.canvas) return;
+    if (this.cameraMode() !== 'walk') return;
+    const hit = this.floorPointAt(event.clientX, event.clientY);
+    if (!hit) return;
+    this.walk.goTo(hit);
+    this.invalidate();
+  }
+
+  /** Punto del piso que queda bajo una posición de la pantalla (para soltar un mueble del catálogo). */
+  floorPointAt(clientX: number, clientY: number): { x: number; z: number } | null {
+    if (!this.canvas) return null;
     const rect = this.canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    if (!rect.width || !rect.height) return null;
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const hit = this.raycaster.ray.intersectPlane(this.floorPlane, new THREE.Vector3());
-    if (!hit) return;
-    this.walk.goTo({ x: hit.x, z: hit.z });
-    this.invalidate();
+    return hit ? { x: hit.x, z: hit.z } : null;
+  }
+
+  /** Imagen PNG de lo que muestra el visor ahora mismo (null si no hay visor o está oculto). */
+  capturePng(): Promise<Blob | null> {
+    return this.frameCapture ? this.frameCapture() : Promise.resolve(null);
   }
 
   // ------------------------------------------------------------------ acciones (teclado / toolbar)

@@ -1,12 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, output, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { MATERIALS, STYLES, getMaterial, type CatalogItem, type FurniturePlacement, type MaterialSlot } from '@interiores/shared-types';
-import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
 import { CatalogThumbComponent } from '../catalog/catalog-thumb.component';
 import { DesignProjectStore } from '../project/design-project.store';
+import { SceneEditsService } from '../project/scene-edits.service';
 import {
-  DuplicateCommand,
   MacroCommand,
   MoveCommand,
   ResizeCommand,
@@ -283,6 +282,7 @@ export class InspectorComponent {
   protected readonly store = inject(DesignProjectStore);
   protected readonly scene = inject(SceneService);
   private readonly toast = inject(ToastService);
+  private readonly edits = inject(SceneEditsService);
 
   readonly swap = output<void>();
   readonly ar = output<CatalogItem>();
@@ -408,30 +408,7 @@ export class InspectorComponent {
     if (p) this.store.execute(new SetLockCommand(p.id, !p.lockedByUser));
   }
 
-  /** Copia con sus medidas y materiales, en el hueco libre más cercano (o en otra pared/soporte). */
   protected duplicate(): void {
-    const p = this.placement();
-    const it = this.item();
-    if (!p || !it) return;
-    const id = newPlacementId();
-    const dims = this.dims();
-    let copy: FurniturePlacement | null = null;
-    if (it.mount === 'floor' || it.mount === 'ceiling') {
-      const near = { x: p.position.x + dims.x + 0.05, y: p.position.y, z: p.position.z };
-      const pos = this.store.findFreeSpot(id, it, near, p.rotationY, dims);
-      if (pos) copy = { ...structuredClone(p), id, position: pos, origin: 'user' };
-    } else {
-      const plan = this.store.planPlacement(id, it);
-      if (plan) {
-        const { supportId: _s, wallId: _w, elevationM: _e, ...rest } = structuredClone(p);
-        copy = { ...rest, id, origin: 'user', ...plan };
-      }
-    }
-    if (!copy) {
-      this.toast.error('No hay espacio libre para duplicarlo. Mueve algo primero.');
-      return;
-    }
-    this.store.execute(new DuplicateCommand(copy));
-    this.store.select(id);
+    this.edits.duplicate(this.placement());
   }
 }

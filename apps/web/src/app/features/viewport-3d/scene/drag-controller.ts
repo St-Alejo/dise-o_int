@@ -1,9 +1,10 @@
 import { signal } from '@angular/core';
 import { effectiveDimensions, type CatalogItem, type FurniturePlacement, type RoomShell, type Vector3 } from '@interiores/shared-types';
 import * as THREE from 'three';
-import { MacroCommand, MoveCommand, RemountCommand, type SceneCommand } from '../commands';
+import type { SceneCommand } from '../commands';
 import { MOUNT_STRATEGIES, type MountPose, type MountStrategy, type SupportCandidate } from '../mounts/mount-strategies';
 import type { SceneContext } from './render-loop';
+import { moveCommandFor } from './move-command';
 import { delta, shifted } from './vec';
 
 /** Lo que el arrastre necesita del estado del proyecto. */
@@ -181,7 +182,7 @@ export class DragController {
         start.wallId !== lastValid.wallId ||
         start.supportId !== lastValid.supportId);
     if (changed) {
-      this.store.execute(this.commandFor(start, lastValid, dependents));
+      this.store.execute(moveCommandFor(start, lastValid, this.store.catalog().get(start.catalogItemId), dependents));
     } else {
       // Si terminó en una pose inválida, vuelve a la última válida (la del store).
       for (const id of [start.id, ...dependents.map((d) => d.id)]) {
@@ -190,23 +191,6 @@ export class DragController {
       }
     }
     this.host.refreshSelection();
-  }
-
-  private commandFor(start: FurniturePlacement, to: MountPose, dependents: FurniturePlacement[]): SceneCommand {
-    const item = this.store.catalog().get(start.catalogItemId);
-    const simpleMove = (item?.mount === 'floor' || item?.mount === 'ceiling') && start.rotationY === to.rotationY;
-    const main = simpleMove
-      ? new MoveCommand(start.id, start.position, to.position)
-      : new RemountCommand(start, {
-          position: to.position,
-          rotationY: to.rotationY,
-          wallId: to.wallId,
-          supportId: to.supportId,
-          elevationM: to.elevationM,
-        });
-    const d = delta(start.position, to.position);
-    const followers = dependents.map((dep) => new MoveCommand(dep.id, dep.position, shifted(dep.position, d)));
-    return followers.length ? new MacroCommand('Mover mueble', [main, ...followers]) : main;
   }
 
   /** Muebles de piso donde se puede apoyar algo (menos la pieza arrastrada y lo que lleva encima). */

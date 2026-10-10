@@ -1,6 +1,6 @@
 import { buildRoomFromSpec, createRectangularShell, footprint } from '@interiores/shared-types';
 import { describe, expect, it } from 'vitest';
-import { floorPlanOf, metres } from './floor-plan-model';
+import { captionFor, floorPlanOf, metres, planSvg } from './floor-plan-model';
 
 describe('floorPlanOf', () => {
   it('un rectángulo: contorno, cuatro paredes con su cota por fuera y margen alrededor', () => {
@@ -58,11 +58,39 @@ describe('floorPlanOf', () => {
   it('dibuja las huellas de los muebles que recibe', () => {
     const sofa = footprint({ x: 2, y: 0, z: 0.5 }, { x: 2, y: 0.8, z: 1 }, 0);
     const plan = floorPlanOf(createRectangularShell(4, 3, 2.6), [{ id: 's1', corners: sofa.corners }]);
-    expect(plan.items).toEqual([{ id: 's1', points: '1,0 3,0 3,1 1,1' }]);
+    expect(plan.items).toEqual([expect.objectContaining({ id: 's1', points: '1,0 3,0 3,1 1,1' })]);
   });
 
   it('escribe los metros con coma decimal', () => {
     expect(metres(3.2)).toBe('3,20 m');
     expect(metres(12)).toBe('12,00 m');
+  });
+});
+
+describe('plano para imprimir', () => {
+  const shell = createRectangularShell(4, 3, 2.6);
+  const sofa = { id: 's', name: 'Sofá <gris> & co', corners: footprint({ x: 2, y: 0, z: 0.5 }, { x: 2, y: 0.8, z: 0.9 }, 0).corners };
+
+  it('es un SVG suelto con título, cotas y el nombre de cada mueble', () => {
+    const svg = planSvg(shell, [sofa], 'Sala "principal"');
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true);
+    expect(svg).toContain('<title>Sala &quot;principal&quot;</title>');
+    expect(svg.match(/4,00 m/g)).toHaveLength(2);
+    // Los nombres se escapan: un mueble no puede romper el archivo.
+    expect(svg).toContain('Sofá &lt;gris&gt; &amp; co');
+    expect(svg).not.toContain('var(--');
+    // Encima del plano queda la franja del título.
+    expect(svg).toMatch(/viewBox="-1\.1 -1\.58\d* 6\.2 5\.68\d*"/);
+  });
+
+  it('el nombre se recorta para caber y desaparece si no hay sitio', () => {
+    expect(captionFor('Sofá de tres plazas', 2, 0.9, 0.2)).toBe('Sofá de tres plazas');
+    expect(captionFor('Sofá de tres plazas', 1, 0.9, 0.2)).toBe('Sofá de tr…');
+    expect(captionFor('Sofá', 0.2, 0.9, 0.2)).toBe('');
+    expect(captionFor('Sofá', 2, 0.1, 0.2)).toBe('');
+  });
+
+  it('cada mueble lleva su nombre y su centro', () => {
+    expect(floorPlanOf(shell, [sofa]).items[0]).toMatchObject({ name: sofa.name, centre: { x: 2, y: 0.5 }, widthM: 2 });
   });
 });

@@ -1,5 +1,5 @@
 import type { FurniturePlacement } from '@interiores/shared-types';
-import { DEFAULT_FINISHES, STYLE_FINISHES } from '@interiores/shared-types';
+import { DEFAULT_FINISHES, STYLE_FINISHES, createRectangularShell } from '@interiores/shared-types';
 import {
   AddCommand,
   CommandHistory,
@@ -14,7 +14,9 @@ import {
   SetFinishesCommand,
   SetLockCommand,
   SetMaterialCommand,
+  SetRoomCommand,
   SwapCommand,
+  newGestureKey,
   type SceneState,
 } from './commands';
 
@@ -216,5 +218,47 @@ describe('comandos de personalización (Fase 3)', () => {
     s = h.undo(s);
     expect(s.placements.map((x) => x.position.x)).toEqual([1, 1]);
     expect(h.canUndo).toBe(false);
+  });
+});
+
+describe('SetRoomCommand', () => {
+  const small = createRectangularShell(4, 3, 2.6);
+  const big = createRectangularShell(5, 3, 2.6);
+  const bigger = createRectangularShell(6, 3, 2.6);
+
+  it('cambia el cuarto y sus muebles, y deshacer restaura los dos', () => {
+    const h = new CommandHistory();
+    let s: SceneState = { placements: [p('a', 3.5)], finishes: null, shell: big };
+    s = h.execute(new SetRoomCommand('Mover pared', { shell: big, placements: s.placements }, { shell: small, placements: [p('a', 3)] }), s);
+    expect(s.shell).toBe(small);
+    expect(s.placements[0]!.position.x).toBe(3);
+    s = h.undo(s);
+    expect(s.shell).toBe(big);
+    expect(s.placements[0]!.position.x).toBe(3.5);
+    expect(h.redo(s).shell).toBe(small);
+  });
+
+  it('los comandos de un mismo gesto son un solo paso aunque pase el tiempo; los de otro, no', () => {
+    const h = new CommandHistory();
+    let now = 0;
+    h.clock = () => now;
+    const key = newGestureKey();
+    const before = { shell: small, placements: [p('a')] };
+    let s: SceneState = { ...before, finishes: null };
+    s = h.execute(new SetRoomCommand('Mover pared', before, { shell: big, placements: before.placements }, key), s);
+    now = 30_000;
+    s = h.execute(new SetRoomCommand('Mover pared', before, { shell: bigger, placements: before.placements }, key), s);
+    s = h.execute(new SetRoomCommand('Mover pared', { shell: bigger, placements: before.placements }, before, newGestureKey()), s);
+    expect(s.shell).toBe(small);
+    s = h.undo(s);
+    expect(s.shell).toBe(bigger);
+    s = h.undo(s);
+    expect(s.shell).toBe(small);
+    expect(h.canUndo).toBe(false);
+  });
+
+  it('los comandos de muebles no tocan el cuarto', () => {
+    const s = new MoveCommand('a', { x: 1, y: 0, z: 1 }, { x: 2, y: 0, z: 1 }).apply({ placements: [p('a')], finishes: null, shell: small });
+    expect(s.shell).toBe(small);
   });
 });

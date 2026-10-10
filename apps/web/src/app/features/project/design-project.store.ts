@@ -11,6 +11,7 @@ import {
   type DesignProject,
   type FurniturePlacement,
   type RoomFinishes,
+  type RoomShell,
   type StyleId,
   type UpdateRoomRequest,
   type Vector3,
@@ -50,7 +51,10 @@ export class DesignProjectStore {
   readonly saveState = signal<SaveState>('saved');
   readonly loadError = signal<string | null>(null);
 
-  readonly shell = computed(() => this.project()?.roomShell ?? null);
+  /** Planta del cuarto en edición: se cambia con comandos, igual que los muebles. */
+  readonly shell = signal<RoomShell | null>(null);
+  /** La planta tal como la tiene el servidor: si la local es otra, hay que enviarla al guardar. */
+  private savedShell: RoomShell | null = null;
   readonly selected = computed(() => this.placements().find((p) => p.id === this.selectedId()) ?? null);
   readonly selectedItem = computed(() => {
     const sel = this.selected();
@@ -111,9 +115,14 @@ export class DesignProjectStore {
   }
 
   replaceFromServer(project: DesignProject): void {
+    // Una recarga que salió antes de un guardado puede llegar después de él: traería una revisión
+    // vieja y el siguiente guardado chocaría (409). Lo más nuevo nunca se pisa con lo anterior.
+    const current = this.project();
+    if (current && current.id === project.id && project.revision < current.revision) return;
     const localEdits = this.saveState() === 'dirty' || this.saveState() === 'saving';
     this.project.set(project);
     if (!localEdits) {
+      this.adoptShell(project.roomShell);
       this.placements.set(project.furniturePlacements);
       this.finishes.set(project.finishes ?? null);
       this.history.clear();
@@ -130,12 +139,18 @@ export class DesignProjectStore {
 
   // ------------------------------------------------------------------ edición (Command)
   private get sceneState(): SceneState {
-    return { placements: this.placements(), finishes: this.finishes() };
+    return { placements: this.placements(), finishes: this.finishes(), shell: this.shell() };
   }
 
   private setScene(state: SceneState): void {
+    if (state.shell !== undefined && state.shell !== this.shell()) this.shell.set(state.shell);
     this.placements.set(state.placements);
     this.finishes.set(state.finishes);
+  }
+
+  private adoptShell(shell: RoomShell | null): void {
+    this.savedShell = shell;
+    this.shell.set(shell);
   }
 
   execute(cmd: SceneCommand): void {
@@ -259,14 +274,22 @@ export class DesignProjectStore {
       this.saveTimer = null;
     }
     const sent = this.placements();
+    const sentShell = this.shell();
     this.saveState.set('saving');
     try {
       const saved = await this.api.saveScene(project.id, {
         revision: project.revision,
         furniturePlacements: [...sent],
         finishes: this.finishes(),
+        // La planta solo viaja si se editó en el plano.
+        ...(sentShell && sentShell !== this.savedShell ? { roomShell: sentShell } : {}),
       });
       this.project.set(saved);
+      if (this.shell() === sentShell) {
+        // Sin ediciones de planta mientras se guardaba: la local sigue siendo la del servidor.
+        if (sentShell !== this.savedShell) this.adoptShell(saved.roomShell);
+        else this.savedShell = sentShell;
+      }
       if (this.placements() === sent) {
         // El servidor puede haber ajustado posiciones (clamp): se adopta su versión.
         this.placements.set(saved.furniturePlacements);

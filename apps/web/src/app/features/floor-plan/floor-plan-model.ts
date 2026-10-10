@@ -32,6 +32,11 @@ export interface PlanItem {
   id: string;
   /** Huella del mueble como lista de puntos SVG. */
   points: string;
+  name: string;
+  centre: PlanPoint;
+  /** Caja de la huella en el plano (para saber si cabe su nombre). */
+  widthM: number;
+  depthM: number;
 }
 
 export interface FloorPlan {
@@ -49,6 +54,7 @@ export interface FloorPlan {
 export interface PlanFootprint {
   id: string;
   corners: readonly { x: number; z: number }[];
+  name?: string;
 }
 
 /** Margen alrededor del cuarto: caben las cotas laterales, que se escriben hacia fuera. */
@@ -101,6 +107,55 @@ function spreadLabels(walls: PlanWall[]): void {
   }
 }
 
+/** Distancia libre desde un lado de un mueble hasta la pared que tiene enfrente. */
+export interface PlanClearance {
+  from: PlanPoint;
+  to: PlanPoint;
+  lengthM: number;
+  label: PlanPoint & { text: string };
+}
+
+/**
+ * Cotas de un mueble: cuánto hay desde cada uno de sus cuatro lados (los de su caja en el plano)
+ * hasta la pared de enfrente. Sirve para centrar una cama o dejar un pasillo de 70 cm.
+ */
+export function clearancesOf(shell: Pick<RoomShell, 'walls'>, corners: readonly { x: number; z: number }[]): PlanClearance[] {
+  if (!corners.length) return [];
+  const xs = corners.map((c) => c.x);
+  const zs = corners.map((c) => c.z);
+  const box = { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+  const mid = { x: (box.minX + box.maxX) / 2, z: (box.minZ + box.maxZ) / 2 };
+  const rays = [
+    { o: { x: box.minX, z: mid.z }, d: { x: -1, z: 0 } },
+    { o: { x: box.maxX, z: mid.z }, d: { x: 1, z: 0 } },
+    { o: { x: mid.x, z: box.minZ }, d: { x: 0, z: -1 } },
+    { o: { x: mid.x, z: box.maxZ }, d: { x: 0, z: 1 } },
+  ];
+  return rays.flatMap(({ o, d }) => {
+    let best = Infinity;
+    for (const w of shell.walls) {
+      // Coordenada "a través" del rayo (la que no cambia) y "a lo largo" (por donde avanza).
+      const [a0, a1, b0, b1, across, start] = d.x !== 0 ? [w.start.z, w.start.x, w.end.z, w.end.x, o.z, o.x] : [w.start.x, w.start.z, w.end.x, w.end.z, o.x, o.z];
+      if (Math.abs(a0 - b0) < 1e-9 || (a0 - across) * (b0 - across) > 0) continue;
+      const hit = a1 + ((across - a0) / (b0 - a0)) * (b1 - a1);
+      const t = (hit - start) * (d.x + d.z);
+      if (t > -1e-6 && t < best) best = t;
+    }
+    if (!Number.isFinite(best) || best < 0.02) return [];
+    const to = { x: o.x + d.x * best, z: o.z + d.z * best };
+    // El texto va a un lado de la línea, en su punto medio.
+    const side = 0.14;
+    return [
+      {
+        from: at(o),
+        to: at(to),
+        lengthM: best,
+        label: { x: r3((o.x + to.x) / 2 + Math.abs(d.z) * side), y: r3((o.z + to.z) / 2 - Math.abs(d.x) * side), text: metres(best) },
+      },
+    ];
+  });
+}
+
 export function floorPlanOf(shell: RoomShell, footprints: readonly PlanFootprint[] = []): FloorPlan {
   const frames = wallFrames(shell);
   const walls: PlanWall[] = shell.walls.map((wall, i) => {
@@ -147,9 +202,69 @@ export function floorPlanOf(shell: RoomShell, footprints: readonly PlanFootprint
     outline: pts(shell.walls.map((w) => w.start)),
     walls,
     openings,
-    items: footprints.map((f) => ({ id: f.id, points: pts(f.corners) })),
+    items: footprints.map((f) => {
+      const xs = f.corners.map((c) => c.x);
+      const zs = f.corners.map((c) => c.z);
+      const [minX, maxX, minZ, maxZ] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+      return {
+        id: f.id,
+        points: pts(f.corners),
+        name: f.name ?? '',
+        centre: { x: r3((minX + maxX) / 2), y: r3((minZ + maxZ) / 2) },
+        widthM: maxX - minX,
+        depthM: maxZ - minZ,
+      };
+    }),
     summary:
       `Plano del cuarto ${SHAPE_NAMES[shell.shape ?? 'rect']}: ${metres(shell.widthM)} de ancho por ${metres(shell.depthM)} de fondo, ` +
       `${plural(shell.walls.length, 'pared', 'paredes')}, ${plural(doors, 'puerta', 'puertas')} y ${plural(windows, 'ventana', 'ventanas')}.`,
   };
+}
+
+/** Nombre recortado para que quepa en una huella de `widthM` × `depthM` con letra de `fontM` ('' si no cabe). */
+export function captionFor(name: string, widthM: number, depthM: number, fontM: number): string {
+  const fits = depthM > fontM ? Math.floor(widthM / (fontM * 0.42)) : 0;
+  if (fits < 3 || !name) return '';
+  return name.length > fits ? `${name.slice(0, fits - 1)}…` : name;
+}
+
+const XML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+const xml = (text: string) => text.replace(/[&<>"]/g, (c) => XML_ESCAPES[c] ?? c);
+
+/**
+ * El plano como archivo SVG suelto, para imprimir o enviar: fondo blanco, paredes negras, cotas y
+ * el nombre de cada mueble. No depende de los estilos de la app.
+ */
+export function planSvg(shell: RoomShell, footprints: readonly PlanFootprint[], title: string): string {
+  const plan = floorPlanOf(shell, footprints);
+  const [x, y, w, h] = plan.viewBox.split(' ').map(Number) as [number, number, number, number];
+  const font = Math.min(0.42, Math.max(0.2, Math.max(shell.widthM, shell.depthM) * 0.042));
+  const head = font * 2.4;
+  const line = (a: PlanPoint, b: PlanPoint, style: string) => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${style}/>`;
+  const parts = [
+    `<rect x="${x}" y="${r3(y - head)}" width="${w}" height="${r3(h + head)}" fill="#ffffff"/>`,
+    `<text x="${r3(x + 0.3)}" y="${r3(y - head / 2)}" font-size="${r3(font * 1.3)}" font-weight="700" dominant-baseline="middle">${xml(title)}</text>`,
+    `<polygon points="${plan.outline}" fill="#f4f1ec"/>`,
+    ...plan.items.map((item) => {
+      const caption = captionFor(item.name, item.widthM, item.depthM, font * 0.72);
+      const label = caption
+        ? `<text x="${item.centre.x}" y="${item.centre.y}" font-size="${r3(font * 0.72)}" text-anchor="middle" dominant-baseline="middle">${xml(caption)}</text>`
+        : '';
+      return `<polygon points="${item.points}" fill="#e3dbcf" stroke="#6f655b" stroke-width="0.025"/>${label}`;
+    }),
+    ...plan.walls.map((wall) => line(wall.from, wall.to, 'stroke="#1b1714" stroke-width="0.1" stroke-linecap="square"')),
+    ...plan.openings.map(
+      (o) =>
+        line(o.from, o.to, o.type === 'door' ? 'stroke="#f4f1ec" stroke-width="0.12"' : 'stroke="#3f6b5a" stroke-width="0.06"') +
+        (o.swing ? `<path d="${o.swing}" fill="none" stroke="#6f655b" stroke-width="0.025" stroke-dasharray="0.08 0.06"/>` : ''),
+    ),
+    ...plan.walls.map(
+      (wall) =>
+        `<text x="${wall.label.x}" y="${wall.label.y}" font-size="${r3(font)}" text-anchor="${wall.label.anchor}" dominant-baseline="middle" fill="#4a423b">${wall.label.text}</text>`,
+    ),
+  ];
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${r3(y - head)} ${w} ${r3(h + head)}" width="${Math.round(w * 120)}" height="${Math.round((h + head) * 120)}" ` +
+    `font-family="Helvetica, Arial, sans-serif" fill="#1b1714"><title>${xml(title)}</title>${parts.join('')}</svg>`
+  );
 }

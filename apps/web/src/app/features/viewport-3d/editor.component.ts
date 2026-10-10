@@ -1,20 +1,44 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
-import { clampToRoom, type CatalogItem } from '@interiores/shared-types';
-import { newPlacementId } from '../../core/ids';
+import { RoomPlan, clampToRoom, effectiveDimensions, footprint, type CatalogItem } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
 import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
+import { PlanEditorComponent } from '../floor-plan/plan-editor.component';
 import { InspectorComponent } from '../inspector/inspector.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
 import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
 import { ChatPanelComponent } from '../chat/chat-panel.component';
 import { DesignChatService } from '../chat/design-chat.service';
+import { OutlinerComponent } from '../outliner/outliner.component';
 import { DesignProjectStore } from '../project/design-project.store';
-import { AddCommand, SwapCommand } from './commands';
+import { SceneEditsService } from '../project/scene-edits.service';
+import { downloadBlob, fileSlug } from '../../core/ui/download';
+import { planSvg } from '../floor-plan/floor-plan-model';
+import { SwapCommand } from './commands';
 import { SceneService } from './scene.service';
 import { ThreeViewportComponent } from './three-viewport.component';
+
+export type ViewMode = '3d' | 'split' | 'plan';
+
+const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = [
+  { id: '3d', label: '3D', title: 'Solo la vista 3D' },
+  { id: 'split', label: 'Dividida', title: 'El plano y la vista 3D, lado a lado' },
+  { id: 'plan', label: 'Plano', title: 'Solo el plano' },
+];
+const VIEW_KEY = 'interiores.editor.vista';
+
+/** La última vista usada; la primera vez, dividida si la pantalla es ancha. */
+function initialView(): ViewMode {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    if (saved === '3d' || saved === 'split' || saved === 'plan') return saved;
+  } catch {
+    // Sin almacenamiento: se decide por el ancho.
+  }
+  return typeof window !== 'undefined' && window.innerWidth >= 1180 ? 'split' : '3d';
+}
 
 /**
  * Paso 5 del flujo: edición 3D. SceneService se provee AQUÍ, así su ciclo de vida (y la
@@ -24,9 +48,11 @@ import { ThreeViewportComponent } from './three-viewport.component';
   selector: 'app-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   // La conversación del asistente vive con el editor (no se pierde al cambiar de pestaña).
-  providers: [SceneService, DesignChatService],
+  providers: [SceneService, DesignChatService, SceneEditsService],
   imports: [
     ThreeViewportComponent,
+    PlanEditorComponent,
+    OutlinerComponent,
     CatalogPanelComponent,
     CalibrationDialogComponent,
     RoomDimensionsDialogComponent,
@@ -42,9 +68,27 @@ import { ThreeViewportComponent } from './three-viewport.component';
       <button type="button" class="icon-btn" (click)="store.undo()" [disabled]="!store.canUndo()" [attr.aria-label]="'Deshacer ' + (store.undoLabel() ?? '')" title="Deshacer (Ctrl+Z)">↶</button>
       <button type="button" class="icon-btn" (click)="store.redo()" [disabled]="!store.canRedo()" [attr.aria-label]="'Rehacer ' + (store.redoLabel() ?? '')" title="Rehacer (Ctrl+Y)">↷</button>
       <span class="sep" aria-hidden="true"></span>
-      <button type="button" class="btn btn-sm" (click)="scene.frameRoom()">Centrar vista</button>
+      <div class="views" role="group" aria-label="Vista del editor">
+        @for (v of views; track v.id) {
+          <button type="button" class="view" [attr.aria-pressed]="viewMode() === v.id" [title]="v.title" (click)="setView(v.id)">{{ v.label }}</button>
+        }
+      </div>
+      <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
       <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas">📏 Medidas del cuarto</button>
       <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están">✨ Otra distribución</button>
+      <details class="menu" #exportMenu>
+        <summary class="btn btn-sm">Exportar</summary>
+        <div class="menu-items card">
+          <button type="button" class="menu-item" (click)="exportImage(); exportMenu.open = false" [disabled]="viewMode() === 'plan'">
+            <strong>Imagen del cuarto</strong>
+            <span class="muted">La vista 3D tal como se ve ahora (PNG)</span>
+          </button>
+          <button type="button" class="menu-item" (click)="exportPlan(); exportMenu.open = false">
+            <strong>Plano con medidas</strong>
+            <span class="muted">Para imprimir o enviar (SVG)</span>
+          </button>
+        </div>
+      </details>
       <span class="spacer"></span>
       <span class="save" [class]="'save save-' + store.saveState()" aria-live="polite">
         @switch (store.saveState()) {
@@ -75,7 +119,13 @@ import { ThreeViewportComponent } from './three-viewport.component';
 
     <div class="layout">
       <div class="viewport-wrap">
-        <app-three-viewport />
+        <div class="stage" [class]="'stage stage-' + viewMode()">
+          @if (viewMode() !== '3d') {
+            <app-plan-editor class="pane" />
+          }
+          <!-- El visor 3D no se destruye al pasar al plano: solo se oculta (conserva la cámara y la GPU). -->
+          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" />
+        </div>
         <p class="help muted">Arrastra un mueble para moverlo · clic derecho o dos dedos para desplazar la cámara · con uno seleccionado: flechas, R para rotar, Supr para quitar</p>
       </div>
 
@@ -103,6 +153,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
           </div>
           <div class="tabs" role="tablist" aria-label="Panel del editor">
             <button type="button" role="tab" id="tab-add" aria-controls="panel-add" [attr.aria-selected]="panelTab() === 'add'" (click)="panelTab.set('add')">Añadir muebles</button>
+            <button type="button" role="tab" id="tab-objects" aria-controls="panel-objects" [attr.aria-selected]="panelTab() === 'objects'" (click)="panelTab.set('objects')">Objetos</button>
             <button type="button" role="tab" id="tab-room" aria-controls="panel-room" [attr.aria-selected]="panelTab() === 'room'" (click)="panelTab.set('room')">Cuarto y acabados</button>
             <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
           </div>
@@ -112,7 +163,19 @@ import { ThreeViewportComponent } from './three-viewport.component';
             </div>
           } @else if (panelTab() === 'add') {
             <div role="tabpanel" id="panel-add" aria-labelledby="tab-add">
-              <app-catalog-panel mode="add" [items]="catalogItems()" [styleId]="styleId()" [roomType]="roomType()" (picked)="add($event)" />
+              <app-catalog-panel
+                mode="add"
+                [items]="catalogItems()"
+                [styleId]="styleId()"
+                [roomType]="roomType()"
+                (picked)="add($event)"
+                (dragStarted)="edits.dragged.set($event)"
+                (dragEnded)="edits.dragged.set(null)"
+              />
+            </div>
+          } @else if (panelTab() === 'objects') {
+            <div role="tabpanel" id="panel-objects" aria-labelledby="tab-objects">
+              <app-outliner />
             </div>
           } @else {
             <div role="tabpanel" id="panel-room" aria-labelledby="tab-room" class="stack">
@@ -139,6 +202,72 @@ import { ThreeViewportComponent } from './three-viewport.component';
       width: 1px;
       height: 28px;
       background: var(--border);
+    }
+    .views {
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--surface-2);
+    }
+    .view {
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      padding: 6px 14px;
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .view[aria-pressed='true'] {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+    .menu {
+      position: relative;
+    }
+    .menu summary {
+      list-style: none;
+      cursor: pointer;
+    }
+    .menu summary::-webkit-details-marker {
+      display: none;
+    }
+    .menu-items {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 20;
+      display: grid;
+      gap: 2px;
+      width: 260px;
+      padding: 6px;
+      box-shadow: var(--shadow);
+    }
+    .menu-item {
+      display: grid;
+      gap: 2px;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 8px;
+      background: none;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.88rem;
+      text-align: left;
+      cursor: pointer;
+    }
+    .menu-item .muted {
+      font-size: 0.78rem;
+    }
+    .menu-item:hover:not(:disabled) {
+      background: var(--surface-2);
+    }
+    .menu-item:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .save {
       font-size: 0.88rem;
@@ -167,8 +296,22 @@ import { ThreeViewportComponent } from './three-viewport.component';
       flex-direction: column;
       gap: 6px;
     }
-    app-three-viewport {
+    .stage {
       flex: 1;
+      min-height: 0;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .stage-split {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    }
+    .pane {
+      min-width: 0;
+      min-height: 0;
+    }
+    .pane.off {
+      display: none;
     }
     .help {
       font-size: 0.8rem;
@@ -233,7 +376,7 @@ import { ThreeViewportComponent } from './three-viewport.component';
       border-bottom: 3px solid transparent;
       padding: 8px 4px;
       font: inherit;
-      font-size: 0.88rem;
+      font-size: 0.82rem;
       color: var(--text-muted);
       cursor: pointer;
     }
@@ -254,6 +397,14 @@ import { ThreeViewportComponent } from './three-viewport.component';
       .viewport-wrap {
         height: 60vh;
       }
+      /* En pantallas angostas la vista dividida apila el plano sobre el 3D. */
+      .viewport-wrap:has(.stage-split) {
+        height: 110vh;
+      }
+      .stage-split {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      }
       .panel {
         max-height: none;
       }
@@ -263,13 +414,17 @@ import { ThreeViewportComponent } from './three-viewport.component';
 export class EditorComponent {
   protected readonly store = inject(DesignProjectStore);
   protected readonly scene = inject(SceneService);
+  protected readonly edits = inject(SceneEditsService);
   private readonly toast = inject(ToastService);
 
   readonly busy = input(false);
   readonly autoLayout = output<void>();
 
+  protected readonly views = VIEWS;
+  /** Vista elegida: solo 3D, plano y 3D lado a lado, o solo plano. Se recuerda entre visitas. */
+  protected readonly viewMode = signal<ViewMode>(initialView());
   protected readonly swapMode = signal(false);
-  protected readonly panelTab = signal<'add' | 'room' | 'chat'>('add');
+  protected readonly panelTab = signal<'add' | 'objects' | 'room' | 'chat'>('add');
   protected readonly shell = this.store.shell;
   protected readonly selectedItem = this.store.selectedItem;
   protected readonly catalogItems = computed(() => [...this.store.catalog().values()]);
@@ -277,23 +432,44 @@ export class EditorComponent {
   protected readonly roomType = computed(() => this.store.project()?.roomType ?? null);
   protected readonly confidence = computed(() => Math.round((this.shell()?.scaleConfidence ?? 0) * 100));
 
+  protected setView(mode: ViewMode): void {
+    this.viewMode.set(mode);
+    try {
+      localStorage.setItem(VIEW_KEY, mode);
+    } catch {
+      // Sin almacenamiento (modo privado): la vista simplemente no se recuerda.
+    }
+  }
+
   add(item: CatalogItem): void {
-    const id = newPlacementId();
-    const plan = this.store.planPlacement(id, item);
-    if (!plan) {
-      const where = item.mount === 'wall' ? 'en las paredes' : 'libre';
-      this.toast.error(`No hay espacio ${where} para "${item.name}". Quita o mueve algo primero.`);
+    this.edits.add(item);
+  }
+
+  /** La vista 3D tal como se ve ahora, como imagen. */
+  protected async exportImage(): Promise<void> {
+    const blob = await this.scene.capturePng();
+    if (!blob) {
+      this.toast.error('No se pudo capturar la vista 3D.');
       return;
     }
-    this.store.execute(
-      new AddCommand({ id, catalogItemId: item.id, lockedByUser: true, origin: 'user', ...plan }),
-    );
-    this.store.select(id);
-    if (plan.supportId) {
-      const support = this.store.placements().find((p) => p.id === plan.supportId);
-      const name = support ? this.store.catalog().get(support.catalogItemId)?.name : null;
-      if (name) this.toast.success(`"${item.name}" quedó sobre ${name}.`);
-    }
+    downloadBlob(blob, `${fileSlug(this.store.project()?.name ?? '')}.png`);
+  }
+
+  /** El plano con cotas y los muebles, listo para imprimir. */
+  protected exportPlan(): void {
+    const shell = this.store.shell();
+    if (!shell) return;
+    const catalog = this.store.catalog();
+    const footprints = this.store.placements().flatMap((p) => {
+      const item = catalog.get(p.catalogItemId);
+      if (!item || p.supportId || item.subcategory === 'rug') return [];
+      return [{ id: p.id, name: item.name, corners: footprint(p.position, effectiveDimensions(item.dimensionsM, p), p.rotationY).corners }];
+    });
+    const name = this.store.project()?.name ?? 'Cuarto';
+    const metres = (v: number) => v.toFixed(2).replace('.', ',');
+    const area = RoomPlan.from(shell).area().toFixed(1).replace('.', ',');
+    const title = `${name} · ${metres(shell.widthM)} × ${metres(shell.depthM)} m · ${area} m²`;
+    downloadBlob(new Blob([planSvg(shell, footprints, title)], { type: 'image/svg+xml' }), `plano-${fileSlug(name)}.svg`);
   }
 
   swap(item: CatalogItem): void {
@@ -324,6 +500,16 @@ export class EditorComponent {
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
       e.preventDefault();
       this.store.redo();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      // Duplicar (si no hay nada seleccionado, el atajo del navegador sigue su curso).
+      if (!this.store.selected()) return;
+      e.preventDefault();
+      this.edits.duplicate();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      // Con texto seleccionado, Ctrl+C sigue copiando el texto.
+      if (!window.getSelection()?.toString()) this.edits.copy();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+      if (this.edits.paste()) e.preventDefault();
     }
   }
 }

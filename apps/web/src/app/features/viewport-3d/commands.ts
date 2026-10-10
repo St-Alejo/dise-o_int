@@ -9,14 +9,18 @@
  *   slider genera un solo paso de deshacer).
  * - `MacroCommand`: varios comandos como uno (mover una mesa y lo que tiene encima; las
  *   operaciones del chat de IA).
+ * - `SetRoomCommand`: la planta del cuarto también se edita con deshacer (mover una pared en el
+ *   plano); guarda el cuarto y los muebles de antes y de después.
  */
-import type { FurniturePlacement, RoomFinishes, Vector3 } from '@interiores/shared-types';
+import type { FurniturePlacement, RoomFinishes, RoomShell, Vector3 } from '@interiores/shared-types';
 
 export type Placements = readonly FurniturePlacement[];
 
 export interface SceneState {
   readonly placements: Placements;
   readonly finishes: RoomFinishes | null;
+  /** Planta del cuarto. Solo la tocan los comandos de cuarto; los demás la dejan como está. */
+  readonly shell?: RoomShell | null;
 }
 
 export interface SceneCommand {
@@ -25,6 +29,11 @@ export interface SceneCommand {
   revert(state: SceneState): SceneState;
   /** Si este comando y el siguiente se pueden fusionar en un solo paso de deshacer, el fusionado. */
   mergeWith?(next: SceneCommand): SceneCommand | null;
+  /**
+   * Parte de un gesto que sigue en curso (arrastrar una pared): se fusiona con el anterior aunque
+   * el usuario se detenga un momento a mitad del arrastre.
+   */
+  readonly continuous?: boolean;
 }
 
 const replace = (state: Placements, id: string, fn: (p: FurniturePlacement) => FurniturePlacement): Placements =>
@@ -296,6 +305,42 @@ export class SetFinishesCommand implements SceneCommand {
   }
 }
 
+/** El cuarto y sus muebles en un momento dado. */
+export interface RoomSnapshot {
+  readonly shell: RoomShell;
+  readonly placements: Placements;
+}
+
+let gestureSeq = 0;
+/** Clave única para los comandos de un mismo gesto (se fusionan entre sí y con nadie más). */
+export const newGestureKey = (): string => `gesture:${++gestureSeq}`;
+
+/**
+ * Cambia la planta del cuarto (y los muebles, que se reacomodan con ella). Los comandos de un
+ * mismo gesto comparten `gestureKey` y se fusionan: arrastrar una pared es un solo paso de deshacer.
+ */
+export class SetRoomCommand implements SceneCommand {
+  readonly continuous: boolean;
+  constructor(
+    readonly label: string,
+    readonly before: RoomSnapshot,
+    readonly after: RoomSnapshot,
+    readonly gestureKey: string | null = null,
+  ) {
+    this.continuous = gestureKey !== null;
+  }
+  apply(s: SceneState): SceneState {
+    return { ...s, shell: this.after.shell, placements: this.after.placements };
+  }
+  revert(s: SceneState): SceneState {
+    return { ...s, shell: this.before.shell, placements: this.before.placements };
+  }
+  mergeWith(next: SceneCommand): SceneCommand | null {
+    if (!(next instanceof SetRoomCommand) || !this.gestureKey || next.gestureKey !== this.gestureKey) return null;
+    return new SetRoomCommand(this.label, this.before, next.after, this.gestureKey);
+  }
+}
+
 /** Composite de comandos: se aplican en orden y se revierten al revés, como un solo paso. */
 export class MacroCommand implements SceneCommand {
   constructor(
@@ -339,7 +384,8 @@ export class CommandHistory {
     const next = cmd.apply(state);
     const now = this.clock();
     const top = this.undoStack.at(-1);
-    const merged = top && this.redoStack.length === 0 && now - this.lastAt < CommandHistory.MERGE_WINDOW_MS ? top.mergeWith?.(cmd) : null;
+    const inWindow = cmd.continuous === true || now - this.lastAt < CommandHistory.MERGE_WINDOW_MS;
+    const merged = top && this.redoStack.length === 0 && inWindow ? top.mergeWith?.(cmd) : null;
     if (merged) {
       this.undoStack[this.undoStack.length - 1] = merged;
     } else {

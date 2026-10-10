@@ -57,7 +57,17 @@ export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
       <ul class="list" role="list">
         @for (item of filtered(); track item.id) {
           <li>
-            <button type="button" class="item" (click)="picked.emit(item)" [class.current]="item.id === currentItemId()" [disabled]="item.id === currentItemId()">
+            <button
+              type="button"
+              class="item"
+              (click)="picked.emit(item)"
+              [class.current]="item.id === currentItemId()"
+              [disabled]="item.id === currentItemId()"
+              [draggable]="mode() === 'add'"
+              [title]="mode() === 'add' ? 'Clic para añadirlo o arrástralo al plano o al cuarto' : ''"
+              (dragstart)="onDragStart($event, item)"
+              (dragend)="dragEnded.emit()"
+            >
               <app-catalog-thumb [item]="item" />
               <span class="info">
                 <strong>{{ item.name }}</strong>
@@ -147,6 +157,9 @@ export class CatalogPanelComponent {
 
   readonly picked = output<CatalogItem>();
   readonly cancelled = output<void>();
+  /** Se empezó a arrastrar un mueble hacia el plano o el visor (solo en modo añadir). */
+  readonly dragStarted = output<CatalogItem>();
+  readonly dragEnded = output<void>();
 
   protected readonly categories = CATALOG_CATEGORIES;
   protected readonly labels = CATEGORY_LABELS;
@@ -176,6 +189,13 @@ export class CatalogPanelComponent {
     if (q || !room) return results;
     return [...results].sort((a, b) => Number(!a.roomTypes.includes(room)) - Number(!b.roomTypes.includes(room)));
   });
+
+  protected onDragStart(event: DragEvent, item: CatalogItem): void {
+    if (this.mode() !== 'add') return;
+    event.dataTransfer?.setData('text/plain', item.name);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy';
+    this.dragStarted.emit(item);
+  }
 
   tags(item: CatalogItem): string {
     return item.styleTags.map((s) => STYLES[s].label).join(', ');
