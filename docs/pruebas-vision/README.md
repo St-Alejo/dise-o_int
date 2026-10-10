@@ -58,6 +58,36 @@ Las respuestas completas están en los `.json` de esta carpeta.
 4. Para cuidar la capa gratuita: una llamada por foto, caché por hash de la imagen, sin reintentos
    ante un 429 y respaldo al análisis local.
 
+## Resultado en la app
+
+Con `ROOM_ANALYZER=vision`, las mismas seis fotos se subieron como proyectos (dos por minuto, una
+llamada por foto). Lo que quedó en cada proyecto:
+
+![Los seis cuartos generados](capturas/los-seis-cuartos.jpg)
+
+| Foto | Cuarto (m) | Aberturas | Paredes / piso | Muebles colocados |
+|---|---|---|---|---|
+| `sala` | 5,5 × 4,5 × 2,7 | ventanal a la derecha | gris perla / roble | sofá, mesa de centro, mueble de TV, butaca, alfombra |
+| `dormitorio` | 3,5 × 4,0 × 2,4 | puerta a la derecha | vino / nogal | cama y dos mesitas de noche |
+| `comedor` | 5,0 × 6,0 × 2,8 | ventanales a la derecha, al fondo y a la izquierda | blanco / fresno | mesa de comedor y cuatro sillas |
+| `oficina` | 4,5 × 5,0 × 2,7 | ventanal a la derecha | azul acero / teca | escritorio, librero y silla |
+| `cocina` | 4,5 × 5,5 × 2,7 | puerta y ventana a la derecha | blanco / teca | solo una mesa |
+| `sala-abierta` | 5,5 × 7,5 × 2,7 | puerta al fondo | blanco / nogal | sofá, mesa de centro, butaca, alfombra y mesa de comedor |
+
+Capturas individuales en `capturas/`. Antes de este cambio las seis fotos daban la misma caja con
+los mismos muebles.
+
+**Lo que todavía no sale bien**
+- **Cocina:** el modelo reconoce isla, taburetes, nevera y gabinetes, pero el motor de distribución
+  no tiene roles para ellos ni existe el tipo de cuarto "cocina": queda casi vacía.
+- **Sala abierta:** se coloca la mesa del comedor que vio el modelo, pero no sus sillas: "chair" en
+  una sala se interpreta como butaca.
+- **Repetir la misma foto puede dar medidas algo distintas** (el modelo no es determinista) y, con
+  dos procesos del servicio, la caché y el tope diario se llevan por proceso.
+- **Reacomodar** después usa la plantilla del tipo de cuarto: el inventario de la foto no se guarda.
+- Si el modelo alcanza su límite por minuto, el proyecto se crea igual con el análisis local (así
+  salió el dormitorio en el primer intento) y hay que volver a crearlo para usar la visión.
+
 ## Prompt usado
 
 Está en `PROMPT`, dentro de `services/ai/scripts/probe_vision.py`. Pide un único objeto JSON con
