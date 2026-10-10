@@ -15,6 +15,7 @@ export * from './room-plan.js';
 export * from './walk.js';
 export * from './room-edit.js';
 export * from './snapping.js';
+export * from './arrange.js';
 export * from './spatial-resolver.js';
 export * from './design-operations.js';
 export * from './design-toolbox.js';

@@ -193,6 +193,7 @@ export class SceneService implements SceneContext {
     });
     effect(() => {
       this.store.selectedId();
+      this.store.extraIds();
       this.store.placements();
       this.store.shell();
       this.cameraMode();
@@ -323,8 +324,10 @@ export class SceneService implements SceneContext {
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
     const pose = placement ? (this.previewed?.get(placement.id) ?? this.dragController.poseOf(placement.id)) : null;
     this.selection.update(placement && item ? { placement, item, pose, invalid } : null);
-    const editable = !this.readOnly() && this.cameraMode() !== 'walk' && this.tool() === 'select';
+    const single = this.store.selection().length <= 1;
+    const editable = single && !this.readOnly() && this.cameraMode() !== 'walk' && this.tool() === 'select';
     this.gizmoView.update(editable ? this.gizmo.layout(pose) : null);
+    this.showExtraSelection();
     this.showClearances(editable && placement && item && item.mount === 'floor' && !placement.supportId ? { placement, item, pose } : null);
   }
 
@@ -351,6 +354,28 @@ export class SceneService implements SceneContext {
       'clearance',
       lines.map((c) => ({ position: { x: (c.from.x + c.to.x) / 2, y, z: (c.from.y + c.to.y) / 2 }, text: c.label.text, kind: 'clearance' as const })),
     );
+  }
+
+  /** Contorno de las demás piezas de una multiselección (la principal ya tiene el suyo). */
+  private showExtraSelection(): void {
+    const catalog = this.store.catalog();
+    const segments = this.store
+      .selection()
+      .slice(1)
+      .flatMap((p) => {
+        const item = catalog.get(p.catalogItemId);
+        if (!item) return [];
+        const y = item.mount === 'floor' || item.mount === 'ceiling' ? 0.015 : p.position.y + 0.005;
+        const corners = footprint(p.position, effectiveDimensions(item.dimensionsM, p), p.rotationY).corners;
+        return corners.map((c, i) => {
+          const d = corners[(i + 1) % corners.length]!;
+          return [
+            { x: c.x, y, z: c.z },
+            { x: d.x, y, z: d.z },
+          ] as const;
+        });
+      });
+    this.guides.set('selection', segments);
   }
 
   /** Guías de alineación de la pieza que se arrastra. */
@@ -395,7 +420,7 @@ export class SceneService implements SceneContext {
   selectionAnchor(): Vector3 | null {
     const placement = this.store.selected();
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
-    if (!placement || !item) return null;
+    if (!placement || !item || this.store.selection().length > 1) return null;
     const pose = this.previewed?.get(placement.id) ?? this.dragController.poseOf(placement.id);
     const position = pose?.position ?? placement.position;
     return { x: position.x, y: position.y + effectiveDimensions(item.dimensionsM, placement).y + 0.3, z: position.z };

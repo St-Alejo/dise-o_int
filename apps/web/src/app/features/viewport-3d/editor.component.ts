@@ -7,6 +7,7 @@ import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
 import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
 import { PlanEditorComponent } from '../floor-plan/plan-editor.component';
+import { GroupPanelComponent } from '../inspector/group-panel.component';
 import { InspectorComponent } from '../inspector/inspector.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
 import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
@@ -59,6 +60,7 @@ function initialView(): ViewMode {
     CalibrationDialogComponent,
     RoomDimensionsDialogComponent,
     InspectorComponent,
+    GroupPanelComponent,
     FinishesPanelComponent,
     ChatPanelComponent,
     ArViewerComponent,
@@ -143,6 +145,8 @@ function initialView(): ViewMode {
             (picked)="swap($event)"
             (cancelled)="swapMode.set(false)"
           />
+        } @else if (store.selection().length > 1) {
+          <app-group-panel />
         } @else if (store.selected() && selectedItem()) {
           <app-inspector (swap)="swapMode.set(true)" (ar)="ar.open($event)" />
         } @else {
@@ -506,7 +510,8 @@ export class EditorComponent {
       // Duplicar (si no hay nada seleccionado, el atajo del navegador sigue su curso).
       if (!this.store.selected()) return;
       e.preventDefault();
-      this.edits.duplicate();
+      if (this.store.selection().length > 1) this.edits.duplicateSelection();
+      else this.edits.duplicate();
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
       // Con texto seleccionado, Ctrl+C sigue copiando el texto.
       if (!window.getSelection()?.toString()) this.edits.copy();

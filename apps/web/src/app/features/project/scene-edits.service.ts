@@ -2,6 +2,10 @@ import { Injectable, inject, signal } from '@angular/core';
 import {
   RoomGeometryError,
   addOpening,
+  alignDeltas,
+  distributeDeltas,
+  footprint,
+  footprintBounds,
   carryPlacements,
   effectiveDimensions,
   mountY,
@@ -10,6 +14,8 @@ import {
   resizeOpening,
   setRoomHeight,
   splitWall,
+  type AlignMode,
+  type ArrangeBox,
   type CatalogItem,
   type FurniturePlacement,
   type Opening,
@@ -19,7 +25,7 @@ import {
 } from '@interiores/shared-types';
 import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
-import { AddCommand, DuplicateCommand, MacroCommand, RemoveCommand, SetLockCommand, SetRoomCommand } from '../viewport-3d/commands';
+import { AddCommand, DuplicateCommand, MacroCommand, MoveCommand, RemountCommand, RemoveCommand, SetLockCommand, SetRoomCommand } from '../viewport-3d/commands';
 import { DesignProjectStore } from './design-project.store';
 
 /**
@@ -126,6 +132,87 @@ export class SceneEditsService {
       ),
     );
     this.toast.show('Cuarto vacío. Ctrl+Z devuelve los muebles');
+  }
+
+  // ------------------------------------------------------------------ varios muebles a la vez
+  /** Alinea las piezas seleccionadas por un borde o por el centro. */
+  align(mode: AlignMode): void {
+    this.moveGroup(alignDeltas(this.arrangeBoxes(), mode), 'Alinear muebles');
+  }
+
+  /** Reparte las piezas seleccionadas con la misma separación entre ellas. */
+  distribute(axis: 'x' | 'z'): void {
+    this.moveGroup(distributeDeltas(this.arrangeBoxes(), axis), 'Repartir muebles');
+  }
+
+  /** Mueve juntas todas las piezas seleccionadas (flechas del teclado). */
+  nudgeSelection(dx: number, dz: number): void {
+    this.moveGroup(new Map(this.arrangeBoxes().map((b) => [b.id, { x: dx, z: dz }])), 'Mover muebles', false);
+  }
+
+  duplicateSelection(): void {
+    const sources = this.store.selection();
+    const copies = sources.flatMap((p) => {
+      const id = this.duplicate(p);
+      return id ? [id] : [];
+    });
+    if (copies.length) this.store.selectMany(copies);
+  }
+
+  lockSelection(locked: boolean): void {
+    const targets = this.store.selection().filter((p) => p.lockedByUser !== locked);
+    if (targets.length) {
+      this.store.execute(
+        new MacroCommand(
+          locked ? 'Fijar muebles' : 'Soltar muebles',
+          targets.map((p) => new SetLockCommand(p.id, locked)),
+        ),
+      );
+    }
+  }
+
+  /** Quita todas las piezas seleccionadas; lo que tenían encima y no estaba elegido cae al piso. */
+  removeSelection(): void {
+    const selected = this.store.selection();
+    if (!selected.length) return;
+    const ids = new Set(selected.map((p) => p.id));
+    const drops = this.store
+      .placements()
+      .filter((p) => p.supportId && ids.has(p.supportId) && !ids.has(p.id))
+      .map((d) => new RemountCommand(d, { position: { ...d.position, y: 0 }, rotationY: d.rotationY, supportId: undefined }));
+    this.store.select(null);
+    this.store.execute(new MacroCommand(selected.length > 1 ? 'Quitar muebles' : 'Quitar mueble', [...drops, ...selected.map((p) => new RemoveCommand(p))]));
+  }
+
+  /** Cajas en planta de las piezas seleccionadas que se pueden mover por el piso (ni colgadas ni apoyadas). */
+  private arrangeBoxes(): ArrangeBox[] {
+    const catalog = this.store.catalog();
+    return this.store.selection().flatMap((p) => {
+      const item = catalog.get(p.catalogItemId);
+      if (!item || p.supportId || p.wallId || item.mount === 'wall') return [];
+      return [{ id: p.id, ...footprintBounds(footprint(p.position, effectiveDimensions(item.dimensionsM, p), p.rotationY)) }];
+    });
+  }
+
+  /** Mueve cada pieza lo que diga `deltas` (y lo que lleva encima), si el conjunto cabe. */
+  private moveGroup(deltas: ReadonlyMap<string, Point2>, label: string, explain = true): void {
+    const placements = this.store.placements();
+    const moved = new Map<string, FurniturePlacement['position']>();
+    const commands: MoveCommand[] = [];
+    for (const p of placements) {
+      // Una pieza apoyada sigue a su soporte aunque no esté seleccionada.
+      const delta = deltas.get(p.id) ?? (p.supportId ? deltas.get(p.supportId) : undefined);
+      if (!delta || (Math.abs(delta.x) < 1e-4 && Math.abs(delta.z) < 1e-4)) continue;
+      const to = { x: p.position.x + delta.x, y: p.position.y, z: p.position.z + delta.z };
+      moved.set(p.id, to);
+      commands.push(new MoveCommand(p.id, p.position, to));
+    }
+    if (!commands.length) return;
+    if (!this.store.isGroupValid(moved)) {
+      if (explain) this.toast.error('Así no caben: alguno se sale del cuarto o choca con otro mueble.');
+      return;
+    }
+    this.store.execute(new MacroCommand(label, commands));
   }
 
   // ------------------------------------------------------------------ el cuarto

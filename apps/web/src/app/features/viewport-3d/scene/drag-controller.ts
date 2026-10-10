@@ -23,6 +23,8 @@ export interface DragStore {
   catalog(): ReadonlyMap<string, CatalogItem>;
   shell(): RoomShell | null;
   select(id: string | null): void;
+  /** Shift+clic: añade o quita la pieza de la selección (sin él, no hay multiselección). */
+  toggleSelect?(id: string): void;
   dependentsOf(id: string): FurniturePlacement[];
   isPoseValid(
     placementId: string,
@@ -102,6 +104,12 @@ export class DragController {
     this.pointerDownAt = { x: event.clientX, y: event.clientY };
     const id = this.pick(event);
     if (!id) return;
+    if (event.shiftKey && this.store.toggleSelect && !this.host.readOnly()) {
+      // Añadir a la selección no empieza un arrastre.
+      this.store.toggleSelect(id);
+      this.pointerDownAt = null;
+      return;
+    }
     this.store.select(id);
     if (this.host.readOnly()) return;
     const placement = this.store.placements().find((p) => p.id === id);

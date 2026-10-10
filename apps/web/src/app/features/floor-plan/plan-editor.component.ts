@@ -144,6 +144,10 @@ interface PlanPiece {
             <text class="clearance-text" [attr.x]="c.label.x" [attr.y]="c.label.y" text-anchor="middle">{{ c.label.text }}</text>
           }
 
+          @if (marquee(); as m) {
+            <rect class="marquee" [attr.x]="m.x" [attr.y]="m.z" [attr.width]="m.w" [attr.height]="m.d" />
+          }
+
           @if (ghost(); as points) {
             <polygon class="ghost" [attr.points]="points" />
           }
@@ -330,6 +334,13 @@ interface PlanPiece {
       stroke: var(--surface-2);
       stroke-width: 0.06;
     }
+    .marquee {
+      fill: color-mix(in srgb, var(--focus) 12%, transparent);
+      stroke: var(--focus);
+      stroke-width: 0.02;
+      stroke-dasharray: 0.08 0.05;
+      pointer-events: none;
+    }
     .ghost {
       fill: color-mix(in srgb, var(--accent) 25%, transparent);
       stroke: var(--accent);
@@ -389,7 +400,7 @@ export class PlanEditorComponent {
   protected readonly pieces = computed<PlanPiece[]>(() => {
     const catalog = this.store.catalog();
     const moved = this.preview().moved;
-    const selectedId = this.store.selectedId();
+    const selectedIds = new Set(this.store.selection().map((p) => p.id));
     const font = this.fontM();
     return [...this.store.placements()]
       .sort((a, b) => a.position.y - b.position.y)
@@ -408,7 +419,7 @@ export class PlanEditorComponent {
             name: item.name,
             points: corners.map((c) => `${c.x.toFixed(3)},${c.z.toFixed(3)}`).join(' '),
             corners,
-            selected: p.id === selectedId,
+            selected: selectedIds.has(p.id),
             movable: draggableInPlan(p),
             centre: { x: pose.position.x, z: pose.position.z },
             caption,
@@ -444,8 +455,8 @@ export class PlanEditorComponent {
   /** Cotas del mueble seleccionado hasta las paredes (no para lo colgado ni lo apoyado). */
   protected readonly clearances = computed(() => {
     const shell = this.store.shell();
-    const piece = this.pieces().find((p) => p.selected);
     const selected = this.store.selected();
+    const piece = this.store.selection().length === 1 ? this.pieces().find((p) => p.id === selected?.id) : undefined;
     if (!shell || !piece || !selected || selected.wallId || selected.supportId || this.tool() !== 'select') return [];
     return clearancesOf(shell, piece.corners);
   });
@@ -462,6 +473,11 @@ export class PlanEditorComponent {
     const length = Math.hypot(m.to.x - m.from.x, m.to.z - m.from.z);
     return { ...m, mid: { x: (m.from.x + m.to.x) / 2, z: (m.from.z + m.to.z) / 2 - this.fontM() * 0.7 }, text: metres(length) };
   });
+
+  /** Marco de selección que se está dibujando (en metros del plano). */
+  protected readonly marquee = signal<{ x: number; z: number; w: number; d: number } | null>(null);
+  private marqueeFrom: Point2 | null = null;
+  private skipFocus = false;
 
   /** Dónde caería el mueble que se arrastra desde el catálogo (en metros del plano). */
   protected readonly ghostAt = signal<Point2 | null>(null);
@@ -500,11 +516,22 @@ export class PlanEditorComponent {
   // ------------------------------------------------------------------ gestos
   /** Llegar a un mueble con el tabulador lo selecciona: después las flechas lo mueven. */
   protected onFocus(id: string): void {
-    if (this.tool() === 'select' && !this.gesture) this.store.select(id);
+    // Dentro de una multiselección, enfocar una de sus piezas no la deshace.
+    if (this.skipFocus) return;
+    if (this.tool() === 'select' && !this.gesture && !this.store.selection().some((p) => p.id === id)) this.store.select(id);
   }
 
   protected onItem(event: PointerEvent, id: string): void {
     if (this.tool() !== 'select') return; // el clic sigue hasta el fondo (medir)
+    if (event.shiftKey) {
+      // Shift+clic añade o quita de la selección, sin arrastrar.
+      event.stopPropagation();
+      // El foco llega después del clic: que no vuelva a elegir la pieza que se acaba de quitar.
+      this.skipFocus = true;
+      setTimeout(() => (this.skipFocus = false));
+      this.store.toggleSelect(id);
+      return;
+    }
     this.store.select(id);
     const placement = this.store.placements().find((p) => p.id === id);
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
@@ -542,7 +569,10 @@ export class PlanEditorComponent {
       this.measured.set(null);
       this.begin(event, new MeasureGesture(this.store, this.pointOf(event)));
     } else if (this.tool() === 'select') {
-      this.store.select(null);
+      // Arrastrar sobre el fondo dibuja un marco: lo que quede dentro se selecciona.
+      if (event.button !== 0) return;
+      this.marqueeFrom = this.pointOf(event);
+      this.svg()?.nativeElement.setPointerCapture(event.pointerId);
     } else {
       this.store.roomTarget.set(null);
     }
@@ -559,6 +589,12 @@ export class PlanEditorComponent {
   }
 
   protected onMove(event: PointerEvent): void {
+    if (this.marqueeFrom) {
+      const a = this.marqueeFrom;
+      const b = this.pointOf(event);
+      this.marquee.set({ x: Math.min(a.x, b.x), z: Math.min(a.z, b.z), w: Math.abs(b.x - a.x), d: Math.abs(b.z - a.z) });
+      return;
+    }
     if (!this.gesture) return;
     const next = this.gesture.move(this.pointOf(event));
     this.preview.set(next);
@@ -572,6 +608,17 @@ export class PlanEditorComponent {
   }
 
   protected onUp(event: PointerEvent): void {
+    if (this.marqueeFrom) {
+      const box = this.marquee();
+      this.marqueeFrom = null;
+      this.marquee.set(null);
+      const svgEl = this.svg()?.nativeElement;
+      if (svgEl?.hasPointerCapture(event.pointerId)) svgEl.releasePointerCapture(event.pointerId);
+      // Un clic sin arrastrar deselecciona; un marco elige las piezas cuyo centro queda dentro.
+      const inside = box && box.w > 0.05 && box.d > 0.05 ? this.pieces().filter((p) => p.centre.x >= box.x && p.centre.x <= box.x + box.w && p.centre.z >= box.z && p.centre.z <= box.z + box.d) : [];
+      this.store.selectMany(inside.map((p) => p.id));
+      return;
+    }
     const gesture = this.gesture;
     if (!gesture) return;
     this.gesture = null;
@@ -588,15 +635,18 @@ export class PlanEditorComponent {
   /** Mismas teclas que en el visor 3D para el mueble seleccionado. */
   protected onKey(event: KeyboardEvent): void {
     const stepM = event.shiftKey ? 0.25 : 0.05;
+    const group = this.store.selection().length > 1;
+    const nudge = (dx: number, dz: number) => (group ? this.edits.nudgeSelection(dx, dz) : this.scene.nudgeSelected(dx, dz));
+    const remove = () => (group ? this.edits.removeSelection() : this.scene.removeSelected());
     const actions: Record<string, () => void> = {
-      ArrowLeft: () => this.scene.nudgeSelected(-stepM, 0),
-      ArrowRight: () => this.scene.nudgeSelected(stepM, 0),
-      ArrowUp: () => this.scene.nudgeSelected(0, -stepM),
-      ArrowDown: () => this.scene.nudgeSelected(0, stepM),
+      ArrowLeft: () => nudge(-stepM, 0),
+      ArrowRight: () => nudge(stepM, 0),
+      ArrowUp: () => nudge(0, -stepM),
+      ArrowDown: () => nudge(0, stepM),
       r: () => this.scene.rotateSelected(Math.PI / 12),
       R: () => this.scene.rotateSelected(-Math.PI / 12),
-      Delete: () => this.scene.removeSelected(),
-      Backspace: () => this.scene.removeSelected(),
+      Delete: remove,
+      Backspace: remove,
       Escape: () => this.store.select(null),
     };
     const action = actions[event.key];

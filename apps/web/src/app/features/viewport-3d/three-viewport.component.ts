@@ -454,15 +454,19 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const step = event.shiftKey ? 0.25 : 0.05;
+    // Con varios muebles elegidos, las flechas y Supr actúan sobre todos.
+    const group = this.edits && this.store.selection().length > 1 ? this.edits : null;
+    const nudge = (dx: number, dz: number) => (group ? group.nudgeSelection(dx, dz) : this.scene.nudgeSelected(dx, dz));
+    const remove = () => (group ? group.removeSelection() : this.scene.removeSelected());
     const handled: Record<string, () => void> = {
-      ArrowLeft: () => this.scene.nudgeSelected(-step, 0),
-      ArrowRight: () => this.scene.nudgeSelected(step, 0),
-      ArrowUp: () => this.scene.nudgeSelected(0, -step),
-      ArrowDown: () => this.scene.nudgeSelected(0, step),
+      ArrowLeft: () => nudge(-step, 0),
+      ArrowRight: () => nudge(step, 0),
+      ArrowUp: () => nudge(0, -step),
+      ArrowDown: () => nudge(0, step),
       r: () => this.scene.rotateSelected(Math.PI / 12),
       R: () => this.scene.rotateSelected(-Math.PI / 12),
-      Delete: () => this.scene.removeSelected(),
-      Backspace: () => this.scene.removeSelected(),
+      Delete: remove,
+      Backspace: remove,
       Escape: () => this.store.select(null),
     };
     const action = handled[event.key];
