@@ -1,31 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
-
-const photo = fileURLToPath(new URL('../fixtures/room.jpg', import.meta.url));
+import { createFromPhoto, openEditor, signUp } from './helpers';
 
 /**
  * Fase 3: personalizar cada pieza (medidas, material) y el cuarto (acabados), con deshacer,
  * y persistencia.
  */
 test('personalizar: medidas y material de un sofá, acabados del cuarto, deshacer y persistir', async ({ page }) => {
-  await page.goto('/registro');
-  await page.getByLabel('Nombre').fill('Personaliza');
-  await page.getByLabel('Email').fill(`personaliza-${Date.now()}@example.test`);
-  await page.getByLabel('Contraseña').fill('e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
-  await expect(page).toHaveURL(/\/proyectos$/);
+  await signUp(page, 'Personaliza');
 
-  await page.goto('/proyectos/nuevo');
-  await page.locator('input[type=file]').setInputFiles(photo);
-  await page.getByText('Conozco las medidas del cuarto').click();
-  await page.getByLabel('Ancho (m)').fill('5');
-  await page.getByLabel('Largo (m)').fill('4.5');
-  await page.getByLabel('Alto (m)').fill('2.6');
-  await page.getByRole('button', { name: 'Analizar mi cuarto' }).click();
-  await expect(page.getByRole('heading', { name: 'Propuestas', exact: true })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('tab', { name: /Editor 3D/ }).click();
-  await expect(page.getByText('✓ Guardado')).toBeVisible();
+  await createFromPhoto(page, { dims: ['5', '4.5', '2.6'] });
+  await openEditor(page);
 
   // Añadir un sofá paramétrico y abrir su inspector.
   await page.getByLabel('Solo estilo').uncheck();

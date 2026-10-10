@@ -1,8 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
-
-const photo = fileURLToPath(new URL('../fixtures/room.jpg', import.meta.url));
+import { createFromPhoto, openEditor, signUp } from './helpers';
 
 const furnitureCount = async (page: Page) => Number(await page.locator('.summary strong').first().innerText());
 
@@ -11,23 +9,10 @@ const furnitureCount = async (page: Page) => Number(await page.locator('.summary
  * con las mismas herramientas y el mismo resolvedor espacial que Claude.
  */
 test('chat: agrega muebles con relaciones, pinta, deshace en un paso y persiste', async ({ page }) => {
-  await page.goto('/registro');
-  await page.getByLabel('Nombre').fill('Chat');
-  await page.getByLabel('Email').fill(`chat-${Date.now()}@example.test`);
-  await page.getByLabel('Contraseña').fill('e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
-  await expect(page).toHaveURL(/\/proyectos$/);
+  await signUp(page, 'Chat');
 
-  await page.goto('/proyectos/nuevo');
-  await page.locator('input[type=file]').setInputFiles(photo);
-  await page.getByText('Conozco las medidas del cuarto').click();
-  await page.getByLabel('Ancho (m)').fill('5');
-  await page.getByLabel('Largo (m)').fill('4.5');
-  await page.getByLabel('Alto (m)').fill('2.6');
-  await page.getByRole('button', { name: 'Analizar mi cuarto' }).click();
-  await expect(page.getByRole('heading', { name: 'Propuestas', exact: true })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('tab', { name: /Editor 3D/ }).click();
-  await expect(page.getByText('✓ Guardado')).toBeVisible();
+  await createFromPhoto(page, { dims: ['5', '4.5', '2.6'] });
+  await openEditor(page);
 
   await page.getByRole('tab', { name: 'Asistente IA' }).click();
   const chat = page.locator('app-chat-panel');

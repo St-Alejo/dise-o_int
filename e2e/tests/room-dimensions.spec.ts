@@ -1,35 +1,28 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
-
-const photo = fileURLToPath(new URL('../fixtures/room.jpg', import.meta.url));
+import { openEditor, photo, signUp } from './helpers';
 
 /**
  * Fase 1 (v3): medidas reales al crear el proyecto y "Medidas del cuarto" en el editor
  * (ancho/largo/alto exactos, puertas y ventanas), con vista previa y accesibilidad.
  */
 test('cuarto a medida: medidas al crear y edición exacta en el editor', async ({ page }) => {
-  await page.goto('/registro');
-  await page.getByLabel('Nombre').fill('Medidas');
-  await page.getByLabel('Email').fill(`medidas-${Date.now()}@example.test`);
-  await page.getByLabel('Contraseña').fill('e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
-  await expect(page).toHaveURL(/\/proyectos$/);
+  await signUp(page, 'Medidas');
 
-  // Nuevo proyecto con medidas reales: si falta una, no deja enviar.
+  // Nuevo proyecto con medidas reales: si falta una, el asistente no deja avanzar y dice por qué.
   await page.goto('/proyectos/nuevo');
   await page.locator('input[type=file]').setInputFiles(photo);
-  await page.getByText('Conozco las medidas del cuarto').click();
+  await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.getByLabel('Ancho (m)').fill('4.2');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByText('Escribe ancho, largo y alto')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Analizar mi cuarto' })).toBeDisabled();
+  await expect(page.getByLabel('Ancho (m)')).toBeVisible();
   await page.getByLabel('Largo (m)').fill('3.6');
   await page.getByLabel('Alto (m)').fill('2.55');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.getByRole('button', { name: 'Analizar mi cuarto' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Propuestas', exact: true })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('tab', { name: /Editor 3D/ }).click();
-  await expect(page.getByText('✓ Guardado')).toBeVisible();
+  await openEditor(page);
   // Con medidas reales la escala está confirmada: no se pide calibrar.
   await expect(page.getByText(/Medidas aproximadas/)).toHaveCount(0);
 

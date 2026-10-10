@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
-
-const photo = fileURLToPath(new URL('../fixtures/room.jpg', import.meta.url));
+import { photo } from './helpers';
 
 /**
  * Flujo principal del documento (§3): cuenta → foto → propuestas 2D → editor 3D →
@@ -21,10 +19,14 @@ test('flujo completo: de la foto al proyecto compartido', async ({ page, context
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Mis proyectos' })).toBeVisible();
 
+  // Asistente de tres pasos: la foto, la forma y medidas (las decide la foto) y el estilo.
   await page.goto('/proyectos/nuevo');
-  await page.getByLabel('Nombre del proyecto').fill('Sala E2E');
   await page.locator('input[type=file]').setInputFiles(photo);
   await expect(page.getByAltText('Vista previa de la foto seleccionada')).toBeVisible();
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(page.getByRole('button', { name: 'Según la foto' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await page.getByLabel('Nombre del proyecto').fill('Sala E2E');
   await page.getByRole('button', { name: 'Analizar mi cuarto' }).click();
 
   // Propuestas 2D: comparador antes/después accesible por teclado
