@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { createRectangularShell } from '@interiores/shared-types';
+import { createRectangularShell, moveWall } from '@interiores/shared-types';
 import {
   NotFoundError,
   QuotaExceededError,
@@ -192,6 +192,28 @@ describe('ProjectsService', () => {
       expect(sofa!.position.y).toBe(0);
       expect(sofa!.rotationY).toBeCloseTo((3 * Math.PI) / 2);
       expect(lamp!.position.y).toBeCloseTo(2.6 - 0.9);
+    });
+
+    it('guarda la planta editada en el plano y reacomoda los muebles en ella', async () => {
+      const p = await readyProject();
+      const before = p.roomShell!;
+      const edited = moveWall(before, 'w-right', -1).shell;
+      const saved = await service.updateScene(alice, p.id, {
+        revision: p.revision,
+        // Del cliente solo se toma la geometría: el id y el alto no se pueden cambiar por aquí.
+        roomShell: { ...edited, id: 'otro', heightM: 9, scaleConfidence: 1, needsCalibration: false },
+        furniturePlacements: [{ id: 'p1', catalogItemId: 'sofa-test', position: { x: before.widthM - 0.5, y: 0, z: 1 }, rotationY: 0, lockedByUser: true }],
+      });
+      expect(saved.roomShell).toMatchObject({ id: before.id, widthM: before.widthM - 1, heightM: before.heightM, needsCalibration: before.needsCalibration });
+      expect(saved.furniturePlacements[0]!.position.x).toBeLessThan(before.widthM - 1);
+    });
+
+    it('rechaza una planta imposible sin tocar el proyecto', async () => {
+      const p = await readyProject();
+      const shell = p.roomShell!;
+      const crossed = { ...shell, walls: shell.walls.map((w, i) => (i === 1 ? { ...w, end: { x: 1, y: 0, z: -2 } } : i === 2 ? { ...w, start: { x: 1, y: 0, z: -2 } } : w)) };
+      await expect(service.updateScene(alice, p.id, { revision: p.revision, roomShell: crossed, furniturePlacements: [] })).rejects.toBeInstanceOf(ValidationError);
+      expect((await service.get(alice, p.id)).revision).toBe(p.revision);
     });
 
     it('rechaza muebles que no existen en el catálogo e ids repetidos', async () => {

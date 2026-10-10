@@ -3,6 +3,7 @@ import {
   CalibrationError,
   DEFAULT_PROMPT_STRENGTH,
   DEFAULT_STYLES,
+  ROOM_LIMITS,
   RoomGeometryError,
   STAGE_MESSAGES,
   UnknownMaterialError,
@@ -16,6 +17,7 @@ import {
   mountY,
   resizeRoomShell,
   scalePlacements,
+  validateRoomShell,
   type AutoLayoutRequest,
   type CalibrateRequest,
   type CreateProjectFields,
@@ -210,19 +212,48 @@ export class ProjectsService {
   // ------------------------------------------------------------------ escena 3D (paso 5)
   async updateScene(actor: Actor, id: string, req: UpdateSceneRequest): Promise<DesignProject> {
     const project = await this.own(actor, id);
-    const shell = this.requireShell(project);
+    const current = this.requireShell(project);
+    const shell = req.roomShell ? this.editedShell(current, req.roomShell) : current;
     const placements = await this.sanitizePlacements(shell, req.furniturePlacements);
     if (req.finishes) this.validateFinishes(req.finishes);
     const updated = await this.projects.update(
       id,
       {
         placements,
+        ...(req.roomShell ? { roomShell: shell } : {}),
         ...(req.selectedStyleId !== undefined ? { selectedStyleId: req.selectedStyleId } : {}),
         ...(req.finishes !== undefined ? { finishes: req.finishes } : {}),
       },
       { expectedRevision: req.revision, bumpRevision: true },
     );
     return this.toDto(updated);
+  }
+
+  /**
+   * Planta editada en el plano: del cliente solo se acepta la geometría (paredes, aberturas y la
+   * caja que las envuelve). El id, el alto y la confianza de la escala siguen siendo los guardados.
+   */
+  private editedShell(current: RoomShell, edited: RoomShell): RoomShell {
+    const { shape: _shape, ...kept } = current;
+    const next: RoomShell = {
+      ...kept,
+      widthM: edited.widthM,
+      depthM: edited.depthM,
+      walls: edited.walls,
+      openings: edited.openings,
+      ...(edited.shape ? { shape: edited.shape } : {}),
+    };
+    const { minSideM, maxSideM } = ROOM_LIMITS;
+    if (Math.min(next.widthM, next.depthM) < minSideM || Math.max(next.widthM, next.depthM) > maxSideM) {
+      throw new ValidationError(`El cuarto debe medir entre ${minSideM} y ${maxSideM} m de lado`);
+    }
+    try {
+      validateRoomShell(next);
+    } catch (err) {
+      if (err instanceof RoomGeometryError) throw new ValidationError(err.message);
+      throw err;
+    }
+    return next;
   }
 
   /**

@@ -631,7 +631,7 @@ export function dropOverlappingOpenings(openings: Opening[]): Opening[] {
 }
 
 /** Mete una abertura dentro de su pared nueva: recorta ancho/alto y desliza el centro. */
-function fitOpening(o: Opening, wallLen: number, heightM: number): Opening {
+export function fitOpening(o: Opening, wallLen: number, heightM: number): Opening {
   const margin = ROOM_LIMITS.openingMarginM;
   const widthM = Math.min(o.widthM, Math.max(0.2, wallLen - 2 * margin));
   const sillHeightM = Math.min(o.sillHeightM, Math.max(0, heightM - 0.5));

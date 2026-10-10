@@ -9,6 +9,7 @@ import {
   OpeningSchema,
   ProjectStatusSchema,
   RoomFinishesSchema,
+  RoomShellSchema,
   RoomTypeSchema,
   StyleIdSchema,
 } from './domain.js';
@@ -135,6 +136,8 @@ export const UpdateSceneRequestSchema = z.object({
   selectedStyleId: StyleIdSchema.nullable().optional(),
   /** undefined = no tocar; null = volver a los acabados por defecto. */
   finishes: RoomFinishesSchema.nullable().optional(),
+  /** Planta editada a mano en el plano (mover paredes, esquinas o aberturas). Sin valor = no tocar. */
+  roomShell: RoomShellSchema.optional(),
 });
 export type UpdateSceneRequest = z.infer<typeof UpdateSceneRequestSchema>;
 
