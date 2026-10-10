@@ -436,7 +436,10 @@ export class ProjectsService {
     const project = await this.own(actor, id);
     this.requireShell(project);
     const styleId = req.styleId === undefined ? project.selectedStyleId : req.styleId;
-    const jobId = await this.queue.enqueue('build-scene', `scene.${id}`, {
+    // El id lleva la revisión: dos peticiones sobre la misma escena (un doble clic) son un solo
+    // job, pero en cuanto la escena cambia la siguiente es otro. Con un id fijo por proyecto, pedir
+    // otra distribución justo al terminar la anterior se perdía: la cola aún recordaba ese id.
+    const jobId = await this.queue.enqueue('build-scene', `scene.${id}.r${project.revision}`, {
       projectId: id,
       styleId,
       keepLocked: req.keepLocked ?? true,

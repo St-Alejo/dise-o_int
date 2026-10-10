@@ -166,6 +166,23 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('autoLayout', () => {
+    it('cada distribución es un job propio de la revisión: un doble clic no encola dos, pero la siguiente sí', async () => {
+      const p = await readyProject();
+      const before = queue.jobs.length;
+      const first = await service.autoLayout(alice, p.id, { keepLocked: true, seed: 1 });
+      const again = await service.autoLayout(alice, p.id, { keepLocked: true, seed: 2 });
+      expect(again.jobId).toBe(first.jobId);
+      expect(queue.jobs).toHaveLength(before + 1);
+      // La escena cambió (el job anterior escribió su resultado): la siguiente petición es otro job.
+      const saved = await service.updateScene(alice, p.id, { revision: p.revision, furniturePlacements: [] });
+      const next = await service.autoLayout(alice, p.id, { keepLocked: true, seed: 3 });
+      expect(next.jobId).not.toBe(first.jobId);
+      expect(next.jobId).toBe(`scene.${p.id}.r${saved.revision}`);
+      expect(queue.jobs).toHaveLength(before + 2);
+    });
+  });
+
   describe('duplicate', () => {
     it('copia el cuarto, los muebles y los acabados en un proyecto nuevo y listo', async () => {
       const p = await readyProject();
