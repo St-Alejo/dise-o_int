@@ -1,7 +1,7 @@
 import { createRectangularShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { FILL_HEIGHT, LIGHTING_PRESETS, LightingRig, MAX_LAMPS, sunHeading } from './lighting-rig';
+import { FILL_HEIGHT, LIGHTING_PRESETS, LightingRig, MAX_LAMPS, MAX_WINDOW_LIGHTS, sunHeading, windowSpots } from './lighting-rig';
 
 const lights = <T extends THREE.Light>(scene: THREE.Scene, type: new (...args: never[]) => T): T[] => {
   const found: T[] = [];
@@ -85,6 +85,39 @@ describe('LightingRig', () => {
     rig.setInterior(true);
     expect(sun.position.y).toBeLessThan(outside);
     expect(sun.shadow.camera.far).toBeGreaterThan(sun.position.distanceTo(sun.target.position));
+  });
+
+  it('por la tarde el sol baja y se vuelve cálido', () => {
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.fitToRoom(createRectangularShell(4, 3, 2.6));
+    const sun = scene.getObjectByName('sun') as THREE.DirectionalLight;
+    const noon = sun.position.y;
+    rig.setTimeOfDay('evening');
+    expect(sun.position.y).toBeLessThan(noon);
+    expect(sun.color.r).toBeGreaterThan(sun.color.b * 1.5);
+    expect(rig.glow).toBeGreaterThan(LIGHTING_PRESETS.day.glow);
+  });
+
+  it('cada ventana da claridad, hasta el tope y de la más grande a la más pequeña', () => {
+    const shell = createRectangularShell(4, 3, 2.6);
+    const room = {
+      ...shell,
+      openings: [0, 1, 2].map((i) => ({ id: `v${i}`, wallId: shell.walls[i]!.id, type: 'window' as const, offsetM: 1.2, widthM: 0.6 + i * 0.4, heightM: 1, sillHeightM: 0.9 })),
+    };
+    expect(windowSpots(room).map((w) => w.area)).toEqual([1.4, 1, 0.6]);
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.fitToRoom(room);
+    const spots = lights(scene, THREE.SpotLight);
+    expect(spots).toHaveLength(MAX_WINDOW_LIGHTS);
+    expect(spots[0]!.intensity).toBe(LIGHTING_PRESETS.day.window.intensity);
+    expect(spots[0]!.position.y).toBeCloseTo(1.4);
+    rig.setTimeOfDay('night');
+    expect(spots[0]!.intensity).toBe(LIGHTING_PRESETS.night.window.intensity);
+    // Otro cuarto sin ventanas: no queda ninguna luz de ventana.
+    rig.fitToRoom({ ...shell, openings: [] });
+    expect(lights(scene, THREE.SpotLight)).toHaveLength(0);
   });
 
   it('las pantallas brillan de noche', () => {

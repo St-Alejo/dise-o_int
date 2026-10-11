@@ -2,7 +2,12 @@ import { wallFrames, type RoomShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
-export type TimeOfDay = 'day' | 'night';
+export type TimeOfDay = 'day' | 'evening' | 'night';
+export const TIMES_OF_DAY: readonly { id: TimeOfDay; label: string }[] = [
+  { id: 'day', label: 'Día' },
+  { id: 'evening', label: 'Tarde' },
+  { id: 'night', label: 'Noche' },
+];
 
 /** Una lámpara del cuarto: dónde está su bombilla. */
 export interface LampSpot {
@@ -18,6 +23,12 @@ export interface LightingPreset {
   /** Cielo que se ve por las ventanas: de arriba al horizonte, y el suelo de fuera. */
   readonly skyline: { top: string; horizon: string; ground: string };
   readonly sun: { color: string; intensity: number };
+  /** Altura del sol en grados: mirando el cuarto desde fuera y desde dentro (recorrido). */
+  readonly elevation: { outside: number; inside: number };
+  /** Claridad que entra por cada ventana, además del sol directo. */
+  readonly window: { color: string; intensity: number };
+  /** Exposición con la que se revela la imagen. */
+  readonly exposure: number;
   readonly sky: { color: string; ground: string; intensity: number };
   /** Cuánto aporta el entorno a los reflejos y a la luz ambiente. */
   readonly environment: number;
@@ -30,22 +41,43 @@ export interface LightingPreset {
 }
 
 export const LIGHTING_PRESETS: Record<TimeOfDay, LightingPreset> = {
-  // De día manda el sol que entra; las lámparas apenas se notan.
+  // De día manda el sol que entra; las lámparas apenas se notan. El relleno es bajo a propósito:
+  // la sombra y la penumbra de los rincones son lo que da volumen.
   day: {
     background: '#e9e3da',
     skyline: { top: '#7fb2e0', horizon: '#e6eef2', ground: '#d9d2c6' },
-    sun: { color: '#fff0d6', intensity: 2.1 },
-    sky: { color: '#fff7ee', ground: '#8a7560', intensity: 0.62 },
-    environment: 0.55,
-    ceiling: 2.5,
+    sun: { color: '#fff0d6', intensity: 2.9 },
+    elevation: { outside: 56, inside: 36 },
+    window: { color: '#eaf2ff', intensity: 9 },
+    exposure: 1,
+    sky: { color: '#fff7ee', ground: '#8a7560', intensity: 0.34 },
+    environment: 0.42,
+    ceiling: 1.1,
     lamp: 3,
     glow: 0.12,
+  },
+  // Por la tarde el sol entra bajo y cálido: sombras largas y lámparas que empiezan a notarse.
+  evening: {
+    background: '#ecd9c4',
+    skyline: { top: '#7f93c2', horizon: '#ffd2a1', ground: '#cdb9a2' },
+    sun: { color: '#ffb877', intensity: 3.3 },
+    elevation: { outside: 32, inside: 17 },
+    window: { color: '#ffd0a0', intensity: 7 },
+    exposure: 1.02,
+    sky: { color: '#ffe6cc', ground: '#7a6250', intensity: 0.24 },
+    environment: 0.32,
+    ceiling: 0.7,
+    lamp: 7,
+    glow: 0.7,
   },
   // De noche casi no hay luz de fuera: el cuarto lo alumbran sus lámparas, con tono cálido.
   night: {
     background: '#1b1f2a',
     skyline: { top: '#0b1020', horizon: '#27304a', ground: '#15171d' },
     sun: { color: '#9db4d8', intensity: 0.12 },
+    elevation: { outside: 56, inside: 36 },
+    window: { color: '#8fa6d0', intensity: 0.5 },
+    exposure: 1.05,
     sky: { color: '#3b4660', ground: '#1a1614', intensity: 0.22 },
     environment: 0.1,
     ceiling: 3.5,
@@ -60,23 +92,46 @@ const LAMP_COLOR = '#ffd9a8';
 /** A qué altura del cuarto (fracción de su alto) va la luz general. */
 export const FILL_HEIGHT = 0.72;
 const DEG = Math.PI / 180;
-/** Altura del sol: alto para ver el cuarto desde fuera; más bajo dentro, para que entre por la ventana. */
-const SUN_ELEVATION = { outside: 60 * DEG, inside: 36 * DEG };
+/** Ventanas que dan claridad propia (las más grandes): cada luz cuesta en todos los materiales. */
+export const MAX_WINDOW_LIGHTS = 2;
 /** El sol no entra de frente por la ventana: un poco de lado, y la mancha de luz queda sesgada. */
 const SUN_SKEW = 24 * DEG;
 
-/** De dónde viene el sol en planta (vector unitario que apunta hacia dentro del cuarto). */
-export function sunHeading(shell: RoomShell): { x: number; z: number } {
+/** Una ventana vista como fuente de luz: su centro y hacia dónde mira (al interior). */
+export interface WindowSpot {
+  area: number;
+  x: number;
+  y: number;
+  z: number;
+  normal: { x: number; z: number };
+}
+
+/** Las ventanas del cuarto, de la más grande a la más pequeña. */
+export function windowSpots(shell: RoomShell): WindowSpot[] {
   const frames = wallFrames(shell);
-  let best: { area: number; x: number; z: number } | null = null;
+  const spots: WindowSpot[] = [];
   for (const opening of shell.openings) {
     if (opening.type !== 'window') continue;
     const index = shell.walls.findIndex((w) => w.id === opening.wallId);
+    const wall = shell.walls[index];
     const frame = frames[index];
-    if (!frame) continue;
-    const area = opening.widthM * opening.heightM;
-    if (!best || area > best.area) best = { area, x: frame.normal.x, z: frame.normal.z };
+    if (!wall || !frame) continue;
+    const length = Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z) || 1;
+    const t = opening.offsetM / length;
+    spots.push({
+      area: opening.widthM * opening.heightM,
+      x: wall.start.x + (wall.end.x - wall.start.x) * t,
+      y: opening.sillHeightM + opening.heightM / 2,
+      z: wall.start.z + (wall.end.z - wall.start.z) * t,
+      normal: { x: frame.normal.x, z: frame.normal.z },
+    });
   }
+  return spots.sort((a, b) => b.area - a.area);
+}
+
+/** De dónde viene el sol en planta (vector unitario que apunta hacia dentro del cuarto). */
+export function sunHeading(shell: RoomShell): { x: number; z: number } {
+  const best = windowSpots(shell)[0]?.normal ?? null;
   // Sin ventanas, el sol viene del fondo, como siempre.
   const n = best ?? { x: 0.25, z: 1 };
   const cos = Math.cos(SUN_SKEW);
@@ -120,6 +175,8 @@ export class LightingRig {
   private readonly ceiling = new THREE.PointLight('#fff1dc', 0, 0, 2);
   private readonly lamps = new Map<string, THREE.PointLight>();
   private readonly lampRoot = new THREE.Group();
+  private readonly windowRoot = new THREE.Group();
+  private renderer: THREE.WebGLRenderer | null = null;
   private envTarget: THREE.WebGLRenderTarget | null = null;
   private skies: Partial<Record<TimeOfDay, THREE.Texture | null>> = {};
   private time: TimeOfDay = 'day';
@@ -139,7 +196,8 @@ export class LightingRig {
     this.sun.name = 'sun';
     this.ceiling.name = 'ceiling-light';
     this.lampRoot.name = 'lamps';
-    scene.add(this.sky, this.sun, this.sun.target, this.ceiling, this.lampRoot);
+    this.windowRoot.name = 'window-lights';
+    scene.add(this.sky, this.sun, this.sun.target, this.ceiling, this.lampRoot, this.windowRoot);
     this.apply();
   }
 
@@ -158,14 +216,30 @@ export class LightingRig {
 
   /** Entorno PBR para reflejos realistas; necesita el renderer ya creado. */
   attachRenderer(renderer: THREE.WebGLRenderer): void {
+    this.renderer = renderer;
+    // Puede llamarse otra vez (la GPU se perdió y volvió): lo anterior ya no sirve.
+    this.envTarget?.dispose();
+    for (const texture of Object.values(this.skies)) texture?.dispose();
     const pmrem = new THREE.PMREMGenerator(renderer);
     const env = new RoomEnvironment();
     this.envTarget = pmrem.fromScene(env, 0.04);
     this.scene.environment = this.envTarget.texture;
     env.dispose();
     pmrem.dispose();
-    this.skies = { day: skyTexture(LIGHTING_PRESETS.day.skyline), night: skyTexture(LIGHTING_PRESETS.night.skyline) };
+    this.skies = {
+      day: skyTexture(LIGHTING_PRESETS.day.skyline),
+      evening: skyTexture(LIGHTING_PRESETS.evening.skyline),
+      night: skyTexture(LIGHTING_PRESETS.night.skyline),
+    };
     this.apply();
+  }
+
+  /** Lado del mapa de sombras del sol (la calidad del visor lo baja en equipos justos). */
+  setShadowSize(size: number): void {
+    if (this.sun.shadow.mapSize.x === size) return;
+    this.sun.shadow.mapSize.set(size, size);
+    this.sun.shadow.map?.dispose();
+    this.sun.shadow.map = null;
   }
 
   /** Coloca el sol, su cámara de sombras y la luz del techo para que cubran el cuarto entero. */
@@ -175,7 +249,22 @@ export class LightingRig {
     // Lejos del techo: una luz pegada a él deja una mancha quemada justo encima.
     this.ceiling.position.set(shell.widthM / 2, shell.heightM * FILL_HEIGHT, shell.depthM / 2);
     this.ceiling.distance = span * 2.5;
+    this.syncWindows(shell, span);
     this.aimSun();
+    this.apply();
+  }
+
+  /** La claridad de cada ventana: una luz ancha y sin borde que entra hacia el piso del cuarto. */
+  private syncWindows(shell: RoomShell, span: number): void {
+    for (const child of this.windowRoot.children) (child as Partial<THREE.SpotLight>).dispose?.();
+    this.windowRoot.clear();
+    for (const spot of windowSpots(shell).slice(0, MAX_WINDOW_LIGHTS)) {
+      const light = new THREE.SpotLight('#ffffff', 0, span * 2.2, 1.15, 1, 1.6);
+      light.name = 'window-light';
+      light.position.set(spot.x + spot.normal.x * 0.08, spot.y, spot.z + spot.normal.z * 0.08);
+      light.target.position.set(spot.x + spot.normal.x * span * 0.55, 0.2, spot.z + spot.normal.z * span * 0.55);
+      this.windowRoot.add(light, light.target);
+    }
   }
 
   /** Dentro del cuarto el sol entra por la ventana; desde fuera alumbra desde arriba. */
@@ -188,6 +277,7 @@ export class LightingRig {
 
   setTimeOfDay(time: TimeOfDay): void {
     this.time = time;
+    this.aimSun();
     this.apply();
   }
 
@@ -221,6 +311,9 @@ export class LightingRig {
     this.skies = {};
     for (const light of this.lamps.values()) light.dispose();
     this.lamps.clear();
+    for (const child of this.windowRoot.children) (child as Partial<THREE.SpotLight>).dispose?.();
+    this.windowRoot.clear();
+    this.renderer = null;
   }
 
   private aimSun(): void {
@@ -228,7 +321,8 @@ export class LightingRig {
     if (!shell) return;
     const span = Math.max(shell.widthM, shell.depthM);
     const heading = sunHeading(shell);
-    const elevation = this.interior ? SUN_ELEVATION.inside : SUN_ELEVATION.outside;
+    const angles = LIGHTING_PRESETS[this.time].elevation;
+    const elevation = (this.interior ? angles.inside : angles.outside) * DEG;
     const distance = span * 3;
     const centre = { x: shell.widthM / 2, z: shell.depthM / 2 };
     this.sun.position.set(
@@ -251,6 +345,12 @@ export class LightingRig {
     this.sky.groundColor.set(preset.sky.ground);
     this.sky.intensity = preset.sky.intensity;
     this.ceiling.intensity = preset.ceiling;
+    if (this.renderer) this.renderer.toneMappingExposure = preset.exposure;
+    for (const child of this.windowRoot.children) {
+      if (!(child instanceof THREE.SpotLight)) continue;
+      child.color.set(preset.window.color);
+      child.intensity = preset.window.intensity;
+    }
     for (const light of this.lamps.values()) light.intensity = preset.lamp;
   }
 }
