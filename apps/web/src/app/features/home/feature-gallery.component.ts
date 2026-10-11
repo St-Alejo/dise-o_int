@@ -40,10 +40,10 @@ export const FEATURES: readonly Feature[] = [
     ],
     shots: [
       {
-        src: 'landing/g-editar.webp',
-        alt: 'El editor con el plano a la izquierda, el cuarto en 3D en el centro con una alfombra seleccionada y sus cotas, y a la derecha el panel con sus medidas y acciones.',
-        width: 1200,
-        height: 721,
+        src: 'landing/editor-editar.webp',
+        alt: 'El editor con el plano a la izquierda, la sala en 3D en el centro con un mueble seleccionado y sus cotas, y a la derecha el panel con sus medidas y acciones.',
+        width: 1400,
+        height: 841,
       },
     ],
   },
@@ -65,10 +65,10 @@ export const FEATURES: readonly Feature[] = [
     ],
     shots: [
       {
-        src: 'landing/g-recorrer.webp',
-        alt: 'Una sala vista desde dentro, a la altura de los ojos: un sofá gris en L bajo la ventana, una butaca de cuero y una lámpara colgante.',
-        width: 844,
-        height: 675,
+        src: 'landing/editor-recorrer.webp',
+        alt: 'La sala vista desde dentro, a la altura de los ojos, con el sofá bajo la ventana y las indicaciones para caminar.',
+        width: 1400,
+        height: 1120,
       },
     ],
   },
@@ -84,15 +84,7 @@ export const FEATURES: readonly Feature[] = [
       'Las pantallas se encienden al pasar a modo noche.',
     ],
     keys: [],
-    shots: [
-      { src: 'landing/hero-L.webp', alt: 'Una sala en forma de L vista desde arriba con luz de día.', width: 844, height: 675 },
-      {
-        src: 'landing/g-noche.webp',
-        alt: 'La misma sala de noche, iluminada por su lámpara colgante y su lámpara de pie.',
-        width: 844,
-        height: 675,
-      },
-    ],
+    shots: [{ src: 'landing/editor-noche.webp', alt: 'La sala de noche en el visor, iluminada por su lámpara colgante, con el menú de luz en Noche.', width: 1400, height: 1120 }],
   },
   {
     id: 'plano',
@@ -111,10 +103,10 @@ export const FEATURES: readonly Feature[] = [
     ],
     shots: [
       {
-        src: 'landing/g-plano.webp',
-        alt: 'El plano de una sala en L con la medida de cada pared, los muebles con su nombre y las distancias de la alfombra seleccionada a las paredes.',
-        width: 1200,
-        height: 721,
+        src: 'landing/editor-plano.webp',
+        alt: 'El plano de la sala con la medida de cada pared y los muebles dibujados a escala con su nombre.',
+        width: 1400,
+        height: 1120,
       },
     ],
   },
@@ -132,10 +124,10 @@ export const FEATURES: readonly Feature[] = [
     keys: [{ keys: 'B', does: 'pintar' }],
     shots: [
       {
-        src: 'landing/g-pintar.webp',
-        alt: 'Un dormitorio de paredes color terracota con la paleta de colores abierta sobre una pared.',
-        width: 844,
-        height: 675,
+        src: 'landing/editor-pintar.webp',
+        alt: 'La sala en 3D con la herramienta de pintar activa y la paleta de colores abierta sobre una pared.',
+        width: 1400,
+        height: 1120,
       },
     ],
   },
@@ -212,50 +204,40 @@ export function tabAfterKey(key: string, index: number, count: number): number |
     }
     .tabs {
       display: flex;
-      gap: var(--space-2);
+      gap: var(--space-5);
       overflow-x: auto;
-      padding-bottom: var(--space-2);
-      margin-bottom: var(--space-4);
-      scrollbar-width: thin;
+      border-bottom: 1px solid var(--rule);
+      margin-bottom: var(--space-6);
+      scrollbar-width: none;
     }
     .tab {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
       flex: none;
-      min-height: 44px;
-      padding: 0 var(--space-4);
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface);
+      min-height: 48px;
+      padding: 0 2px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      background: none;
       color: var(--text-muted);
       font: inherit;
       font-weight: 600;
-      font-size: 0.95rem;
       cursor: pointer;
-      transition:
-        background 0.15s var(--ease),
-        color 0.15s var(--ease);
     }
     .tab:hover {
       color: var(--text);
-      border-color: var(--primary);
     }
     .tab[aria-selected='true'] {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: var(--on-primary);
+      color: var(--text);
+      border-bottom-color: var(--accent);
     }
     .panel {
       display: grid;
-      grid-template-columns: 1.5fr 1fr;
-      gap: var(--space-6);
+      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+      gap: var(--space-6) var(--space-7);
       align-items: center;
-      padding: var(--space-5);
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
-      background: var(--surface);
-      box-shadow: var(--shadow-sm);
     }
     .shots {
       display: grid;
@@ -268,7 +250,7 @@ export function tabAfterKey(key: string, index: number, count: number): number |
       width: 100%;
       height: auto;
       border-radius: var(--radius);
-      border: 1px solid var(--border);
+      border: 1px solid var(--rule);
       background: var(--surface-2);
     }
     .copy {
@@ -319,7 +301,6 @@ export function tabAfterKey(key: string, index: number, count: number): number |
     @media (max-width: 900px) {
       .panel {
         grid-template-columns: 1fr;
-        padding: var(--space-4);
       }
     }
   `,

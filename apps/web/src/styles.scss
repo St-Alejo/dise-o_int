@@ -50,6 +50,12 @@
   --tint-3: #f6f2e6;
   --gradient-brand: linear-gradient(135deg, #e3f1ee 0%, #faf8f4 48%, #fbe9df 100%);
   --ring: color-mix(in srgb, var(--primary) 28%, transparent);
+  /* Sección profunda (una por página, como mucho): petróleo oscuro con texto marfil. */
+  --deep: #0c3b39;
+  --on-deep: #f5f1e8;
+  --on-deep-muted: #b7ccc8;
+  /* Filete fino: separa sin encerrar en una caja. */
+  --rule: color-mix(in srgb, var(--text) 16%, transparent);
   --shadow-sm: 0 1px 2px rgb(23 32 31 / 8%);
   --shadow: 0 4px 16px rgb(23 32 31 / 10%);
   --shadow-lg: 0 16px 48px rgb(23 32 31 / 18%);
@@ -72,6 +78,10 @@
   --text-xl: clamp(1.35rem, 1.2vw + 1rem, 1.7rem);
   --text-2xl: clamp(1.6rem, 2.2vw + 1rem, 2.3rem);
   --text-3xl: clamp(2.1rem, 4.2vw + 0.6rem, 3.5rem);
+  /* Titular de exhibición: solo el del encabezado y el del cierre. */
+  --text-display: clamp(2.7rem, 6.6vw + 0.5rem, 6rem);
+  /* Aire entre secciones de una página editorial. */
+  --section-y: clamp(72px, 9vw, 148px);
   --header-h: 60px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -103,6 +113,9 @@
   --tint-2: #1a1917;
   --tint-3: #171a16;
   --gradient-brand: linear-gradient(135deg, #12302d 0%, #0f1615 50%, #2c1c14 100%);
+  --deep: #0b2826;
+  --on-deep: #f1ede3;
+  --on-deep-muted: #a9bfbb;
   --shadow: 0 4px 16px rgb(0 0 0 / 40%);
   --shadow-lg: 0 16px 48px rgb(0 0 0 / 55%);
 }
@@ -249,6 +262,106 @@ img {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/*
+ * Página editorial: mucho aire, titulares grandes en serif con una frase en cursiva, filetes en
+ * lugar de cajas. La usan la página de inicio y las que comparten su tono.
+ */
+.editorial {
+  padding-block: var(--section-y);
+}
+.editorial + .editorial {
+  padding-top: 0;
+}
+.display {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: 420;
+  line-height: 0.98;
+  letter-spacing: -0.028em;
+  text-wrap: balance;
+}
+.title-xl {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 440;
+  line-height: 1.04;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+.display em,
+.title-xl em {
+  font-style: italic;
+  font-weight: 380;
+  color: var(--primary);
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+/* Cabecera de sección a dos columnas: la etiqueta a la izquierda, el titular a la derecha. */
+.spread {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  gap: var(--space-5) var(--space-6);
+  align-items: start;
+  margin-bottom: clamp(var(--space-6), 5vw, 72px);
+}
+.spread > .eyebrow {
+  padding-top: 0.9em;
+}
+.spread .lead {
+  max-width: 56ch;
+  margin: var(--space-4) 0 0;
+}
+@media (max-width: 760px) {
+  .spread {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .spread > .eyebrow {
+    padding-top: 0;
+  }
+}
+/* Sección profunda: fondo petróleo, texto marfil. */
+.deep {
+  background: var(--deep);
+  color: var(--on-deep);
+}
+.deep .lead,
+.deep .muted {
+  color: var(--on-deep-muted);
+}
+.deep .display em,
+.deep .title-xl em {
+  color: var(--highlight);
+}
+/* Enlace con flecha: la acción secundaria de una sección. */
+.arrow-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+}
+.arrow-link app-icon {
+  transition: transform 0.25s var(--ease);
+}
+.arrow-link:hover app-icon,
+.arrow-link:focus-visible app-icon {
+  transform: translateX(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .arrow-link app-icon {
+    transition: none;
+  }
+}
+
 /* Una cifra con su leyenda. */
 .stat {
   display: grid;

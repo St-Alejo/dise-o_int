@@ -56,6 +56,9 @@ const TEXT_PAIRS = [
   ['text-muted', 'tint-1'],
   ['text-muted', 'tint-2'],
   ['text-muted', 'tint-3'],
+  ['on-deep', 'deep'],
+  ['on-deep-muted', 'deep'],
+  ['highlight', 'deep'],
 ] as const;
 
 /** El anillo de foco se dibuja separado del control, sobre el fondo: 3:1. */

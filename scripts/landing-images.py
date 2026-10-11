@@ -3,8 +3,9 @@
     python scripts/landing-images.py
 
 Las capturas las genera `npx playwright test -c playwright.shots.config.ts` (carpeta e2e). De cada
-plantilla sale su miniatura para la galería; de la primera, además, las del encabezado de la
-landing (día, tarde, noche y por dentro) en dos anchos. Requiere Pillow con WebP.
+plantilla sale su miniatura para la galería; además, las del encabezado de la landing (el mismo
+cuarto de día, de tarde, de noche, por dentro y vacío) en dos anchos, las del editor en uso y una
+sala por estilo. Requiere Pillow con WebP.
 """
 
 from pathlib import Path
@@ -17,6 +18,7 @@ PUBLIC = ROOT / "apps" / "web" / "public"
 HERO_WIDTHS = (800, 1600)
 HERO_RATIO = 16 / 10
 THUMB = (960, 640)
+EDITOR_WIDTH = 1400
 
 
 def cover(image: Image.Image, ratio: float) -> Image.Image:
@@ -42,15 +44,18 @@ def main() -> None:
     shots = sorted(SHOTS.glob("*.png"))
     if not shots:
         raise SystemExit(f"No hay capturas en {SHOTS}")
-    hero = shots[0].stem.rsplit("-", 1)[0] if not (SHOTS / "sala-escandinava-tarde.png").exists() else "sala-escandinava"
     for shot in shots:
-        template, variant = shot.stem.rsplit("-", 1)
+        group, variant = shot.stem.rsplit("-", 1)
         image = Image.open(shot).convert("RGB")
-        if variant == "tarde":
-            save(cover(image, THUMB[0] / THUMB[1]), PUBLIC / "escenas" / f"{template}.webp", THUMB[0])
-        if template == hero:
+        if group == "cuarto":  # el cuarto del encabezado, en cada luz, por dentro y vacío
             for width in HERO_WIDTHS:
                 save(cover(image, HERO_RATIO), PUBLIC / "landing" / f"cuarto-{variant}-{width}.webp", width)
+        elif group == "ui":  # el editor en uso: entero, sin recortar
+            save(image, PUBLIC / "landing" / f"editor-{variant}.webp", min(image.width, EDITOR_WIDTH), 82)
+        elif group == "estilo":  # la misma sala en cada estilo
+            save(cover(image, THUMB[0] / THUMB[1]), PUBLIC / "landing" / f"estilo-{variant}.webp", THUMB[0])
+        elif variant == "tarde":  # miniatura de cada plantilla
+            save(cover(image, THUMB[0] / THUMB[1]), PUBLIC / "escenas" / f"{group}.webp", THUMB[0])
 
 
 if __name__ == "__main__":

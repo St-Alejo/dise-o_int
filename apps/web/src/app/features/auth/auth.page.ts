@@ -72,7 +72,7 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
       </form>
 
       <aside class="side" aria-label="Qué obtienes con tu cuenta">
-        <img src="landing/hero-L.webp" width="844" height="675" alt="Una sala en forma de L en 3D con sofá, butaca, librero y lámpara de pie." />
+        <img src="landing/cuarto-tarde-800.webp" width="800" height="500" alt="Una sala en 3D con luz de tarde: sofá en L, mesa de centro, butaca y estantería." />
         <ul>
           @for (perk of perks; track perk.title) {
             <li>

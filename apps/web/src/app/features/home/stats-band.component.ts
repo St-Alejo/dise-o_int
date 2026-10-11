@@ -25,7 +25,7 @@ export function statsOf(catalog: readonly Pick<CatalogItem, 'category'>[] | null
 }
 
 /**
- * Franja de cifras de la página de inicio. Son datos reales: el catálogo público y las listas de
+ * Las cifras de la página de inicio, en una fila de numerales. Son datos reales: el catálogo público y las listas de
  * `shared-types`. Si el catálogo no responde, se muestran las demás sin dejar huecos.
  */
 @Component({
@@ -33,7 +33,7 @@ export function statsOf(catalog: readonly Pick<CatalogItem, 'category'>[] | null
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h2 class="visually-hidden">La app en cifras</h2>
-    <dl class="container band">
+    <dl class="band">
       @for (stat of stats(); track stat.label) {
         <div class="stat">
           <dt class="stat-label">{{ stat.label }}</dt>
@@ -45,23 +45,33 @@ export function statsOf(catalog: readonly Pick<CatalogItem, 'category'>[] | null
   styles: `
     :host {
       display: block;
-      background: var(--surface);
-      border-block: 1px solid var(--border);
     }
     .band {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: var(--space-5) var(--space-6);
-      margin-block: 0;
-      padding-block: var(--space-6);
+      margin: 0;
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--rule);
     }
     /* La cifra va antes que su leyenda a la vista; en el HTML, el término antes que el valor. */
     .stat {
+      display: grid;
+      gap: var(--space-2);
       align-content: start;
+    }
+    dt {
+      color: var(--text-muted);
+      font-size: var(--text-sm);
     }
     dd {
       margin: 0;
       order: -1;
+      font-family: var(--font-display);
+      font-size: var(--text-3xl);
+      font-weight: 380;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
   `,
 })

@@ -8,8 +8,9 @@ import { IconComponent } from './shared/ui/icon.component';
 /** Secciones de la página de inicio a las que se llega desde la cabecera y el pie. */
 const SECTIONS = [
   { fragment: 'como-funciona', label: 'Cómo funciona' },
-  { fragment: 'que-hace', label: 'Qué hace' },
+  { fragment: 'editor', label: 'El editor' },
   { fragment: 'estilos', label: 'Estilos' },
+  { fragment: 'plantillas', label: 'Plantillas' },
   { fragment: 'preguntas', label: 'Preguntas' },
 ] as const;
 
