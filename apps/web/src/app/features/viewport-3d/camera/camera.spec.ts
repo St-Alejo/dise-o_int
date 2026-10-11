@@ -37,6 +37,17 @@ function setup() {
   return { camera, orbit, walk, arrived, director };
 }
 
+describe('vista cenital', () => {
+  it('sube lo justo para que el cuarto quepa con un campo estrecho', async () => {
+    const { PLAN_FOV, planViewHeight } = await import('./orbit-mode');
+    const height = planViewHeight(5);
+    // Lo que abarca la cámara a esa altura es el lado del cuarto más su margen.
+    expect(2 * height * Math.tan((PLAN_FOV * Math.PI) / 360)).toBeCloseTo(5 * 1.3, 6);
+    expect(height).toBeGreaterThan(30);
+    expect(planViewHeight(10)).toBeCloseTo(height * 2, 6);
+  });
+});
+
 describe('CameraDirector', () => {
   it('delega cada frame en el modo activo', () => {
     const { director, orbit } = setup();

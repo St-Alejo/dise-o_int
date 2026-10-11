@@ -27,7 +27,7 @@ export interface ToolInfo {
 export const VIEWPORT_TOOLS: readonly ToolInfo[] = [
   { id: 'select', label: 'Mover', key: 'v', hint: 'Arrastra un mueble; con uno seleccionado, gira el aro o estira sus tiradores.' },
   { id: 'room', label: 'Paredes', key: 'w', hint: 'Arrastra una pared para moverla, o una puerta o ventana para deslizarla.' },
-  { id: 'paint', label: 'Pintar', key: 'b', hint: 'Haz clic en una pared, en el piso o en un mueble para cambiar su material.' },
+  { id: 'paint', label: 'Pintar', key: 'b', hint: 'Haz clic en una pared, en el piso, en el techo (recorriendo el cuarto) o en un mueble para cambiar su material.' },
   { id: 'measure', label: 'Medir', key: 'm', hint: 'Arrastra entre dos puntos del piso para medir.' },
 ];
 
@@ -182,7 +182,7 @@ export class RoomTool implements ViewportTool {
 // ------------------------------------------------------------------ pintar
 
 /** Qué se va a pintar. */
-export type PaintTarget = { surface: 'floor' } | { surface: 'wall'; wallId: string };
+export type PaintTarget = { surface: 'floor' } | { surface: 'ceiling' } | { surface: 'wall'; wallId: string };
 
 export interface PaintToolHost {
   shell(): RoomShell | null;
@@ -193,13 +193,20 @@ export interface PaintToolHost {
   open(target: PaintTarget | null, at: { x: number; y: number } | null): void;
 }
 
-/** Qué superficie del cuarto hay bajo el rayo: el piso si se ve antes que la pared. */
+/**
+ * Qué superficie del cuarto hay bajo el rayo: el piso o el techo si se ven antes que la pared. El
+ * techo solo se alcanza mirando hacia arriba desde dentro (recorriendo el cuarto).
+ */
 export function surfaceUnder(ray: Ray, shell: RoomShell): PaintTarget | null {
   const wall = hitWall(ray, shell);
-  const floor = intersectHorizontal(ray, 0);
-  const floorT = floor ? Math.hypot(floor.x - ray.origin.x, floor.y - ray.origin.y, floor.z - ray.origin.z) : Infinity;
-  const onFloor = floor && pointInPolygon(floor, roomPolygon(shell), 0.01);
-  if (onFloor && (!wall || floorT < wallDistance(ray, wall.t))) return { surface: 'floor' };
+  const polygon = roomPolygon(shell);
+  const before = (hit: { x: number; y: number; z: number } | null): boolean => {
+    if (!hit || !pointInPolygon(hit, polygon, 0.01)) return false;
+    const distance = Math.hypot(hit.x - ray.origin.x, hit.y - ray.origin.y, hit.z - ray.origin.z);
+    return !wall || distance < wallDistance(ray, wall.t);
+  };
+  if (before(intersectHorizontal(ray, 0))) return { surface: 'floor' };
+  if (ray.direction.y > 0 && ray.origin.y < shell.heightM && before(intersectHorizontal(ray, shell.heightM))) return { surface: 'ceiling' };
   return wall ? { surface: 'wall', wallId: wall.wall.id } : null;
 }
 

@@ -20,7 +20,7 @@ import { clearancesOf, metres } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
 import { CameraDirector } from './camera/camera-director';
 import type { CameraModeId, CameraPose } from './camera/camera-mode';
-import { ORBIT_FOV, OrbitMode } from './camera/orbit-mode';
+import { ORBIT_FOV, OrbitMode, PLAN_FOV, planViewHeight } from './camera/orbit-mode';
 import { WalkMode } from './camera/walk-mode';
 import type { GizmoHandleKind } from './mounts/gizmo-math';
 import type { Ray } from './mounts/mount-strategies';
@@ -38,10 +38,11 @@ import { SelectionView } from './scene/selection-view';
 import { MeasureTool, PaintTool, RoomTool, SelectTool, ToolManager, type PaintTarget, type ToolEvent, type ViewportToolId } from './tools/tools';
 
 /** Vistas rápidas de la cámara de órbita. */
-export type ViewPreset = 'corner' | 'top' | 'front' | 'left' | 'right';
+export type ViewPreset = 'corner' | 'top' | 'plan' | 'front' | 'left' | 'right';
 export const VIEW_PRESETS: readonly { id: ViewPreset; label: string }[] = [
   { id: 'corner', label: 'Esquina' },
   { id: 'top', label: 'Desde arriba' },
+  { id: 'plan', label: 'Cenital, como un plano' },
   { id: 'front', label: 'De frente' },
   { id: 'left', label: 'Desde la izquierda' },
   { id: 'right', label: 'Desde la derecha' },
@@ -374,6 +375,7 @@ export class SceneService implements SceneContext {
   frameRoom(shell = this.store.shell()): void {
     if (!shell || this.cameraMode() === 'walk') return;
     this.orbit.reset();
+    this.setFov(ORBIT_FOV);
     const home = this.homePose(shell);
     this.camera.position.copy(home.position);
     this.camera.lookAt(home.target);
@@ -393,9 +395,16 @@ export class SceneService implements SceneContext {
     if (preset === 'corner') return this.frameRoom(shell);
     const centre = roomCenter(shell);
     const span = Math.max(shell.widthM, shell.depthM);
+    if (preset === 'plan') {
+      // Muy arriba y con el campo muy cerrado: las paredes dejan de converger.
+      const height = planViewHeight(span);
+      if (this.controls) this.controls.maxDistance = height * 1.5;
+      return this.lookFromPose(new THREE.Vector3(centre.x, height, centre.z + 0.01), new THREE.Vector3(centre.x, 0, centre.z), PLAN_FOV);
+    }
+    if (this.controls) this.controls.maxDistance = span * 3;
     const target = new THREE.Vector3(centre.x, 0.6, centre.z);
     const away = span * 1.5 + 1.5;
-    const position: Record<Exclude<ViewPreset, 'corner'>, THREE.Vector3> = {
+    const position: Record<Exclude<ViewPreset, 'corner' | 'plan'>, THREE.Vector3> = {
       // Casi vertical: justo encima, los controles de órbita pierden la referencia del "arriba".
       top: new THREE.Vector3(centre.x, span * 1.9 + 2, centre.z + 0.01),
       front: new THREE.Vector3(centre.x, shell.heightM * 0.7, shell.depthM + away),
@@ -403,6 +412,12 @@ export class SceneService implements SceneContext {
       right: new THREE.Vector3(shell.widthM + away, shell.heightM * 0.7, centre.z),
     };
     this.lookFromPose(position[preset], preset === 'top' ? new THREE.Vector3(centre.x, 0, centre.z) : target);
+  }
+
+  private setFov(fov: number): void {
+    if (this.camera.fov === fov) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
   }
 
   /** Acerca la cámara a la pieza seleccionada (o encuadra el cuarto si no hay ninguna). Tecla F. */
@@ -419,7 +434,8 @@ export class SceneService implements SceneContext {
     this.lookFromPose(target.clone().add(from.normalize().multiplyScalar(distance)), target);
   }
 
-  private lookFromPose(position: THREE.Vector3, target: THREE.Vector3): void {
+  private lookFromPose(position: THREE.Vector3, target: THREE.Vector3, fov = ORBIT_FOV): void {
+    this.setFov(fov);
     this.camera.position.copy(position);
     this.camera.lookAt(target);
     if (this.controls) {

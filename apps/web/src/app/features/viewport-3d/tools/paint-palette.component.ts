@@ -5,7 +5,10 @@ import { DesignProjectStore } from '../../project/design-project.store';
 import { SetFinishesCommand } from '../commands';
 
 /** Superficie del cuarto que se pinta desde el visor. */
-export type PaintSurface = { surface: 'floor' } | { surface: 'wall'; wallId: string };
+export type PaintSurface = { surface: 'floor' } | { surface: 'ceiling' } | { surface: 'wall'; wallId: string };
+
+const NAMES = { floor: 'Piso', ceiling: 'Techo', wall: 'Pared' } as const;
+const GROUPS = { floor: 'Material del piso', ceiling: 'Color del techo', wall: 'Color de la pared' } as const;
 
 /**
  * Paleta flotante de la herramienta Pintar: aparece junto al punto donde se hizo clic con los
@@ -16,13 +19,13 @@ export type PaintSurface = { surface: 'floor' } | { surface: 'wall'; wallId: str
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="head">
-      <strong>{{ target().surface === 'floor' ? 'Piso' : 'Pared' }}</strong>
+      <strong>{{ names[target().surface] }}</strong>
       <button type="button" class="close" aria-label="Cerrar la paleta" (click)="closed.emit()">×</button>
     </div>
     @if (target().surface === 'wall') {
       <label class="all"><input type="checkbox" [checked]="allWalls()" (change)="allWalls.set($any($event.target).checked)" /> Todas las paredes</label>
     }
-    <div class="swatches" role="group" [attr.aria-label]="target().surface === 'floor' ? 'Material del piso' : 'Color de la pared'">
+    <div class="swatches" role="group" [attr.aria-label]="groups[target().surface]">
       @for (m of options(); track m.id) {
         <button type="button" class="swatch" [style.background]="m.color" [attr.aria-label]="m.name" [title]="m.name" [attr.aria-pressed]="current() === m.id" (click)="pick(m)"></button>
       }
@@ -96,6 +99,8 @@ export class PaintPaletteComponent {
 
   /** Pintar todas las paredes en vez de solo la que se tocó. */
   protected readonly allWalls = signal(false);
+  protected readonly names = NAMES;
+  protected readonly groups = GROUPS;
   protected readonly options = computed<MaterialDefinition[]>(() => materialsForSurface(this.target().surface));
   private readonly finishes = computed(() => effectiveFinishes(this.store.finishes(), this.store.project()?.selectedStyleId ?? null));
   private readonly wall = computed(() => {

@@ -7,6 +7,7 @@ import {
   OnDestroy,
   computed,
   input,
+  output,
   isDevMode,
   signal,
   viewChild,
@@ -62,6 +63,7 @@ const MAX_CAPTURE_PX = 4096;
         <button type="button" class="ctx" aria-label="Rotar a la izquierda" title="Rotar a la izquierda" (click)="scene.rotateSelected(-step)"><app-icon name="rotateLeft" /></button>
         <button type="button" class="ctx" aria-label="Rotar a la derecha" title="Rotar a la derecha" (click)="scene.rotateSelected(step)"><app-icon name="rotateRight" /></button>
         <button type="button" class="ctx" aria-label="Duplicar" title="Duplicar (Ctrl+D)" (click)="edits?.duplicate()"><app-icon name="copy" /></button>
+        <button type="button" class="ctx" aria-label="Cambiar por otro" title="Cambiar por otro mueble del mismo tipo" (click)="swap.emit()"><app-icon name="swap" /></button>
         <button type="button" class="ctx" [attr.aria-pressed]="locked()" [attr.aria-label]="locked() ? 'Soltar' : 'Fijar'" [title]="locked() ? 'Fijo: Otra distribución no lo mueve' : 'Fijar en su sitio'" (click)="toggleLock()">
           <app-icon [name]="locked() ? 'lock' : 'unlock'" />
         </button>
@@ -402,6 +404,9 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly walkLabel =
     'Recorrido del cuarto a pie. W, A, S, D o flechas para caminar; arrastra un mueble para moverlo, R para rotarlo, Supr para quitarlo; Escape para salir.';
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
+
+  /** Se pidió cambiar el mueble seleccionado por otro: el editor abre el catálogo de su tipo. */
+  readonly swap = output<void>();
 
   private renderer: THREE.WebGLRenderer | null = null;
   private postFx: PostFx | null = null;

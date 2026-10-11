@@ -171,7 +171,7 @@ function initialView(): ViewMode {
             <app-plan-editor class="pane" />
           }
           <!-- El visor 3D no se destruye al pasar al plano: solo se oculta (conserva la cámara y la GPU). -->
-          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" [class.bare]="presenting()" />
+          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" [class.bare]="presenting()" (swap)="swapMode.set(true)" />
           <app-presentation-overlay #presentation (started)="onPresenting(true)" (stopped)="onPresenting(false)" />
         </div>
         <p class="help muted">En el 3D: arrastra un mueble, gira su aro o estira sus tiradores · Paredes (W), Pintar (B) y Medir (M) cambian de herramienta · clic derecho o dos dedos mueven la cámara</p>

@@ -86,6 +86,11 @@ describe('matemática del gizmo', () => {
     const shell = room();
     expect(surfaceUnder(aim(2, 0, 2), shell)).toEqual({ surface: 'floor' });
     expect(surfaceUnder(aim(1, 1.5, 0), shell)).toEqual({ surface: 'wall', wallId: 'w-back' });
+    // Desde dentro y mirando hacia arriba, el techo.
+    const up = { origin: { x: 2, y: 1.6, z: 2 }, direction: { x: 0.1, y: 1, z: 0.1 } };
+    expect(surfaceUnder(up, shell)).toEqual({ surface: 'ceiling' });
+    // Desde fuera y por encima del cuarto no hay techo que tocar: se ve el piso.
+    expect(surfaceUnder({ origin: { x: 2, y: 8, z: 2 }, direction: { x: 0, y: -1, z: 0 } }, shell)).toEqual({ surface: 'floor' });
   });
 });
 
