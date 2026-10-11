@@ -224,6 +224,10 @@ CONTEXT_ROLES: dict[str, dict[RoomType, str]] = {
 }
 
 
+# Roles que acompañan a cualquier distribución aunque no salgan en la foto.
+AMBIENT_ROLES = frozenset({"rug", "pendant", "floor-lamp", "plant"})
+
+
 def inventory_role(category: str, room_type: RoomType) -> str | None:
     """Rol al que corresponde lo que nombró el modelo de visión, o None si no hay ninguno."""
     key = " ".join(category.lower().replace("-", " ").replace("_", " ").split())
@@ -257,7 +261,9 @@ def roles_for(room_type: RoomType, inventory: list[InventoryItem] | None) -> lis
         # Un rol múltiple (mesitas de noche, sillas de comedor) pone tantos como se vieron.
         return replace(role, count=max(1, min(role.count, seen[role.name]))) if role.count > 1 and role.name in seen else role
 
-    roles = [sized(r) for r in template if r.required or r.name in seen]
+    # Lo imprescindible, lo que se vio y lo que da ambiente (alfombra, luz, una planta): una foto
+    # rara vez enseña todo el cuarto, y sin eso queda desangelado.
+    roles = [sized(r) for r in template if r.required or r.name in seen or r.name in AMBIENT_ROLES]
     placed = {r.name for r in roles}
     for name in seen:
         extra = ROLE_LIBRARY.get(name)

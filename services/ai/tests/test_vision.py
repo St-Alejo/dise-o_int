@@ -258,16 +258,17 @@ def test_con_inventario_se_coloca_lo_que_habia_en_la_foto():
     full = names(roles_for("living", None))
     assert len(full) == 9
 
-    seen = names(roles_for("living", inventory(("sofa", 1), ("tv", 1), ("rug", 1))))
-    # Lo imprescindible (sofá y mesa de centro) más lo visto; ni butaca, ni estantería, ni planta.
-    assert seen == [("sofa", 1), ("coffee-table", 1), ("tv-stand", 1), ("rug", 1)]
+    ambient = {"rug": 1, "pendant": 1, "floor-lamp": 1, "plant": 1}
+    seen = dict(names(roles_for("living", inventory(("sofa", 1), ("tv", 1), ("rug", 1)))))
+    # Lo imprescindible (sofá y mesa de centro), lo visto y lo que da ambiente; ni butaca ni estantería.
+    assert seen == {"sofa": 1, "coffee-table": 1, "tv-stand": 1, **ambient}
 
     bedroom = dict(names(roles_for("bedroom", inventory(("bed", 1), ("nightstand", 1), ("desk", 1), ("chair", 1)))))
-    assert bedroom == {"bed": 1, "desk": 1, "nightstand": 1, "armchair": 1}
+    assert bedroom == {"bed": 1, "desk": 1, "nightstand": 1, "armchair": 1, **ambient}
 
     # Sala abierta al comedor: la mesa y sus sillas entran aunque el cuarto sea una sala.
     open_plan = dict(names(roles_for("living", inventory(("sofa", 1), ("dining table", 1), ("dining chair", 4)))))
-    assert open_plan == {"sofa": 1, "coffee-table": 1, "dining-table": 1, "dining-chair": 4}
+    assert open_plan == {"sofa": 1, "coffee-table": 1, "dining-table": 1, "dining-chair": 4, **ambient}
     # Sillas de comedor sin mesa no tienen dónde ir.
     assert "dining-chair" not in dict(names(roles_for("bedroom", inventory(("bed", 1), ("dining chair", 4)))))
     # Un inventario que no se entiende no vacía el cuarto: se usa la plantilla.

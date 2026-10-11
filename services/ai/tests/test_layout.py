@@ -378,3 +378,14 @@ def test_el_inventario_de_la_foto_reconoce_lo_que_hay_en_una_cocina():
     assert inventory_role("cabinets", "kitchen") == "kitchen-base"
     assert inventory_role("chair", "kitchen") == "stool"
     assert inventory_role("microwave", "kitchen") is None
+
+
+def test_con_inventario_de_la_foto_no_falta_lo_que_da_ambiente():
+    from interiores_ai.contracts import InventoryItem
+    from interiores_ai.layout.rules_engine import roles_for
+
+    roles = {r.name for r in roles_for("living", [InventoryItem(category="sofa")])}
+    # Lo que se vio, lo imprescindible y, aunque la foto no lo enseñe, alfombra, luz y una planta.
+    assert {"sofa", "coffee-table", "rug", "pendant", "floor-lamp", "plant"} <= roles
+    # Lo que no se vio ni da ambiente (el mueble de la tele, el sillón) no se inventa.
+    assert not {"tv-stand", "armchair", "shelf"} & roles
