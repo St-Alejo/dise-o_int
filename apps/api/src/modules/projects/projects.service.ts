@@ -33,6 +33,7 @@ import {
   type RoomFinishes,
   type StyleId,
   type UpdateRoomRequest,
+  type ImportProjectRequest,
   type UpdateSceneRequest,
   type Vector3,
   CreateProjectFieldsSchema,
@@ -221,6 +222,36 @@ export class ProjectsService {
     });
     this.logger.log({ projectId: copy.id, from: id, requestId: actor.requestId }, 'Proyecto duplicado');
     return this.toDto(copy);
+  }
+
+  /**
+   * Un cuarto hecho fuera (la demo sin cuenta) entra como proyecto propio, ya listo. Pasa por las
+   * mismas comprobaciones que una escena guardada: planta válida, muebles que existen y caben,
+   * acabados conocidos. Nace guardado: quien lo importa pidió conservarlo.
+   */
+  async importScene(actor: Actor, req: ImportProjectRequest): Promise<DesignProject> {
+    const shell = this.editedShell({ ...req.roomShell, id: randomUUID() }, req.roomShell);
+    const placements = await this.sanitizePlacements(shell, req.furniturePlacements);
+    if (req.finishes) this.validateFinishes(req.finishes);
+    const created = await this.projects.create({
+      id: randomUUID(),
+      ownerId: actor.userId,
+      name: req.name,
+      roomType: req.roomType,
+      status: 'ready',
+      photoKey: null,
+      photoHash: null,
+      thumbKey: null,
+      roomShell: shell,
+      placements,
+      finishes: req.finishes ?? null,
+      requestedRoom: null,
+      selectedStyleId: req.selectedStyleId ?? null,
+      requestedStyles: req.selectedStyleId ? [req.selectedStyleId] : [],
+      saved: true,
+    });
+    this.logger.log({ projectId: created.id, pieces: placements.length, requestId: actor.requestId }, 'Proyecto importado');
+    return this.toDto(created);
   }
 
   /** Borrado REAL de base de datos y archivos (§8.4 privacidad). */

@@ -138,6 +138,20 @@ export const UpdateProjectRequestSchema = z.object({
 });
 export type UpdateProjectRequest = z.infer<typeof UpdateProjectRequestSchema>;
 
+/**
+ * `POST /projects/import`: un cuarto ya hecho (la demo que se usa sin cuenta) pasa a ser un
+ * proyecto. Se valida igual que una escena guardada: nada de lo que llega se da por bueno.
+ */
+export const ImportProjectRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  roomType: RoomTypeSchema,
+  roomShell: RoomShellSchema,
+  furniturePlacements: z.array(FurniturePlacementSchema).max(200),
+  finishes: RoomFinishesSchema.nullable().optional(),
+  selectedStyleId: StyleIdSchema.nullable().optional(),
+});
+export type ImportProjectRequest = z.infer<typeof ImportProjectRequestSchema>;
+
 export const UpdateSceneRequestSchema = z.object({
   revision: z.number().int().nonnegative(),
   furniturePlacements: z.array(FurniturePlacementSchema).max(200),

@@ -25,6 +25,7 @@ import {
   GenerateStylesRequestSchema,
   SaveVersionRequestSchema,
   SelectStyleRequestSchema,
+  ImportProjectRequestSchema,
   UpdateProjectRequestSchema,
   UpdateRoomRequestSchema,
   UpdateSceneRequestSchema,
@@ -43,6 +44,7 @@ import {
   type ShoppingList,
   type UpdateProjectRequest,
   type UpdateRoomRequest,
+  type ImportProjectRequest,
   type UpdateSceneRequest,
 } from '@interiores/shared-types';
 import type { Response } from 'express';
@@ -82,6 +84,17 @@ export class ProjectsController {
     @UploadedFile() photo: Express.Multer.File | undefined,
   ): Promise<DesignProject> {
     return this.service.create(this.actor(user, requestId), fields, photo?.buffer);
+  }
+
+  @Post('import')
+  @Throttle(perMinute(6))
+  @ApiBody({ schema: openApiSchema(ImportProjectRequestSchema) })
+  importScene(
+    @CurrentUser() user: AuthPrincipal,
+    @RequestId() requestId: string | undefined,
+    @Body(new ZodPipe(ImportProjectRequestSchema)) body: ImportProjectRequest,
+  ): Promise<DesignProject> {
+    return this.service.importScene(this.actor(user, requestId), body);
   }
 
   @Get(':id')

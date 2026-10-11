@@ -185,6 +185,39 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('importScene (guardar la demo sin cuenta)', () => {
+    const shell = createRectangularShell(4, 3.5, 2.6);
+    const sofa = { id: 'p1', catalogItemId: 'sofa-test', position: { x: 2, y: 0, z: 1 }, rotationY: 0, lockedByUser: false };
+    const body = { name: 'Sala escandinava', roomType: 'living' as const, roomShell: shell, furniturePlacements: [sofa], selectedStyleId: 'escandinavo' as const };
+
+    it('crea un proyecto propio, listo y guardado, con su planta, muebles y estilo', async () => {
+      const created = await service.importScene(alice, body);
+      expect(created).toMatchObject({ name: 'Sala escandinava', status: 'ready', saved: true, selectedStyleId: 'escandinavo', sourcePhotoUrl: null, revision: 0 });
+      expect(created.furniturePlacements).toHaveLength(1);
+      expect(created.roomShell).toMatchObject({ widthM: 4, depthM: 3.5, heightM: 2.6 });
+      // El id del cuarto es nuevo: dos importaciones de la misma plantilla no lo comparten.
+      expect(created.roomShell!.id).not.toBe(shell.id);
+      expect((await service.list(alice)).map((p) => p.id)).toContain(created.id);
+      await expect(service.get(bob, created.id)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('no se fía de lo que llega: muebles inexistentes, plantas imposibles y acabados inventados se rechazan', async () => {
+      await expect(service.importScene(alice, { ...body, furniturePlacements: [{ ...sofa, catalogItemId: 'no-existe' }] })).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.importScene(alice, { ...body, roomShell: { ...shell, widthM: 200 } })).rejects.toBeInstanceOf(ValidationError);
+      await expect(
+        service.importScene(alice, { ...body, finishes: { floor: 'paint-white', walls: { all: 'paint-white' }, ceiling: 'paint-white' } }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      expect(await service.list(alice)).toHaveLength(0);
+    });
+
+    it('un mueble que llega fuera del cuarto se mete dentro', async () => {
+      const created = await service.importScene(alice, { ...body, furniturePlacements: [{ ...sofa, position: { x: 40, y: 0, z: 40 } }] });
+      const { x, z } = created.furniturePlacements[0]!.position;
+      expect(x).toBeLessThan(4);
+      expect(z).toBeLessThan(3.5);
+    });
+  });
+
   describe('duplicate', () => {
     it('copia el cuarto, los muebles y los acabados en un proyecto nuevo y listo', async () => {
       const p = await readyProject();

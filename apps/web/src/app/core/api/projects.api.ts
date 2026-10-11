@@ -20,6 +20,7 @@ import type {
   ShoppingList,
   StyleId,
   UpdateRoomRequest,
+  ImportProjectRequest,
   UpdateSceneRequest,
 } from '@interiores/shared-types';
 import { Observable, filter, firstValueFrom, map, shareReplay } from 'rxjs';
@@ -96,6 +97,11 @@ export class ProjectsApi {
 
   progress(id: string): Promise<JobProgressEvent[]> {
     return firstValueFrom(this.http.get<JobProgressEvent[]>(`${this.base}/${id}/progress`));
+  }
+
+  /** Convierte un cuarto hecho sin cuenta (la demo) en un proyecto propio. */
+  importScene(body: ImportProjectRequest): Promise<DesignProject> {
+    return firstValueFrom(this.http.post<DesignProject>(`${this.base}/import`, body));
   }
 
   saveScene(id: string, body: UpdateSceneRequest): Promise<DesignProject> {
