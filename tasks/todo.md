@@ -1,424 +1,97 @@
-# Tareas: rediseño visual
+# Tareas: plan v6 (landing editorial, 3D más real, robustez y funciones nuevas)
 
-Plan completo en [`plan.md`](plan.md). Rutas relativas a `diseño de interiores/`; `web/` abrevia
-`apps/web/src/app/`.
+Plan completo en [`plan.md`](plan.md). Rutas relativas a `diseño de interiores/`; `v3d/` abrevia
+`apps/web/src/app/features/viewport-3d/`.
 
 Órdenes de verificación (las del repo):
-- **Unitarias y lint:** `./scripts/toolbox.sh "npm run build:types && npm test -w web && npm run lint -w web"`
-  (añadir `npm test -w @interiores/shared-types && npm test -w api` cuando la tarea los toque).
-- **Imagen y stack:** `./scripts/build-images.sh web` y
+- **Unitarias y lint:** `./scripts/toolbox.sh "npm run build:types && npm test -w @interiores/shared-types && npm test -w api && npm test -w web && npm run lint"`.
+- **IA:** `ruff`, `mypy` y `pytest` en `services/ai`.
+- **Imagen y stack:** `./scripts/build-images.sh api ai web` y
   `RATE_LIMIT_MULTIPLIER=20 ROOM_ANALYZER=mock docker compose up -d --no-build --wait`.
 - **e2e:** la suite Playwright en contenedor contra `http://host.docker.internal:8088`.
 
-**Estado (2026-10-11):** las 15 tareas están hechas y desplegadas. Quedan sin marcar solo las
-revisiones que le tocan al usuario. Lo que cambió respecto a lo planeado:
-- T11: el campo es `styleId` (el estilo elegido), no `styles`; se añadió `outline` para dibujar la planta en la tarjeta.
-- T12: la tarjeta sigue dentro de `projects.page.ts`; se extrajo la lógica a `projects-filter.ts`.
-- T13: el resumen de lo elegido va en `wizard-summary.ts`, bajo los pasos, en vez de en una columna lateral.
-- T14: el total de la franja es el del editor; no se añadió un componente de ilustración aparte para la 404.
-
-Cada tarea cierra con pruebas en verde, un commit (Conventional Commits en español, sin atribución)
-y `git push`.
-
----
-
-## Fase 1 — Cimientos
-
-### T1: Paleta nueva en los tokens, con prueba de contraste
-
-**Descripción:** Cambiar los valores de color de `:root` y de `dark-tokens` a la paleta "Petróleo y
-arcilla" y añadir los tokens `--accent-soft`, `--highlight`, `--gradient-brand`, `--tint-1…3` y
-`--ring`. Una prueba lee `styles.scss`, resuelve los tokens de cada tema y comprueba el contraste.
-
-**Criterios de aceptación:**
-- [x] Toda la app cambia de marrón a verde petróleo con acento arcilla, en claro y en oscuro, sin tocar componentes.
-- [x] Cada par texto/fondo que la interfaz usa (`text`/`bg`, `text-muted`/`surface`, `on-primary`/`primary`, `primary-strong`/`primary-soft`, `accent`/`surface`, y los de `danger`, `warning`, `success`) llega a 4.5:1 en los dos temas.
-- [x] El anillo de foco se sigue viendo sobre `--bg`, `--surface` y `--primary` (3:1).
-
-**Verificación:**
-- [x] Unitarias y lint en verde, incluida la spec nueva de contraste.
-- [x] `a11y.spec.ts` en verde.
-- [x] A ojo: `/` y `/entrar` en claro y oscuro.
-
-**Dependencias:** ninguna
-
-**Archivos:**
-- `apps/web/src/styles.scss`
-- `apps/web/src/design-tokens.spec.ts` (nuevo)
-
-**Tamaño:** S
-
-### T2: Tipografía autoalojada y escala tipográfica
-
-**Descripción:** Añadir Fraunces (títulos) e Inter (texto) como woff2 variables en
-`public/fonts/`, declararlas con `@font-face` y `font-display: swap`, y definir la escala
-`--text-xs…--text-3xl` con la que se escriben `h1–h3`, `.lead` y `.fine`.
-
-**Criterios de aceptación:**
-- [x] Títulos y texto usan las fuentes nuevas sin pedir nada a otro dominio (la CSP no cambia).
-- [x] Las dos fuentes suman menos de 120 kB y solo la de texto va con `preload`.
-- [x] Hay un `ATTRIBUTION.md` con la licencia OFL de cada una.
-
-**Verificación:**
-- [x] Unitarias y lint en verde; build de producción sin superar el aviso de 450 kB.
-- [x] A ojo: pestaña Red sin peticiones externas y sin salto de diseño al cargar la fuente.
-
-**Dependencias:** T1
-
-**Archivos:**
-- `apps/web/public/fonts/` (2 woff2 + `ATTRIBUTION.md`)
-- `apps/web/src/styles.scss`
-- `apps/web/src/index.html`
-
-**Tamaño:** S
-
-### T3: Clases base renovadas y colores sueltos a tokens
-
-**Descripción:** Dar más carácter a las clases compartidas (`.btn`, `.card`, `.chip`, `.badge`,
-`.input`) y añadir las que usarán las páginas: `.section` / `.section-tint`, `.eyebrow`, `.stat`,
-`.kicker`, `.card-hover`. Sustituir por tokens los colores escritos a mano en la interfaz (no en
-el visor 3D).
-
-**Criterios de aceptación:**
-- [x] Botones, tarjetas, chips e insignias tienen estados de reposo, hover, foco, pulsado y deshabilitado distinguibles en los dos temas.
-- [x] No queda ningún color fijo de interfaz en `app.ts`, `editor.component.ts`, `inspector.component.ts`, `compare-slider.component.ts`, `three-viewport.component.ts` ni en `.scene-label` (los de materiales y luces del visor se quedan).
-- [x] El editor se ve coherente con la paleta nueva sin cambios de comportamiento.
-
-**Verificación:**
-- [x] Unitarias y lint en verde.
-- [x] Suite e2e completa en verde.
-- [x] A ojo: editor (barras, inspector, catálogo) en claro y oscuro.
-
-**Dependencias:** T2
-
-**Archivos:**
-- `apps/web/src/styles.scss`
-- `web/app.ts`
-- `web/features/viewport-3d/editor.component.ts`, `three-viewport.component.ts`
-- `web/features/inspector/inspector.component.ts`
-- `web/features/style-gallery/compare-slider.component.ts`
-
-**Tamaño:** M
-
-## Punto de control A — después de T1–T3
-- [x] Unitarias, lint y suite e2e completa (35/35) en verde
-- [x] Capturas de `/`, `/entrar`, `/proyectos` y el editor en claro y oscuro, revisadas
-- [ ] **El usuario confirma la paleta y las fuentes antes de seguir**
-
----
-
-## Fase 2 — Landing
-
-### T4: Cabecera y pie con más contenido
-
-**Descripción:** Cabecera con enlaces a las secciones de la landing (Cómo funciona, Qué hace,
-Estilos, Preguntas) y menú plegable en móvil. Pie de varias columnas: producto, privacidad de las
-fotos, tecnología del proyecto y enlace al repositorio.
-
-**Criterios de aceptación:**
-- [x] Desde la cabecera se llega a cada sección de la landing con teclado y con ratón; en 320 px el menú se abre y se cierra con Escape.
-- [x] El pie dice qué es el proyecto, qué pasa con las fotos y con qué está hecho, y se lee bien en móvil.
-- [x] El logo usa `currentColor`/tokens y se ve bien en los dos temas.
-
-**Verificación:**
-- [x] Unitarias y lint en verde; `a11y.spec.ts` en verde en escritorio y `@mobile`.
-- [x] A ojo: 320, 768 y 1440 px.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/app.ts`
-- `web/shared/ui/icon.component.ts` (iconos de menú y enlace externo)
-- `e2e/tests/a11y.spec.ts` (si hace falta abrir el menú)
-
-**Tamaño:** S
-
-### T5: Hero con color y vista previa real
-
-**Descripción:** Rehacer el encabezado de la landing: fondo con el degradado de marca, titular con
-una palabra resaltada en el acento, tres ventajas con icono bajo los botones y, junto al plano
-interactivo, una captura del 3D del mismo cuarto para que se vea el resultado.
-
-**Criterios de aceptación:**
-- [x] El hero muestra a la vez el plano interactivo (cambia con las formas, como hoy) y una vista 3D real.
-- [x] El botón principal sigue llamándose "Diseñar mi cuarto" y lleva al mismo sitio.
-- [x] En 320 px no hay scroll horizontal y el botón principal se ve sin desplazarse.
-
-**Verificación:**
-- [x] Unitarias y lint en verde; `a11y.spec.ts` y `wizard.spec.ts` en verde.
-- [x] A ojo: claro, oscuro y móvil.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/features/home/home.page.ts`
-- `web/features/home/hero.component.ts` (nuevo; `home.page.ts` ya tiene 390 líneas)
-- `apps/web/public/landing/` (captura 3D por forma)
-
-**Tamaño:** M
-
-### T6: Franja de cifras y sección "qué reconoce de tu foto"
-
-**Descripción:** Una franja con cifras reales (piezas del catálogo, categorías, estilos, formas y
-tipos de cuarto) leídas del catálogo público y de `shared-types`, y una sección que explica con
-iconos qué saca la app de una foto (puertas, ventanas, muebles, colores, medidas aproximadas) y
-qué no.
-
-**Criterios de aceptación:**
-- [x] Las cifras salen de datos reales; si el catálogo no responde, la franja muestra solo las que no dependen de la red, sin huecos ni errores.
-- [x] La sección dice con honestidad qué es estimado (medidas) y qué es fiable (aberturas, muebles, colores).
-- [x] Cada elemento lleva icono y texto (el color no es la única señal).
-
-**Verificación:**
-- [x] Unitarias en verde, con una spec del componente de cifras (con catálogo y sin él).
-- [x] A ojo: con la API caída la landing sigue entera.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/features/home/stats-band.component.ts` (+ `.spec.ts`, nuevos)
-- `web/features/home/home.page.ts`
-- `web/shared/ui/icon.component.ts`
-
-**Tamaño:** M
-
-### T7: Galería de capturas por pestañas
-
-**Descripción:** Sustituir las tres funciones sueltas por una galería con pestañas — Editar en 3D,
-Recorrer, Día y noche, Plano y medidas, Pintar y materiales — cada una con captura real, dos o
-tres frases y sus atajos. Las imágenes salen de `docs/capturas/`, optimizadas.
-
-**Criterios de aceptación:**
-- [x] Cinco pestañas con patrón `tablist` accesible (flechas, Inicio, Fin) y captura con texto alternativo.
-- [x] Cada imagen pesa menos de 150 kB, carga con `lazy` y no mueve el diseño al aparecer.
-- [x] En móvil las pestañas se desplazan en horizontal sin romper la página.
-
-**Verificación:**
-- [x] Unitarias y lint en verde; `a11y.spec.ts` en verde.
-- [x] A ojo: recorrer las pestañas solo con teclado.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/features/home/feature-gallery.component.ts` (+ `.spec.ts`, nuevos)
-- `web/features/home/home.page.ts`
-- `apps/web/public/landing/` (5–6 imágenes)
-
-**Tamaño:** M
-
-### T8: Aparición al hacer scroll
-
-**Descripción:** Directiva `appReveal` con `IntersectionObserver` que hace aparecer las secciones
-al entrar en pantalla. Sin JavaScript de animación: solo cambia una clase.
-
-**Criterios de aceptación:**
-- [x] Las secciones de la landing aparecen una vez, sin parpadeo ni salto de diseño.
-- [x] Con `prefers-reduced-motion` o sin `IntersectionObserver`, el contenido se ve desde el principio.
-- [x] El contenido es visible para axe y para las pruebas sin esperar animaciones.
-
-**Verificación:**
-- [x] Unitarias en verde, con spec de la directiva (visible por defecto sin observador).
-- [x] `a11y.spec.ts` en verde.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/shared/ui/reveal.directive.ts` (+ `.spec.ts`, nuevos)
-- `apps/web/src/styles.scss`
-- `web/features/home/home.page.ts`
-
-**Tamaño:** S
-
-### T9: Estilos, comparativa con foto / sin foto, FAQ ampliada y cierre
-
-**Descripción:** Tarjetas de estilo con paleta grande, materiales típicos y enlace para empezar con
-ese estilo; tabla comparativa "con foto" frente a "sin foto"; FAQ de 4 a 8 preguntas (costo,
-dispositivos, compartir, medidas, privacidad, deshacer); cierre con el degradado de marca.
-
-**Criterios de aceptación:**
-- [x] Cada estilo muestra su paleta, su descripción y un botón que abre el asistente con ese estilo ya elegido.
-- [x] La comparativa se lee como tabla en escritorio y como lista en móvil, con cabeceras correctas para lectores de pantalla.
-- [x] La FAQ tiene 8 preguntas respondidas con lo que la app hace de verdad.
-
-**Verificación:**
-- [x] Unitarias y lint en verde; `a11y.spec.ts` y `wizard.spec.ts` en verde.
-- [x] A ojo: el botón de un estilo llega al asistente con el estilo marcado.
-
-**Dependencias:** T5, T6, T7, T8
-
-**Archivos:**
-- `web/features/home/home.page.ts`
-- `web/features/home/style-cards.component.ts` (nuevo)
-- `web/features/new-project/new-project.page.ts` (leer el estilo de la URL)
-- `e2e/tests/wizard.spec.ts`
-
-**Tamaño:** M
-
-## Punto de control B — después de T4–T9
-- [x] `a11y.spec.ts` en verde en escritorio y `@mobile`
-- [x] Sin desbordes a 320, 768, 1024 y 1440 px
-- [x] Bundle inicial bajo el aviso de 450 kB
-- [ ] El usuario revisa la landing
-
----
-
-## Fase 3 — Páginas de la app
-
-### T10: Entrar y registro a dos columnas
-
-**Descripción:** Junto al formulario, un panel con una captura real y tres ventajas (qué obtienes al
-crear la cuenta, qué pasa con tus fotos). En móvil el panel pasa debajo. El formulario no cambia
-de campos ni de textos.
-
-**Criterios de aceptación:**
-- [x] `/entrar` y `/registro` muestran formulario y panel en escritorio, y solo una columna en móvil con el formulario primero.
-- [x] Etiquetas, mensajes de error y botones conservan su texto y su orden de tabulación.
-- [x] Los estilos en línea (`style="…"`) del formulario pasan a clases.
-
-**Verificación:**
-- [x] Unitarias y lint en verde; `a11y.spec.ts` y `flow.spec.ts` en verde.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/features/auth/auth.page.ts`
-- `apps/web/public/landing/` (una captura)
-
-**Tamaño:** S
-
-### T11: La lista de proyectos trae área, estilos y total estimado
-
-**Descripción:** Añadir a `ProjectListItemSchema` los campos opcionales `areaM2`, `styles` y
-`estimatedTotal`, calculados en el servidor a partir del cuarto y de los muebles con las funciones
-que ya existen en `shared-types` (polígono y lista de compras).
-
-**Criterios de aceptación:**
-- [x] `GET /api/projects` devuelve los tres campos para proyectos listos y los omite si no se pueden calcular.
-- [x] Un cliente que ignore los campos nuevos sigue funcionando (son opcionales; sin migración).
-- [x] La lista no hace una consulta extra por proyecto.
-
-**Verificación:**
-- [x] `npm test -w @interiores/shared-types` y `npm test -w api` en verde, con casos nuevos del listado.
-- [x] `projects-manage.spec.ts` en verde.
-
-**Dependencias:** ninguna (se puede hacer en paralelo con la fase 2)
-
-**Archivos:**
-- `packages/shared-types/src/api.ts`
-- `apps/api/src/modules/projects/` (servicio de listado y su spec)
-
-**Tamaño:** S
-
-### T12: Mis proyectos: resumen, filtros y tarjetas con más datos
-
-**Descripción:** Encabezado con resumen (cuántos proyectos, cuántos sin guardar, área total),
-filtro por tipo de cuarto y orden (recientes, nombre), y tarjetas con miniatura grande, área,
-estilos como chips y total estimado. Estado vacío con ilustración y dos caminos (con foto, sin
-foto). Fuera el emoji ⏳.
-
-**Criterios de aceptación:**
-- [x] La tarjeta muestra tipo, área, nº de muebles, estilos, total y fecha; lo que falte no deja huecos.
-- [x] Filtro y orden funcionan junto con la búsqueda por nombre y se anuncian a lectores de pantalla.
-- [x] Renombrar, duplicar y borrar siguen igual (mismos textos y `aria-label`).
-
-**Verificación:**
-- [x] Unitarias y lint en verde, con spec del filtrado y el orden.
-- [x] `projects-manage.spec.ts` en verde.
-- [x] A ojo: con 0, 1 y 9 proyectos (la cuenta demo tiene 9).
-
-**Dependencias:** T3, T11
-
-**Archivos:**
-- `web/features/projects/projects.page.ts`
-- `web/features/projects/project-card.component.ts` (nuevo)
-- `web/features/projects/projects-filter.ts` (+ `.spec.ts`, nuevos)
-- `web/shared/ui/icon.component.ts`
-
-**Tamaño:** M
-
-### T13: Asistente de proyecto nuevo con pasos visibles
-
-**Descripción:** Barra de pasos con el actual resaltado, tarjetas de opción (con foto / sin foto,
-tipo de cuarto, estilo) con icono y descripción, y una columna lateral que resume lo elegido hasta
-el momento. Sin cambiar el flujo ni los nombres de los controles.
-
-**Criterios de aceptación:**
-- [x] En todo momento se ve en qué paso se está y qué se ha elegido.
-- [x] Las opciones son botones o radios reales, con estado seleccionado visible sin depender solo del color.
-- [x] El flujo completo (con foto y sin foto) funciona igual que antes.
-
-**Verificación:**
-- [x] Unitarias y lint en verde.
-- [x] `wizard.spec.ts`, `flow.spec.ts` y `room-shapes.spec.ts` en verde.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/features/new-project/new-project.page.ts`
-- `web/features/new-project/wizard-steps.component.ts` (nuevo)
-- `web/shared/ui/icon.component.ts`
-
-**Tamaño:** M
-
-### T14: Cabecera del proyecto, enlace público y 404
-
-**Descripción:** Franja de datos del proyecto sobre el editor (área, nº de muebles, total
-estimado, estado de guardado), la misma franja en el enlace público con una llamada a "crea el
-tuyo", y una página 404 con ilustración y enlaces útiles.
-
-**Criterios de aceptación:**
-- [x] El proyecto y el enlace público muestran área, muebles y total, y se actualizan al editar.
-- [x] El enlace público invita a crear un cuarto propio sin tapar el visor.
-- [x] La 404 ofrece volver al inicio y a "Mis proyectos".
-
-**Verificación:**
-- [x] Unitarias y lint en verde.
-- [x] `walk.spec.ts` (incluye el enlace público) y `customize.spec.ts` en verde.
-
-**Dependencias:** T3
-
-**Archivos:**
-- `web/features/project/project.page.ts`
-- `web/features/project/project-facts.component.ts` (nuevo)
-- `web/features/public/public-project.page.ts`
-- `web/features/home/not-found.page.ts`
-
-**Tamaño:** M
-
-## Punto de control C — después de T10–T14
-- [x] Suite e2e completa en verde dos veces seguidas
-- [x] Flujo a mano: registro → proyecto nuevo → editor → compartir → enlace público
-- [ ] El usuario revisa las páginas de la app
-
----
-
-## Fase 4 — Cierre
-
-### T15: Capturas, README, ADR-0017 y despliegue
-
-**Descripción:** Rehacer las capturas de `docs/capturas/landing/`, documentar la paleta, las
-fuentes y los tokens en el README y en un ADR-0017 (sistema visual), desplegar `web` y `api` en
-Railway y repetir humo y e2e contra la URL pública.
-
-**Criterios de aceptación:**
-- [x] README y ADR explican la paleta, la tipografía y cómo añadir un color o una sección.
-- [x] Capturas nuevas en claro, oscuro y móvil.
-- [x] Producción sirve el rediseño y pasa las pruebas.
-
-**Verificación:**
-- [x] `railway deployment list` en `SUCCESS` para `web` y `api`; `/healthz` 200.
-- [x] `a11y.spec.ts` y `walk.spec.ts` en verde contra la URL pública.
-
-**Dependencias:** T1–T14
-
-**Archivos:**
-- `README.md`
-- `docs/adr/0017-sistema-visual.md` (nuevo)
-- `docs/capturas/landing/`
-
-**Tamaño:** S
-
-## Punto de control final
-- [x] Todos los criterios de aceptación cumplidos
-- [x] Unitarias, lint y e2e en verde, local y en producción
-- [x] `git log --format='%an <%ae>'` solo muestra a Steven
+Cada tarea cierra con pruebas en verde, commit y push.
+
+## A — 3D más real
+
+- [ ] **A1 Posprocesado.** `v3d/scene/post-fx.ts` cargado con `import()`: oclusión ambiental y contorno
+  de selección y de hover. *Hecho cuando:* el visor pinta por el composer sin perder el render bajo
+  demanda; `window.__scene.postFx` lo refleja; el bundle inicial no sube.
+- [ ] **A2 Luz.** Luz de ventana, sombras suaves, entorno del propio cuarto y preset `tarde`.
+  *Hecho cuando:* hay tres horas con spec de presets y el botón del visor las recorre.
+- [ ] **A3 Paredes en corte.** Las paredes que tapan la cámara se ven cortadas, no translúcidas.
+  *Hecho cuando:* la decisión es una función pura con spec y al recorrer las paredes van enteras.
+- [ ] **A4 Materiales y detalle.** Texturas PBR autoalojadas, cantos redondeados, paletas de pared
+  desaturadas. *Hecho cuando:* `ATTRIBUTION.md` lista cada textura y los proyectos viejos abren igual.
+- [ ] **A5 Calidad adaptativa y recuperación.** `v3d/scene/quality.ts` y `webglcontextrestored`.
+  *Hecho cuando:* los escalones tienen spec y perder el contexto no obliga a recargar.
+- [ ] **A6 Cámara y captura.** Cenital ortográfica y `capturePng(escala)`.
+- [ ] **A7 Restos del visor.** "Cambiar" en la barra contextual, pintar el techo, materiales del mueble
+  con la herramienta de pintar.
+
+### Punto de control A
+- [ ] Unitarias, lint y e2e en verde; capturas de día, tarde y noche revisadas a ojo.
+
+## B — Cuartos menos vacíos
+
+- [ ] **B1 Catálogo de decoración.** Cuadros, espejos, plantas, cortinas, alfombras, lámparas.
+- [ ] **B2 Pasada de decoración** en `rules_engine.py` (pared y superficie) y kits de cocina y baño.
+- [ ] **B3 Puntuación.** `layout/scoring.py`: varias candidatas, gana la mejor.
+- [ ] **B4 Inventario de la foto guardado** (`photoInventory`, migración aditiva).
+
+### Punto de control B
+- [ ] `pytest` y contrato en verde; un cuarto nuevo de cada tipo sale amueblado y sin errores de revisión.
+
+## C — Demo sin registro y plantillas
+
+- [ ] **C1 Puerto `ProjectPersistence`** con `ApiPersistence` y `LocalPersistence`.
+- [ ] **C2 Plantillas amuebladas** en `shared-types/src/furnished-templates.ts`, con spec.
+- [ ] **C3 Rutas `/demo/:plantilla` y `/plantillas`.**
+- [ ] **C4 Guardar la demo en la cuenta** (`POST /projects/import`).
+
+### Punto de control C
+- [ ] e2e `demo.spec.ts` en verde.
+
+## D — Landing editorial
+
+- [ ] **D1 Sistema editorial** en `styles.scss`: escala fluida, rejilla, filetes, sin fondos alternos.
+- [ ] **D2 Capturas reproducibles** (`e2e/scripts/landing-shots.mjs`) y fotos libres con atribución.
+- [ ] **D3 Encabezado** con render a todo el ancho y conmutador de hora.
+- [ ] **D4 Pasos y antes/después** (`before-after.component.ts`).
+- [ ] **D5 El editor** (texto fijo y captura que cambia).
+- [ ] **D6 Estilos y plantillas.**
+- [ ] **D7 Qué reconoce, preguntas, cierre, cabecera y pie.**
+- [ ] **D8 Mismo lenguaje** en acceso, 404 y estado vacío.
+
+### Punto de control D
+- [ ] axe y desborde (320–1440) en verde; pesos dentro del presupuesto; despliegue y humo en producción.
+
+## E — Robustez
+
+- [ ] **E1 Partir `projects.service.ts`** y segregar el repositorio (sin cambio de comportamiento).
+- [ ] **E2 Fusión en el 409** y botón "Reintentar".
+- [ ] **E3 Táctil y móvil** del editor, con specs `@mobile`.
+- [ ] **E4 axe** en editor, asistente y proyectos.
+- [ ] **E5 Componentes base** en `shared/ui` y partir `editor.component.ts`.
+- [ ] **E6 IA con tiempo límite y cortacircuitos;** cuota y caché de visión en Redis.
+- [ ] **E7 Umbral de cobertura** y `resilience.mjs` en CI.
+- [ ] **E8 Primeros pasos** (recorrido guiado).
+
+## F — Exportar y presentar
+
+- [ ] **F1 PDF del proyecto.**
+- [ ] **F2 Imagen en alta resolución.**
+- [ ] **F3 Modo presentación.**
+- [ ] **F4 Presupuesto con tope.**
+- [ ] **F5 Comparar versiones.**
+
+## G — Varios cuartos por proyecto
+
+- [ ] **G1 Modelo y API** (tabla `Room`, migración aditiva, rutas antiguas como alias).
+- [ ] **G2 Editor** con pestañas de cuartos.
+- [ ] **G3 Vivienda** (planta conjunta, totales del proyecto).
+
+## H — Cierre
+
+- [ ] ADR-0018 a 0021, README, capturas y diagrama de clases.
+- [ ] Despliegue en Railway y e2e contra la URL pública.
