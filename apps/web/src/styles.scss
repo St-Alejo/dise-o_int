@@ -1,8 +1,24 @@
 /* ==========================================================================
    Sistema de diseño — Interiores IA
    Tokens en :root (claro) y [data-theme=dark] / prefers-color-scheme (oscuro).
-   Tipografía del sistema (la CSP no permite fuentes externas).
+   Tipografía autoalojada en /fonts (la CSP no permite fuentes externas).
    ========================================================================== */
+
+/* Variables y solo con el subconjunto latino: dos archivos cubren todos los pesos. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/fraunces-latin.woff2') format('woff2');
+}
 
 :root {
   color-scheme: light;
@@ -48,7 +64,14 @@
   --space-6: 32px;
   --space-7: 48px;
   --font: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: 'Georgia', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-display: 'Fraunces', 'Georgia', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --text-xs: 0.78rem;
+  --text-sm: 0.88rem;
+  --text-base: 1rem;
+  --text-lg: 1.15rem;
+  --text-xl: clamp(1.35rem, 1.2vw + 1rem, 1.7rem);
+  --text-2xl: clamp(1.6rem, 2.2vw + 1rem, 2.3rem);
+  --text-3xl: clamp(2.1rem, 4.2vw + 0.6rem, 3.5rem);
   --header-h: 60px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -109,8 +132,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: var(--text-base);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -118,25 +141,39 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: 560;
+  line-height: 1.15;
   margin: 0 0 var(--space-3);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 h1 {
-  font-size: clamp(1.8rem, 3vw + 1rem, 2.8rem);
+  font-size: var(--text-2xl);
 }
 h2 {
-  font-size: clamp(1.35rem, 1.5vw + 1rem, 1.8rem);
+  font-size: var(--text-xl);
 }
 h3 {
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
+  line-height: 1.25;
+}
+.lead {
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+}
+.fine {
+  font-size: var(--text-sm);
 }
 p {
   margin: 0 0 var(--space-3);
 }
 a {
   color: var(--primary);
+  text-underline-offset: 0.18em;
+}
+::selection {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
 }
 img {
   max-width: 100%;
@@ -180,6 +217,72 @@ img {
   flex: 1;
 }
 
+/* ---------- Secciones de página ---------- */
+.section {
+  padding-block: clamp(var(--space-7), 7vw, 88px);
+}
+/* Franja a todo el ancho con un tinte: da ritmo entre secciones sin añadir bordes. */
+.section-tint {
+  background: var(--tint-1);
+  border-block: 1px solid var(--border);
+}
+.section-tint.warm {
+  background: var(--tint-2);
+}
+.section-tint.sand {
+  background: var(--tint-3);
+}
+.section-head {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 62ch;
+  margin-bottom: var(--space-6);
+}
+.section-head > * {
+  margin: 0;
+}
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Una cifra con su leyenda. */
+.stat {
+  display: grid;
+  gap: 2px;
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 560;
+  line-height: 1;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+/* Cuadro para un icono, con el tinte de la marca. */
+.icon-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 1.25rem;
+}
+.icon-tile.accent {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 /* ---------- Botones ---------- */
 .btn {
   --btn-bg: var(--surface);
@@ -202,6 +305,7 @@ img {
   cursor: pointer;
   transition:
     background 0.15s var(--ease),
+    border-color 0.15s var(--ease),
     transform 0.1s var(--ease),
     box-shadow 0.15s var(--ease);
   white-space: nowrap;
@@ -209,6 +313,7 @@ img {
 .btn:hover:not(:disabled) {
   box-shadow: var(--shadow-sm);
   background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
 }
 .btn:active:not(:disabled) {
   transform: translateY(1px);
@@ -222,8 +327,13 @@ img {
   --btn-fg: var(--on-primary);
   --btn-border: var(--primary);
 }
+.btn-primary {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 18%) inset, var(--shadow-sm);
+}
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-strong);
+  border-color: var(--primary-strong);
+  box-shadow: 0 6px 18px var(--ring);
 }
 .btn-ghost {
   --btn-bg: transparent;
@@ -255,6 +365,7 @@ img {
 }
 .icon-btn:hover:not(:disabled) {
   background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
 }
 .icon-btn:disabled {
   opacity: 0.4;
@@ -268,6 +379,19 @@ img {
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   padding: var(--space-5);
+}
+/* Tarjeta que es (o contiene) un enlace: se levanta al pasar por encima. */
+.card-hover {
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+.card-hover:hover,
+.card-hover:focus-within {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
 }
 
 .badge {
@@ -296,6 +420,10 @@ img {
 .badge-primary {
   background: var(--primary-soft);
   color: var(--primary-strong);
+}
+.badge-accent {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .alert {
@@ -334,6 +462,9 @@ select.input {
   color: var(--text);
   font: inherit;
 }
+.input:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
 .input:focus {
   outline: 2px solid var(--focus);
   outline-offset: 0;
@@ -357,6 +488,12 @@ select.input {
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
+  transition:
+    background 0.15s var(--ease),
+    border-color 0.15s var(--ease);
+}
+.chip:hover {
+  border-color: var(--primary);
 }
 .chip[aria-pressed='true'],
 .chip.selected {
@@ -447,9 +584,9 @@ dialog.modal::backdrop {
   color: #fff;
 }
 .scene-label-clearance {
-  background: #2f7a60;
+  background: #0f5e5a;
 }
 .scene-label-measure {
-  background: #c62828;
+  background: #b3261e;
   font-size: 0.8rem;
 }
