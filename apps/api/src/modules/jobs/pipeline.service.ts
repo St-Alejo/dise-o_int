@@ -111,7 +111,10 @@ export class PipelineService {
     const selected: StyleId | null = ready.find((p) => data.styles.includes(p.styleId))?.styleId ?? data.styles[0] ?? null;
     await this.report(project.id, ctx, 'scene', 85);
     // Si el análisis reconoció los muebles de la foto, la escena inicial coloca esos.
-    await this.writeLayout(project.id, selected, true, { status: 'ready', lastError: null }, ctx, inventoryOf(analysis.detectedObjects));
+    const inventory = inventoryOf(analysis.detectedObjects);
+    // Se guarda para que "Otra distribución" vuelva a colocar lo de la foto y no la plantilla.
+    if (inventory.length) await this.projects.update(project.id, { photoInventory: inventory });
+    await this.writeLayout(project.id, selected, true, { status: 'ready', lastError: null }, ctx, inventory);
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 
@@ -131,7 +134,7 @@ export class PipelineService {
     const project = await this.projects.findById(data.projectId);
     if (!project?.roomShell) return;
     await this.report(project.id, ctx, 'scene', 20);
-    await this.writeLayout(project.id, data.styleId, data.keepLocked, data.finalize ? { status: 'ready', lastError: null } : {}, ctx, [], data.seed);
+    await this.writeLayout(project.id, data.styleId, data.keepLocked, data.finalize ? { status: 'ready', lastError: null } : {}, ctx, project.photoInventory ?? [], data.seed);
     await this.report(project.id, ctx, 'done', 100, undefined, 'completed');
   }
 

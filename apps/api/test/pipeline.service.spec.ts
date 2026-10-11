@@ -148,11 +148,12 @@ describe('PipelineService', () => {
       expect(ai.layoutRequests[0]!.inventory).toBeUndefined();
     });
 
-    it('reacomodar después usa la plantilla del tipo de cuarto, no el inventario de la foto', async () => {
+    it('reacomodar después vuelve a colocar lo que se vio en la foto, no la plantilla', async () => {
       ai.seen = office;
       await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+      expect((await repo.findById('p1'))!.photoInventory).toEqual(ai.layoutRequests[0]!.inventory);
       await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true }, { ...ctx(), kind: 'build-scene' });
-      expect(ai.layoutRequests[1]!.inventory).toBeUndefined();
+      expect(ai.layoutRequests[1]!.inventory).toEqual(ai.layoutRequests[0]!.inventory);
     });
   });
 

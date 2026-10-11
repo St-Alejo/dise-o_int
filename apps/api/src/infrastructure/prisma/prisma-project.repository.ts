@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   FurniturePlacementSchema,
+  InventoryItemSchema,
+  type InventoryItem,
   RoomDimensionsSchema,
   RoomFinishesSchema,
   RoomShellSchema,
@@ -44,6 +46,9 @@ function parseFinishes(value: unknown): RoomFinishes | null {
 function parseRoomDims(value: unknown): RoomDimensions | null {
   return value === null || value === undefined ? null : RoomDimensionsSchema.parse(value);
 }
+function parseInventory(value: unknown): InventoryItem[] | null {
+  return value === null || value === undefined ? null : z.array(InventoryItemSchema).parse(value);
+}
 /** null de dominio → NULL de SQL (Prisma distingue DbNull de JsonNull). */
 function nullableJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
   return value === null || value === undefined ? Prisma.DbNull : (value as Prisma.InputJsonValue);
@@ -67,6 +72,7 @@ function toProject(row: ProjectRow): ProjectRecord {
     placements: parsePlacements(row.placements),
     finishes: parseFinishes(row.finishes),
     requestedRoom: parseRoomDims(row.requestedRoom),
+    photoInventory: parseInventory(row.photoInventory),
     selectedStyleId: row.selectedStyleId as StyleId | null,
     requestedStyles: row.requestedStyles as StyleId[],
     saved: row.saved,
@@ -117,6 +123,7 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.placements !== undefined) data.placements = toJson(patch.placements);
   if (patch.finishes !== undefined) data.finishes = nullableJson(patch.finishes);
   if (patch.requestedRoom !== undefined) data.requestedRoom = nullableJson(patch.requestedRoom);
+  if (patch.photoInventory !== undefined) data.photoInventory = nullableJson(patch.photoInventory);
   if (patch.selectedStyleId !== undefined) data.selectedStyleId = patch.selectedStyleId;
   if (patch.requestedStyles !== undefined) data.requestedStyles = patch.requestedStyles;
   if (patch.saved !== undefined) data.saved = patch.saved;
@@ -142,6 +149,7 @@ export class PrismaProjectRepository implements IProjectRepository {
         placements: toJson(data.placements),
         finishes: nullableJson(data.finishes),
         requestedRoom: nullableJson(data.requestedRoom),
+        photoInventory: nullableJson(data.photoInventory),
         selectedStyleId: data.selectedStyleId,
         requestedStyles: data.requestedStyles,
         saved: data.saved,

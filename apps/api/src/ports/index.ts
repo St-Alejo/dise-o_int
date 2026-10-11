@@ -13,6 +13,7 @@ import type {
   FurniturePlacement,
   GenerateStyleRequest,
   GenerateStyleResponse,
+  InventoryItem,
   JobKind,
   JobProgressEvent,
   Mount,
@@ -44,6 +45,8 @@ export interface ProjectRecord {
   finishes: RoomFinishes | null;
   /** Medidas que escribió el usuario al crear el proyecto (mandan sobre la estimación). */
   requestedRoom: RoomDimensions | null;
+  /** Muebles reconocidos en la foto: "Otra distribución" vuelve a colocar esos. */
+  photoInventory?: InventoryItem[] | null;
   selectedStyleId: StyleId | null;
   requestedStyles: StyleId[];
   saved: boolean;
@@ -117,6 +120,7 @@ export type ProjectPatch = Partial<
     | 'placements'
     | 'finishes'
     | 'requestedRoom'
+    | 'photoInventory'
     | 'selectedStyleId'
     | 'requestedStyles'
     | 'saved'

@@ -214,6 +214,7 @@ export class ProjectsService {
       placements: source.placements,
       finishes: source.finishes,
       requestedRoom: source.requestedRoom,
+      photoInventory: source.photoInventory ?? null,
       selectedStyleId: source.selectedStyleId,
       requestedStyles: source.requestedStyles,
       saved: false,

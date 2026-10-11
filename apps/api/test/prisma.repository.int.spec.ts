@@ -96,11 +96,12 @@ describe.skipIf(!url)('PrismaProjectRepository (PostgreSQL real)', () => {
       wallId: 'w-back',
       origin: 'chat' as const,
     };
-    await repo.update(p.id, { finishes, placements: [placement], requestedRoom: { widthM: 4, depthM: 3.5, heightM: 2.6 } });
+    await repo.update(p.id, { finishes, placements: [placement], requestedRoom: { widthM: 4, depthM: 3.5, heightM: 2.6 }, photoInventory: [{ category: 'sofa', count: 2 }] });
     const read = (await repo.findById(p.id))!;
     expect(read.finishes).toEqual(finishes);
     expect(read.placements).toEqual([placement]);
     expect(read.requestedRoom).toEqual({ widthM: 4, depthM: 3.5, heightM: 2.6 });
+    expect(read.photoInventory).toEqual([{ category: 'sofa', count: 2 }]);
 
     const version = await repo.addVersion(p.id, 'con acabados');
     expect(version.finishes).toEqual(finishes);

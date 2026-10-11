@@ -75,6 +75,8 @@ model Project {
   finishes        Json?
   /// Medidas reales que dio el usuario al crear el proyecto: mandan sobre la estimación de la IA.
   requestedRoom   Json?
+  /// Muebles que el análisis reconoció en la foto; null = sin foto o análisis que no los nombra.
+  photoInventory  Json?
   selectedStyleId String?
   /// Estilos pedidos al subir la foto (el worker los genera en el pipeline inicial).
   requestedStyles String[]       @default([])
