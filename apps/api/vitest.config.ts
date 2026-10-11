@@ -9,6 +9,8 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['src/generated/**', 'src/cli/**', 'src/main.ts', 'src/worker.ts'],
+      // Suelo medido sin las pruebas de integración (que en CI sí corren y lo suben).
+      thresholds: { statements: 58, branches: 48, functions: 50, lines: 60 },
     },
   },
 });

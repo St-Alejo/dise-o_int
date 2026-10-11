@@ -46,7 +46,7 @@ jobs:
       - name: Tipos compartidos (build + tests)
         run: |
           npm run build:types
-          npm test -w @interiores/shared-types
+          npm run test:cov -w @interiores/shared-types
           npm test -w @interiores/furniture-kit
       - name: El JSON Schema del contrato con la IA está actualizado
         run: |
@@ -80,7 +80,7 @@ jobs:
       - run: ruff check src tests
       - run: mypy src
       - name: pytest (incluye el test de contrato contra el JSON Schema de zod)
-        run: pytest --cov=interiores_ai --cov-report=term-missing
+        run: pytest --cov=interiores_ai --cov-report=term-missing --cov-fail-under=90
 
   e2e:
     name: E2E sobre Docker Compose
@@ -108,6 +108,8 @@ jobs:
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
           BASE_URL=http://localhost:8080 CI=1 npx playwright test
+      - name: Resiliencia (la IA se cae y vuelve)
+        run: node e2e/resilience.mjs http://localhost:8080 "docker compose stop ai" "docker compose start ai"
       - name: Logs del stack si algo falla
         if: failure()
         run: docker compose logs --no-color > compose-logs.txt

@@ -1,4 +1,4 @@
-// Prueba de resiliencia (manual / CI opcional): requiere poder parar y arrancar el servicio de IA.
+// Prueba de resiliencia (corre en CI tras Playwright): requiere poder parar y arrancar el servicio de IA.
 //   node e2e/resilience.mjs <baseUrl> <comando-parar-ia> <comando-arrancar-ia>
 // Verifica: /ready → 503 con la IA caída; el job falla tras sus reintentos con un mensaje
 // entendible; al volver la IA, "Reintentar" recupera el proyecto.
