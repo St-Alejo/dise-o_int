@@ -117,6 +117,8 @@ export const ProjectListItemSchema = z.object({
   updatedAt: z.string(),
   /** Datos de resumen para la tarjeta. Opcionales: faltan mientras el cuarto no está listo. */
   areaM2: z.number().nonnegative().optional(),
+  /** Contorno de la planta (metros, x a la derecha y z hacia el frente) para dibujarla en pequeño. */
+  outline: z.array(z.object({ x: z.number(), z: z.number() })).max(64).optional(),
   styleId: StyleIdSchema.optional(),
   /** Suma de los precios de catálogo de los muebles colocados (los que no tienen precio no cuentan). */
   estimatedTotal: z.number().nonnegative().optional(),

@@ -99,13 +99,14 @@ const round = (value: number, decimals: number) => Math.round(value * 10 ** deci
 export type CatalogPrices = ReadonlyMap<string, Pick<CatalogRecord, 'price' | 'currency'>>;
 
 /** Área, estilo y total estimado de la tarjeta; cada dato se omite si no se puede calcular. */
-function listSummary(project: ProjectRecord, prices: CatalogPrices): Pick<ProjectListItem, 'areaM2' | 'styleId' | 'estimatedTotal' | 'currency'> {
+function listSummary(project: ProjectRecord, prices: CatalogPrices): Pick<ProjectListItem, 'areaM2' | 'outline' | 'styleId' | 'estimatedTotal' | 'currency'> {
   const priced = project.placements.flatMap((p) => {
     const item = prices.get(p.catalogItemId);
     return item && item.price !== null ? [item] : [];
   });
+  const plan = project.roomShell ? RoomPlan.from(project.roomShell) : null;
   return {
-    ...(project.roomShell ? { areaM2: round(RoomPlan.from(project.roomShell).area(), 1) } : {}),
+    ...(plan ? { areaM2: round(plan.area(), 1), outline: plan.polygon.map((p) => ({ x: round(p.x, 2), z: round(p.z, 2) })) } : {}),
     ...(project.selectedStyleId ? { styleId: project.selectedStyleId } : {}),
     ...(priced.length
       ? { estimatedTotal: round(priced.reduce((sum, item) => sum + (item.price ?? 0), 0), 2), currency: priced[0]!.currency }

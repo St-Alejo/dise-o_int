@@ -374,7 +374,8 @@ describe('ProjectsService', () => {
       const item = (await service.list(alice)).find((x) => x.id === p.id)!;
       expect(findByIds).toHaveBeenCalledTimes(1);
       expect(item).toMatchObject({ itemCount: 3, estimatedTotal: 1100, currency: 'USD' });
-      expect(item.areaM2).toBeGreaterThan(1);
+      expect(item.areaM2).toBe(14);
+      expect(item.outline).toHaveLength(4);
     });
 
     it('un proyecto sin muebles omite el total estimado', async () => {
