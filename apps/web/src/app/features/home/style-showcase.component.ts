@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { STYLES, STYLE_IDS, type CatalogItem, type StyleId } from '@interiores/shared-types';
 import { CatalogApi } from '../../core/api/projects.api';
 import { IconComponent } from '../../shared/ui/icon.component';
-import { tabAfterKey } from './feature-gallery.component';
+import { tabAfterKey } from '../../shared/ui/tabs';
 
 /** Qué materiales y piezas se asocian a cada estilo, para que diga algo más que su nombre. */
 const DETAILS: Record<StyleId, readonly string[]> = {

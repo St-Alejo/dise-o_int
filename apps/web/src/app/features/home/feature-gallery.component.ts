@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, signal, viewChildren } from '@angular/core';
 import { IconComponent, type IconName } from '../../shared/ui/icon.component';
+import { tabAfterKey } from '../../shared/ui/tabs';
+
+export { tabAfterKey };
 
 interface Shot {
   src: string;
@@ -132,22 +135,6 @@ export const FEATURES: readonly Feature[] = [
     ],
   },
 ];
-
-/** La pestaña a la que lleva una tecla desde la pestaña `index`, o null si la tecla no navega. */
-export function tabAfterKey(key: string, index: number, count: number): number | null {
-  switch (key) {
-    case 'ArrowRight':
-      return (index + 1) % count;
-    case 'ArrowLeft':
-      return (index - 1 + count) % count;
-    case 'Home':
-      return 0;
-    case 'End':
-      return count - 1;
-    default:
-      return null;
-  }
-}
 
 /** Galería por pestañas de lo que hace la app, con capturas reales. */
 @Component({

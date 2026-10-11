@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../../shared/ui/icon.component';
+import { SegmentedComponent } from '../../shared/ui/segmented.component';
 
 export type HeroLight = 'dia' | 'tarde' | 'noche';
 
@@ -20,7 +21,7 @@ export const HERO_TEMPLATE = 'sala-escandinava';
 @Component({
   selector: 'app-hero',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent],
+  imports: [RouterLink, IconComponent, SegmentedComponent],
   template: `
     <section class="hero" aria-labelledby="hero-title">
       <div class="container">
@@ -57,11 +58,7 @@ export const HERO_TEMPLATE = 'sala-escandinava';
           }
         </div>
         <figcaption>
-          <div class="lights" role="group" aria-label="Luz con la que se ve la sala">
-            @for (l of lights; track l.id) {
-              <button type="button" [attr.aria-pressed]="light() === l.id" (click)="light.set(l.id)">{{ l.label }}</button>
-            }
-          </div>
+          <app-segmented label="Luz con la que se ve la sala" [options]="lights" [(value)]="light" />
           <span class="muted">Captura del editor. Es la plantilla que se abre con "Probar sin cuenta".</span>
         </figcaption>
       </figure>
@@ -125,28 +122,6 @@ export const HERO_TEMPLATE = 'sala-escandinava';
       justify-content: space-between;
       margin-top: var(--space-4);
       font-size: var(--text-sm);
-    }
-    .lights {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      border-radius: 999px;
-      border: 1px solid var(--rule);
-    }
-    .lights button {
-      min-height: 36px;
-      padding: 0 var(--space-4);
-      border: 0;
-      border-radius: 999px;
-      background: none;
-      color: var(--text-muted);
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .lights button[aria-pressed='true'] {
-      background: var(--text);
-      color: var(--bg);
     }
     @media (max-width: 860px) {
       .pitch {
