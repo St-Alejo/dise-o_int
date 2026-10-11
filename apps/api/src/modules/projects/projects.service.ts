@@ -1,84 +1,67 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
-  CalibrationError,
-  DEFAULT_PROMPT_STRENGTH,
-  DEFAULT_STYLES,
-  ROOM_LIMITS,
-  ROOM_TYPE_LABELS,
-  RoomGeometryError,
-  RoomPlan,
-  STAGE_MESSAGES,
-  STYLES,
-  UnknownMaterialError,
-  assertValidFinishes,
-  calibrateRoomShell,
-  clampDimensions,
-  describeVariant,
-  clampToRoom,
-  defaultResizeRanges,
-  effectiveDimensions,
-  footprint,
-  mountY,
-  resizeRoomShell,
-  scalePlacements,
-  validateRoomShell,
   type AutoLayoutRequest,
   type CalibrateRequest,
+  calibrateRoomShell,
+  CalibrationError,
   type CreateProjectFields,
+  CreateProjectFieldsSchema,
+  DEFAULT_PROMPT_STRENGTH,
+  DEFAULT_STYLES,
   type DesignProject,
-  type FurniturePlacement,
+  type DesignProjectVersion,
   type GenerateStylesRequest,
+  type ImportProjectRequest,
   type JobAccepted,
   type JobProgressEvent,
   type ProjectListItem,
+  resizeRoomShell,
+  RoomGeometryError,
   type RoomShell,
+  scalePlacements,
+  type SetHomeRequest,
   type ShareLink,
   type ShoppingList,
-  type RoomFinishes,
+  STAGE_MESSAGES,
   type StyleId,
   type UpdateRoomRequest,
-  type DesignProjectVersion,
-  type ImportProjectRequest,
-  type SetHomeRequest,
   type UpdateSceneRequest,
-  type Vector3,
-  CreateProjectFieldsSchema,
 } from '@interiores/shared-types';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { AppConfig } from '../../config/env.js';
-import { NotFoundError, ValidationError } from '../../common/errors.js';
+import { ValidationError } from '../../common/errors.js';
 import { MediaUrlSigner } from '../../infrastructure/media/media-url-signer.js';
 import { PhotoProcessor } from '../../infrastructure/imaging/photo-processor.js';
 import {
   APP_CONFIG,
   CATALOG_REPOSITORY,
   FILE_STORAGE,
-  JOB_QUEUE,
-  PROGRESS_BROKER,
-  PROJECT_REPOSITORY,
-  QUOTA,
-  type CatalogRecord,
   type ICatalogRepository,
   type IFileStorage,
   type IJobQueue,
   type IProgressBroker,
   type IProjectRepository,
   type IQuota,
+  JOB_QUEUE,
+  PROGRESS_BROKER,
+  PROJECT_REPOSITORY,
   type ProjectRecord,
+  QUOTA,
 } from '../../ports/index.js';
-import { projectKeys, toDesignProject, toListItem, toVersion } from './project.mapper.js';
+import { projectKeys, toListItem } from './project.mapper.js';
 import type { ProjectDossier } from './shopping-list.pdf.js';
 import { newRoomFor } from './room-factory.js';
+import { HomesService } from './homes.service.js';
+import { ProjectAccess, revisionGuard, type Actor } from './project-access.js';
+import { ProjectReports } from './project-reports.service.js';
+import { SceneRules } from './scene-rules.js';
+import { SharingService } from './sharing.service.js';
+import { VersionsService } from './versions.service.js';
 
-export interface Actor {
-  userId: string;
-  requestId?: string | undefined;
-}
+export type { Actor } from './project-access.js';
 
 /** Una preview "pending" más vieja que esto se considera colgada y se puede volver a pedir. */
 export const STALE_PENDING_MS = 15 * 60_000;
-
-const revisionGuard = (revision?: number) => (revision === undefined ? {} : { expectedRevision: revision });
 
 export const previewCacheKey =(photoHash: string, styleId: StyleId, strength: number) =>
   createHash('sha256').update(`${photoHash}|${styleId}|${strength.toFixed(2)}|v1`).digest('hex');
@@ -93,6 +76,12 @@ export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
   /** Reloj inyectable (las pruebas lo fijan). */
   clock: () => number = () => Date.now();
+  private readonly access: ProjectAccess;
+  private readonly rules: SceneRules;
+  private readonly versions: VersionsService;
+  private readonly sharing: SharingService;
+  private readonly reports: ProjectReports;
+  private readonly homes: HomesService;
 
   constructor(
     @Inject(PROJECT_REPOSITORY) private readonly projects: IProjectRepository,
@@ -104,7 +93,59 @@ export class ProjectsService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly photos: PhotoProcessor,
     private readonly signer: MediaUrlSigner,
-  ) {}
+  ) {
+    this.access = new ProjectAccess(projects, signer);
+    this.rules = new SceneRules(catalog);
+    this.versions = new VersionsService(projects, this.access);
+    this.sharing = new SharingService(projects, this.access);
+    this.reports = new ProjectReports(catalog, this.access);
+    this.homes = new HomesService(projects, this.access);
+  }
+
+  // ------------------------------------------------------------------ delegado en sus colaboradores
+  own(actor: Actor, id: string): Promise<ProjectRecord> {
+    return this.access.own(actor, id);
+  }
+
+  toDto(project: ProjectRecord): Promise<DesignProject> {
+    return this.access.toDto(project);
+  }
+
+  setHome(actor: Actor, id: string, req: SetHomeRequest): Promise<DesignProject> {
+    return this.homes.setHome(actor, id, req);
+  }
+
+  saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
+    return this.versions.saveVersion(actor, id, note);
+  }
+
+  version(actor: Actor, id: string, versionId: string): Promise<DesignProjectVersion> {
+    return this.versions.version(actor, id, versionId);
+  }
+
+  restoreVersion(actor: Actor, id: string, versionId: string, revision?: number): Promise<DesignProject> {
+    return this.versions.restoreVersion(actor, id, versionId, revision);
+  }
+
+  share(actor: Actor, id: string): Promise<ShareLink> {
+    return this.sharing.share(actor, id);
+  }
+
+  unshare(actor: Actor, id: string): Promise<void> {
+    return this.sharing.unshare(actor, id);
+  }
+
+  shoppingList(actor: Actor, id: string): Promise<ShoppingList> {
+    return this.reports.shoppingList(actor, id);
+  }
+
+  buildShoppingList(project: ProjectRecord): Promise<ShoppingList> {
+    return this.reports.buildShoppingList(project);
+  }
+
+  dossier(actor: Actor, id: string): Promise<ProjectDossier> {
+    return this.reports.dossier(actor, id);
+  }
 
   // ------------------------------------------------------------------ lectura
   async list(actor: Actor): Promise<ProjectListItem[]> {
@@ -137,7 +178,7 @@ export class ProjectsService {
     if (processed) await this.quota.consume(actor.userId, styles.length);
 
     // Un cuarto nuevo dentro de una vivienda: la vivienda tiene que ser de quien lo crea.
-    const home = fields.homeId ? await this.homeOf(actor, fields.homeId) : null;
+    const home = fields.homeId ? await this.homes.homeOf(actor, fields.homeId) : null;
     const id = randomUUID();
     try {
       if (processed) {
@@ -211,7 +252,7 @@ export class ProjectsService {
    */
   async duplicate(actor: Actor, id: string): Promise<DesignProject> {
     const source = await this.own(actor, id);
-    const shell = this.requireShell(source);
+    const shell = this.access.requireShell(source);
     const suffix = ' (copia)';
     const copy = await this.projects.create({
       id: randomUUID(),
@@ -243,9 +284,9 @@ export class ProjectsService {
    * acabados conocidos. Nace guardado: quien lo importa pidió conservarlo.
    */
   async importScene(actor: Actor, req: ImportProjectRequest): Promise<DesignProject> {
-    const shell = this.editedShell({ ...req.roomShell, id: randomUUID() }, req.roomShell);
-    const placements = await this.sanitizePlacements(shell, req.furniturePlacements);
-    if (req.finishes) this.validateFinishes(req.finishes);
+    const shell = this.rules.editedShell({ ...req.roomShell, id: randomUUID() }, req.roomShell);
+    const placements = await this.rules.sanitizePlacements(shell, req.furniturePlacements);
+    if (req.finishes) this.rules.validateFinishes(req.finishes);
     const created = await this.projects.create({
       id: randomUUID(),
       ownerId: actor.userId,
@@ -267,36 +308,7 @@ export class ProjectsService {
     return this.toDto(created);
   }
 
-  // ------------------------------------------------------------------ viviendas
-  /**
-   * A qué vivienda pertenece un cuarto. Una vivienda no es una entidad aparte: son los cuartos de
-   * una persona que comparten `homeId`, así que crearla, renombrarla o vaciarla es tocar esos cuartos.
-   */
-  async setHome(actor: Actor, id: string, req: SetHomeRequest): Promise<DesignProject> {
-    const project = await this.own(actor, id);
-    if (req.homeId === null) {
-      return this.toDto(await this.projects.update(id, { homeId: null, homeName: null }));
-    }
-    if (req.homeId) {
-      const home = await this.homeOf(actor, req.homeId);
-      return this.toDto(await this.projects.update(id, { homeId: home.id, homeName: req.homeName ?? home.name }));
-    }
-    const name = req.homeName!;
-    if (!project.homeId) {
-      return this.toDto(await this.projects.update(id, { homeId: randomUUID(), homeName: name }));
-    }
-    // Ya tiene vivienda: el nombre nuevo es para todos sus cuartos.
-    const rooms = (await this.projects.listByOwner(actor.userId)).filter((p) => p.homeId === project.homeId);
-    await Promise.all(rooms.map((room) => this.projects.update(room.id, { homeName: name })));
-    return this.toDto((await this.projects.findById(id))!);
-  }
 
-  /** La vivienda `homeId` de esta persona; si no tiene ningún cuarto en ella, no existe para ella. */
-  private async homeOf(actor: Actor, homeId: string): Promise<{ id: string; name: string }> {
-    const room = (await this.projects.listByOwner(actor.userId)).find((p) => p.homeId === homeId);
-    if (!room) throw new ValidationError('Esa vivienda no existe');
-    return { id: homeId, name: room.homeName ?? 'Vivienda' };
-  }
 
   /** Borrado REAL de base de datos y archivos (§8.4 privacidad). */
   async remove(actor: Actor, id: string): Promise<void> {
@@ -321,10 +333,10 @@ export class ProjectsService {
   // ------------------------------------------------------------------ escena 3D (paso 5)
   async updateScene(actor: Actor, id: string, req: UpdateSceneRequest): Promise<DesignProject> {
     const project = await this.own(actor, id);
-    const current = this.requireShell(project);
-    const shell = req.roomShell ? this.editedShell(current, req.roomShell) : current;
-    const placements = await this.sanitizePlacements(shell, req.furniturePlacements);
-    if (req.finishes) this.validateFinishes(req.finishes);
+    const current = this.access.requireShell(project);
+    const shell = req.roomShell ? this.rules.editedShell(current, req.roomShell) : current;
+    const placements = await this.rules.sanitizePlacements(shell, req.furniturePlacements);
+    if (req.finishes) this.rules.validateFinishes(req.finishes);
     const updated = await this.projects.update(
       id,
       {
@@ -338,36 +350,6 @@ export class ProjectsService {
     return this.toDto(updated);
   }
 
-  /**
-   * Planta editada en el editor: del cliente solo se acepta la geometría (paredes, aberturas, la
-   * caja que las envuelve y el alto). El id y la confianza de la escala siguen siendo los guardados.
-   */
-  private editedShell(current: RoomShell, edited: RoomShell): RoomShell {
-    const { shape: _shape, ...kept } = current;
-    const next: RoomShell = {
-      ...kept,
-      widthM: edited.widthM,
-      depthM: edited.depthM,
-      heightM: edited.heightM,
-      walls: edited.walls,
-      openings: edited.openings,
-      ...(edited.shape ? { shape: edited.shape } : {}),
-    };
-    const { minSideM, maxSideM, minHeightM, maxHeightM } = ROOM_LIMITS;
-    if (Math.min(next.widthM, next.depthM) < minSideM || Math.max(next.widthM, next.depthM) > maxSideM) {
-      throw new ValidationError(`El cuarto debe medir entre ${minSideM} y ${maxSideM} m de lado`);
-    }
-    if (next.heightM < minHeightM || next.heightM > maxHeightM) {
-      throw new ValidationError(`El alto del cuarto debe estar entre ${minHeightM} y ${maxHeightM} m`);
-    }
-    try {
-      validateRoomShell(next);
-    } catch (err) {
-      if (err instanceof RoomGeometryError) throw new ValidationError(err.message);
-      throw err;
-    }
-    return next;
-  }
 
   /**
    * Medidas exactas del cuarto: ancho, largo y alto independientes (y opcionalmente sus puertas y
@@ -375,7 +357,7 @@ export class ProjectsService {
    */
   async updateRoom(actor: Actor, id: string, req: UpdateRoomRequest): Promise<DesignProject> {
     const project = await this.own(actor, id);
-    const shell = this.requireShell(project);
+    const shell = this.access.requireShell(project);
     let next: RoomShell;
     try {
       next = resizeRoomShell(shell, { widthM: req.widthM, depthM: req.depthM, heightM: req.heightM }, req.openings);
@@ -383,7 +365,7 @@ export class ProjectsService {
       if (err instanceof RoomGeometryError) throw new ValidationError(err.message);
       throw err;
     }
-    const placements = await this.sanitizePlacements(next, project.placements);
+    const placements = await this.rules.sanitizePlacements(next, project.placements);
     const updated = await this.projects.update(
       id,
       { roomShell: next, placements },
@@ -394,7 +376,7 @@ export class ProjectsService {
 
   async calibrate(actor: Actor, id: string, req: CalibrateRequest): Promise<DesignProject> {
     const project = await this.own(actor, id);
-    const shell = this.requireShell(project);
+    const shell = this.access.requireShell(project);
     let result: { shell: RoomShell; factor: number };
     try {
       result = calibrateRoomShell(shell, req.reference, req.valueM);
@@ -402,7 +384,7 @@ export class ProjectsService {
       if (err instanceof CalibrationError) throw new ValidationError(err.message);
       throw err;
     }
-    const placements = await this.sanitizePlacements(result.shell, scalePlacements(project.placements, result.factor));
+    const placements = await this.rules.sanitizePlacements(result.shell, scalePlacements(project.placements, result.factor));
     const updated = await this.projects.update(
       id,
       { roomShell: result.shell, placements },
@@ -416,37 +398,8 @@ export class ProjectsService {
     return this.toDto(await this.projects.update(id, { selectedStyleId: styleId }, revisionGuard(revision)));
   }
 
-  // ------------------------------------------------------------------ versiones (paso 7)
-  async saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
-    await this.own(actor, id);
-    await this.projects.addVersion(id, note?.trim() || null);
-    return this.get(actor, id);
-  }
 
-  /** Una versión guardada entera (planta, muebles y acabados), sin restaurarla. */
-  async version(actor: Actor, id: string, versionId: string): Promise<DesignProjectVersion> {
-    await this.own(actor, id);
-    const version = await this.projects.getVersion(id, versionId);
-    if (!version) throw new NotFoundError('La versión no existe');
-    return toVersion(version);
-  }
 
-  async restoreVersion(actor: Actor, id: string, versionId: string, revision?: number): Promise<DesignProject> {
-    await this.own(actor, id);
-    const version = await this.projects.getVersion(id, versionId);
-    if (!version) throw new NotFoundError('La versión no existe');
-    const updated = await this.projects.update(
-      id,
-      {
-        roomShell: version.roomShell,
-        placements: version.placements,
-        finishes: version.finishes,
-        selectedStyleId: version.selectedStyleId,
-      },
-      { ...revisionGuard(revision), bumpRevision: true },
-    );
-    return this.toDto(updated);
-  }
 
   // ------------------------------------------------------------------ Track A: estilos
   async generateStyles(actor: Actor, id: string, req: GenerateStylesRequest): Promise<JobAccepted> {
@@ -521,7 +474,7 @@ export class ProjectsService {
   // ------------------------------------------------------------------ Track B: layout automático
   async autoLayout(actor: Actor, id: string, req: AutoLayoutRequest): Promise<JobAccepted> {
     const project = await this.own(actor, id);
-    this.requireShell(project);
+    this.access.requireShell(project);
     const styleId = req.styleId === undefined ? project.selectedStyleId : req.styleId;
     // El id lleva la revisión: dos peticiones sobre la misma escena (un doble clic) son un solo
     // job, pero en cuanto la escena cambia la siguiente es otro. Con un id fijo por proyecto, pedir
@@ -537,189 +490,15 @@ export class ProjectsService {
     return { jobId, projectId: id };
   }
 
-  // ------------------------------------------------------------------ compartir
-  async share(actor: Actor, id: string): Promise<ShareLink> {
-    await this.own(actor, id);
-    const token = randomBytes(24).toString('base64url');
-    // Atómico: revoca los anteriores, crea el nuevo y marca el proyecto como guardado.
-    await this.projects.replaceShareLink(id, token);
-    return { token, path: `/p/${token}` };
-  }
 
-  async unshare(actor: Actor, id: string): Promise<void> {
-    await this.own(actor, id);
-    await this.projects.revokeShareLinks(id);
-  }
 
-  // ------------------------------------------------------------------ lista de compras
-  async shoppingList(actor: Actor, id: string): Promise<ShoppingList> {
-    return this.buildShoppingList(await this.own(actor, id));
-  }
 
-  /** Lo que lleva el dossier en PDF: la ficha del cuarto, su planta con muebles y la lista de compras. */
-  async dossier(actor: Actor, id: string): Promise<ProjectDossier> {
-    const project = await this.own(actor, id);
-    const shell = this.requireShell(project);
-    const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
-    const pieces = project.placements.flatMap((p) => {
-      const item = items.get(p.catalogItemId);
-      // En planta se dibuja lo que pisa el suelo; lo colgado y lo apoyado encima solo estorbaría.
-      if (!item || item.mount !== 'floor' || p.supportId || item.subcategory === 'rug') return [];
-      const dims = effectiveDimensions({ x: item.widthM, y: item.heightM, z: item.depthM }, p);
-      return [{ name: item.name, corners: footprint(p.position, dims, p.rotationY).corners.map((c) => ({ x: c.x, z: c.z })) }];
-    });
-    const style = project.selectedStyleId ? STYLES[project.selectedStyleId].label : null;
-    return {
-      name: project.name,
-      subtitle: [ROOM_TYPE_LABELS[project.roomType], style].filter(Boolean).join(' · '),
-      shell,
-      areaM2: RoomPlan.from(shell).area(),
-      pieces,
-      pieceCount: project.placements.length,
-      list: await this.buildShoppingList(project),
-    };
-  }
 
-  async buildShoppingList(project: ProjectRecord): Promise<ShoppingList> {
-    const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
-    // Una línea por producto Y variante: un sofá de catálogo y otro a medida en cuero son distintos.
-    const groups = new Map<string, { itemId: string; variant: string | null; quantity: number }>();
-    for (const p of project.placements) {
-      const item = items.get(p.catalogItemId);
-      if (!item) continue;
-      const variant = describeVariant(
-        { dimensionsM: { x: item.widthM, y: item.heightM, z: item.depthM }, materialSlots: item.spec?.materialSlots },
-        p,
-      );
-      const key = `${p.catalogItemId}|${variant ?? ''}`;
-      const g = groups.get(key) ?? { itemId: p.catalogItemId, variant, quantity: 0 };
-      g.quantity++;
-      groups.set(key, g);
-    }
 
-    const lines = [...groups.values()].flatMap(({ itemId, variant, quantity }) => {
-      const item = items.get(itemId);
-      if (!item) return [];
-      return [
-        {
-          catalogItemId: item.id,
-          name: item.name,
-          variant,
-          category: item.category,
-          quantity,
-          unitPrice: item.price,
-          subtotal: item.price === null ? null : Math.round(item.price * quantity * 100) / 100,
-          currency: item.currency,
-          productUrl: item.productUrl,
-          license: item.license,
-          attribution: item.attribution,
-        },
-      ];
-    });
-    lines.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name) || (a.variant ?? '').localeCompare(b.variant ?? ''));
-    const total = Math.round(lines.reduce((acc, l) => acc + (l.subtotal ?? 0), 0) * 100) / 100;
-    return { projectId: project.id, projectName: project.name, lines, total, currency: lines[0]?.currency ?? 'USD' };
-  }
 
-  // ------------------------------------------------------------------ helpers
-  async own(actor: Actor, id: string): Promise<ProjectRecord> {
-    const project = await this.projects.findById(id);
-    if (!project || project.ownerId !== actor.userId) throw new NotFoundError('El proyecto no existe');
-    return project;
-  }
 
-  async toDto(project: ProjectRecord): Promise<DesignProject> {
-    const [previews, versions, shared] = await Promise.all([
-      this.projects.listPreviews(project.id),
-      this.projects.listVersions(project.id),
-      this.projects.hasActiveShareLink(project.id),
-    ]);
-    const homeRooms = project.homeId ? (await this.projects.listByOwner(project.ownerId)).filter((p) => p.homeId === project.homeId) : [];
-    return toDesignProject(project, previews, versions, shared, this.signer, homeRooms);
-  }
 
-  private requireShell(project: ProjectRecord): RoomShell {
-    if (!project.roomShell) throw new ValidationError('El cuarto aún se está analizando');
-    return project.roomShell;
-  }
 
-  private validateFinishes(finishes: RoomFinishes): void {
-    try {
-      assertValidFinishes(finishes);
-    } catch (err) {
-      if (err instanceof UnknownMaterialError) throw new ValidationError(err.message);
-      throw err;
-    }
-  }
-
-  /**
-   * Defensa en profundidad: aunque el editor ya evita salirse del cuarto, el servidor
-   * valida que el catálogo exista, acota las medidas propias a los rangos del catálogo, fija la
-   * altura según el montaje (piso, techo, pared o sobre otro mueble) y mete dentro del cuarto
-   * cualquier mueble fuera de límites.
-   */
-  private async sanitizePlacements(shell: RoomShell, placements: FurniturePlacement[]): Promise<FurniturePlacement[]> {
-    const ids = new Set<string>();
-    for (const p of placements) {
-      if (ids.has(p.id)) throw new ValidationError(`Id de mueble repetido: ${p.id}`);
-      ids.add(p.id);
-    }
-    const catalog = new Map<string, CatalogRecord>(
-      (await this.catalog.findByIds(placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]),
-    );
-    const unknown = placements.filter((p) => !catalog.has(p.catalogItemId)).map((p) => p.catalogItemId);
-    if (unknown.length) throw new ValidationError(`Muebles inexistentes en el catálogo: ${[...new Set(unknown)].join(', ')}`);
-
-    const itemOf = (p: FurniturePlacement) => catalog.get(p.catalogItemId)!;
-    const catalogDims = (p: FurniturePlacement): Vector3 => {
-      const item = itemOf(p);
-      return { x: item.widthM, y: item.heightM, z: item.depthM };
-    };
-    const twoPi = Math.PI * 2;
-    const wallIds = new Set(shell.walls.map((w) => w.id));
-
-    // 1) Medidas, rotación y referencias (no dependen de los demás muebles).
-    const sized = placements.map((p): FurniturePlacement => {
-      const item = itemOf(p);
-      const base = catalogDims(p);
-      const { dimensionsM, supportId, wallId, elevationM, ...rest } = p;
-      const isWall = item.mount === 'wall';
-      return {
-        ...rest,
-        rotationY: ((p.rotationY % twoPi) + twoPi) % twoPi,
-        ...(dimensionsM ? { dimensionsM: clampDimensions(dimensionsM, base, item.spec?.resize ?? defaultResizeRanges(base)) } : {}),
-        // Un soporte inexistente (o el propio mueble) no sirve: el objeto cae al piso.
-        ...(item.mount === 'surface' && supportId && supportId !== p.id && ids.has(supportId) ? { supportId } : {}),
-        ...(isWall && wallId && wallIds.has(wallId) ? { wallId } : {}),
-        ...(isWall && elevationM !== undefined ? { elevationM } : {}),
-      };
-    });
-
-    // 2) Posición y altura: lo que va sobre una superficie necesita el tope de su soporte.
-    const byId = new Map(sized.map((p) => [p.id, p]));
-    const baseY = (p: FurniturePlacement): number => {
-      const item = itemOf(p);
-      // Un soporte que a su vez está sobre otro conserva su altura declarada (sin recursión).
-      if (item.mount === 'surface') return Math.max(0, p.position.y);
-      return mountY(item.mount, effectiveDimensions(catalogDims(p), p), shell, {
-        elevationM: p.elevationM,
-        elevationDefaultM: item.spec?.elevationDefaultM,
-      });
-    };
-    return sized.map((p) => {
-      const item = itemOf(p);
-      const dims = effectiveDimensions(catalogDims(p), p);
-      const clamped = clampToRoom(p.position, dims, p.rotationY, shell);
-      const support = p.supportId ? byId.get(p.supportId) : undefined;
-      const supportTopY = support ? baseY(support) + effectiveDimensions(catalogDims(support), support).y : undefined;
-      const y = mountY(item.mount, dims, shell, {
-        elevationM: p.elevationM,
-        elevationDefaultM: item.spec?.elevationDefaultM,
-        supportTopY,
-      });
-      return { ...p, position: { ...clamped, y } };
-    });
-  }
 
   private async publishQueued(projectId: string, jobId: string, kind: JobProgressEvent['kind']): Promise<void> {
     await this.progress
