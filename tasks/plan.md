@@ -112,44 +112,44 @@ acceso (T10), los proyectos (T11–T12) y el resto (T13–T14) son independiente
 ## Lista de tareas
 
 ### Fase 1 — Cimientos (todo lo demás se apoya aquí)
-- [ ] T1: Paleta nueva en los tokens, con prueba de contraste
-- [ ] T2: Tipografía autoalojada y escala tipográfica
-- [ ] T3: Clases base renovadas y colores sueltos a tokens
+- [x] T1: Paleta nueva en los tokens, con prueba de contraste
+- [x] T2: Tipografía autoalojada y escala tipográfica
+- [x] T3: Clases base renovadas y colores sueltos a tokens
 
 ### Punto de control A
-- [ ] Unitarias y lint en verde; suite e2e completa en verde (35/35) con la paleta nueva
-- [ ] Capturas de `/`, `/entrar`, `/proyectos` y el editor en claro y oscuro, revisadas a ojo
+- [x] Unitarias y lint en verde; suite e2e completa en verde (35/35) con la paleta nueva
+- [x] Capturas de `/`, `/entrar`, `/proyectos` y el editor en claro y oscuro, revisadas a ojo
 - [ ] **Revisión del usuario: ¿esta es la paleta?** (es barato cambiarla aquí, caro después)
 
 ### Fase 2 — Landing
-- [ ] T4: Cabecera y pie con más contenido
-- [ ] T5: Hero con color y vista previa real
-- [ ] T6: Franja de cifras y sección "qué reconoce de tu foto"
-- [ ] T7: Galería de capturas por pestañas
-- [ ] T8: Aparición al hacer scroll
-- [ ] T9: Estilos, comparativa con foto / sin foto, FAQ ampliada y cierre
+- [x] T4: Cabecera y pie con más contenido
+- [x] T5: Hero con color y vista previa real
+- [x] T6: Franja de cifras y sección "qué reconoce de tu foto"
+- [x] T7: Galería de capturas por pestañas
+- [x] T8: Aparición al hacer scroll
+- [x] T9: Estilos, comparativa con foto / sin foto, FAQ ampliada y cierre
 
 ### Punto de control B
-- [ ] `a11y.spec.ts` en verde en escritorio y `@mobile`; sin desbordes a 320, 768, 1024 y 1440 px
-- [ ] Presupuesto de bundle inicial sin superar el aviso de 450 kB
+- [x] `a11y.spec.ts` en verde en escritorio y `@mobile`; sin desbordes a 320, 768, 1024 y 1440 px
+- [x] Presupuesto de bundle inicial sin superar el aviso de 450 kB
 - [ ] Revisión del usuario de la landing
 
 ### Fase 3 — Páginas de la app
-- [ ] T10: Entrar y registro a dos columnas
-- [ ] T11: La lista de proyectos trae área, estilos y total estimado
-- [ ] T12: Mis proyectos: resumen, filtros y tarjetas con más datos
-- [ ] T13: Asistente de proyecto nuevo con pasos visibles
-- [ ] T14: Cabecera del proyecto, enlace público y 404
+- [x] T10: Entrar y registro a dos columnas
+- [x] T11: La lista de proyectos trae área, estilos y total estimado
+- [x] T12: Mis proyectos: resumen, filtros y tarjetas con más datos
+- [x] T13: Asistente de proyecto nuevo con pasos visibles
+- [x] T14: Cabecera del proyecto, enlace público y 404
 
 ### Punto de control C
-- [ ] Suite e2e completa en verde dos veces seguidas
-- [ ] Flujo entero a mano: registro → proyecto nuevo → editor → compartir → enlace público
+- [x] Suite e2e completa en verde dos veces seguidas
+- [x] Flujo entero a mano: registro → proyecto nuevo → editor → compartir → enlace público
 
 ### Fase 4 — Cierre
-- [ ] T15: Capturas, README, ADR-0017 y despliegue en Railway
+- [x] T15: Capturas, README, ADR-0017 y despliegue en Railway
 
 ### Punto de control final
-- [ ] Todos los criterios cumplidos; humo y e2e contra la URL pública en verde
+- [x] Todos los criterios cumplidos; humo y e2e contra la URL pública en verde
 
 El detalle de cada tarea (criterios, verificación, archivos) está en `tasks/todo.md`.
 

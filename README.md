@@ -20,6 +20,14 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Cada pieza a tu gusto.** Selecciona un mueble y cambia su ancho, alto y fondo (se reconstruye, no se estira), su tapizado, madera o metal, o su altura en la pared. Los cuadros se deslizan por las paredes, las lámparas se pasan de un mueble a otro y lo que está encima de una mesa se mueve con ella. Piso, paredes y techo se pintan con un clic o con la paleta del estilo. Todo se deshace con Ctrl+Z.
 - **Cuarto a tu medida.** Escribe ancho, largo y alto exactos (al subir la foto o después, en "Medidas del cuarto") y ubica puertas y ventanas; los muebles se reacomodan sin borrarse. Si no tienes metro, calibra con una sola medida conocida.
 
+## Diseño de la interfaz
+
+- **Paleta "petróleo y arcilla"** en claro y oscuro, definida solo con tokens CSS en [`apps/web/src/styles.scss`](apps/web/src/styles.scss). Una prueba ([`design-tokens.spec.ts`](apps/web/src/design-tokens.spec.ts)) lee ese archivo y exige contraste AA en cada pareja de texto y fondo.
+- **Tipografía autoalojada:** Fraunces para títulos e Inter para texto, en [`apps/web/public/fonts`](apps/web/public/fonts) (la CSP no admite fuentes externas).
+- **Página de inicio con datos reales:** plano interactivo junto a un cuarto ya amueblado, cifras leídas del catálogo, galería de capturas de la propia app, comparativa con foto / sin foto y preguntas frecuentes.
+- **Mis proyectos:** resumen, filtros por tipo de cuarto y tarjetas con área, total estimado y la planta dibujada a escala.
+- Cómo añadir un color o una sección: [ADR-0017](docs/adr/0017-sistema-visual.md). Capturas en [`docs/capturas/landing`](docs/capturas/landing).
+
 La arquitectura y las decisiones de producto están en [`docs/README-interiores-ia.md`](docs/README-interiores-ia.md). Las decisiones técnicas tomadas al implementarlo están en [`docs/adr/`](docs/adr).
 
 ## Arranque rápido (Docker)
