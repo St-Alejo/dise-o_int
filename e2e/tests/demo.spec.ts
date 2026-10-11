@@ -60,3 +60,41 @@ test('una plantilla que no existe lo dice y ofrece volver a la galería', async 
   await page.getByRole('link', { name: 'Ver las plantillas' }).click();
   await expect(page.getByRole('heading', { name: 'Empieza por un cuarto ya hecho' })).toBeVisible();
 });
+
+test('presentar: recorre las vistas del cuarto con las flechas y al salir todo queda como estaba', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('interiores.editor.vista', '3d'));
+  await page.goto('/demo/comedor-moderno');
+  await expect(page.locator('app-three-viewport canvas')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => placements(page)).toBeGreaterThan(5);
+  const light = () => page.evaluate(() => (window as unknown as { __scene: { timeOfDay: string } }).__scene.timeOfDay);
+  const mode = () => page.evaluate(() => (window as unknown as { __scene: { cameraMode: string } }).__scene.cameraMode);
+
+  await page.getByRole('button', { name: 'Presentar' }).click();
+  const show = page.getByRole('region', { name: 'Presentación del cuarto' });
+  await expect(show).toContainText('1 / 6');
+  await expect(show.getByRole('heading')).toHaveText('El cuarto');
+  await expect(show).toContainText('Comedor moderno');
+  // Presentando no hay herramientas de edición a la vista.
+  await expect(page.getByRole('button', { name: 'Pintar', exact: true })).toBeHidden();
+
+  await page.keyboard.press('ArrowRight');
+  await expect(show.getByRole('heading')).toHaveText('Desde arriba');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(show).toContainText('4 / 6');
+  expect(await light()).toBe('night');
+  await show.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(show.getByRole('heading')).toHaveText('Desde dentro');
+  await expect.poll(mode).toBe('walk');
+  await page.keyboard.press('End');
+  await expect(show).toContainText('piezas');
+  await expect(show.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
+
+  await page.keyboard.press('Escape');
+  await expect(show).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Pintar', exact: true })).toBeVisible();
+  expect(await light()).toBe('day');
+  await expect.poll(mode).toBe('orbit');
+  // Y no se movió ni se borró nada por haber usado el teclado.
+  expect(await placements(page)).toBeGreaterThan(5);
+});

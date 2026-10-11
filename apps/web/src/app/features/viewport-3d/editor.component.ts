@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { RoomPlan, clampToRoom, effectiveDimensions, footprint, shoppingCsv, shoppingRows, type CatalogItem } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
@@ -22,6 +22,7 @@ import { planSvg } from '../floor-plan/floor-plan-model';
 import { SwapCommand } from './commands';
 import { SceneService } from './scene.service';
 import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
+import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
 export type ViewMode = '3d' | 'split' | 'plan';
@@ -67,6 +68,7 @@ function initialView(): ViewMode {
     FinishesPanelComponent,
     ChatPanelComponent,
     ArViewerComponent,
+    PresentationOverlayComponent,
     CurrencyPipe,
   ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
@@ -118,6 +120,7 @@ function initialView(): ViewMode {
           </button>
         </div>
       </details>
+      <button type="button" class="btn btn-sm" (click)="presentation.start()" [disabled]="!shell()" title="Enseña el cuarto a pantalla completa, vista por vista (flechas para avanzar)">Presentar</button>
       <button type="button" class="btn btn-sm btn-ghost" (click)="shortcuts.open()" title="Atajos de teclado (?)">Atajos</button>
       <span class="spacer"></span>
       <span class="save" [class]="'save save-' + store.saveState()" aria-live="polite">
@@ -162,13 +165,14 @@ function initialView(): ViewMode {
     }
 
     <div class="layout">
-      <div class="viewport-wrap">
+      <div class="viewport-wrap" #wrap [class.presenting]="presenting()">
         <div class="stage" [class]="'stage stage-' + viewMode()">
           @if (viewMode() !== '3d') {
             <app-plan-editor class="pane" />
           }
           <!-- El visor 3D no se destruye al pasar al plano: solo se oculta (conserva la cámara y la GPU). -->
-          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" />
+          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" [class.bare]="presenting()" />
+          <app-presentation-overlay #presentation (started)="onPresenting(true)" (stopped)="onPresenting(false)" />
         </div>
         <p class="help muted">En el 3D: arrastra un mueble, gira su aro o estira sus tiradores · Paredes (W), Pintar (B) y Medir (M) cambian de herramienta · clic derecho o dos dedos mueven la cámara</p>
       </div>
@@ -370,6 +374,21 @@ function initialView(): ViewMode {
     .stage-split {
       grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
     }
+    /* Presentando, el visor ocupa toda la pantalla y lo demás del editor queda debajo. */
+    .stage {
+      position: relative;
+    }
+    .viewport-wrap.presenting {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      height: auto;
+      padding: 0;
+      background: var(--bg);
+    }
+    .viewport-wrap.presenting .help {
+      display: none;
+    }
     .pane {
       min-width: 0;
       min-height: 0;
@@ -487,6 +506,10 @@ export class EditorComponent {
   readonly autoLayout = output<void>();
 
   private readonly shortcuts = viewChild.required<ShortcutsDialogComponent>('shortcuts');
+  private readonly wrap = viewChild.required<ElementRef<HTMLElement>>('wrap');
+  /** Se está enseñando el cuarto a pantalla completa: el editor no atiende atajos. */
+  protected readonly presenting = signal(false);
+  private viewBeforePresenting: ViewMode = '3d';
   protected readonly views = VIEWS;
   /** Vista elegida: solo 3D, plano y 3D lado a lado, o solo plano. Se recuerda entre visitas. */
   protected readonly viewMode = signal<ViewMode>(initialView());
@@ -516,6 +539,21 @@ export class EditorComponent {
       localStorage.setItem(VIEW_KEY, mode);
     } catch {
       // Sin almacenamiento (modo privado): la vista simplemente no se recuerda.
+    }
+  }
+
+  /** Al presentar se pasa a solo 3D y a pantalla completa; al salir, vuelve la vista de antes. */
+  protected onPresenting(on: boolean): void {
+    this.presenting.set(on);
+    if (on) {
+      this.viewBeforePresenting = this.viewMode();
+      this.viewMode.set('3d');
+      // Si el navegador no deja (o no puede), la presentación sigue ocupando la ventana.
+      void this.wrap().nativeElement.requestFullscreen?.().catch(() => undefined);
+    } else {
+      this.viewMode.set(this.viewBeforePresenting);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      this.scene.frameRoom();
     }
   }
 
@@ -575,6 +613,7 @@ export class EditorComponent {
   }
 
   onGlobalKey(e: KeyboardEvent): void {
+    if (this.presenting()) return; // las teclas son de la presentación
     const target = e.target as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
     if (e.key === '?') {

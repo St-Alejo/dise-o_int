@@ -135,6 +135,10 @@ const MAX_CAPTURE_PX = 4096;
     }
   `,
   styles: `
+    /* Presentando: solo el cuarto, sin herramientas ni avisos encima. */
+    :host(.bare) > :not(canvas) {
+      display: none;
+    }
     :host {
       position: relative;
       display: block;
