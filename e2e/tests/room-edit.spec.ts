@@ -180,6 +180,18 @@ test('editor: lista de objetos, duplicar, arrastrar del catálogo, vaciar y expo
   expect(png.subarray(1, 4).toString()).toBe('PNG');
   expect(png.length).toBeGreaterThan(5_000);
 
+  // En alta resolución sale el triple de ancha (hasta el tope) y el visor queda como estaba.
+  const widthOf = (file: Buffer) => file.readUInt32BE(16);
+  await page.getByText('Exportar', { exact: true }).click();
+  const [large] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Imagen en alta resolución/ }).click()]);
+  expect(large.suggestedFilename()).toBe('cuarto-para-editar-grande.png');
+  const bigPng = Buffer.concat(await (await large.createReadStream()).toArray());
+  expect(widthOf(bigPng)).toBeGreaterThan(widthOf(png) * 2);
+  expect(widthOf(bigPng)).toBeLessThanOrEqual(4096);
+  await page.getByText('Exportar', { exact: true }).click();
+  const [again] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Imagen del cuarto/ }).click()]);
+  expect(widthOf(Buffer.concat(await (await again.createReadStream()).toArray()))).toBe(widthOf(png));
+
   // Y la lista de compras para una hoja de cálculo: una línea por producto y el total.
   await page.getByText('Exportar', { exact: true }).click();
   const [shopping] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Para abrir en una hoja de cálculo/ }).click()]);

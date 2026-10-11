@@ -96,7 +96,7 @@ export class SceneService implements SceneContext {
   controls: OrbitControls | null = null;
   canvas: HTMLCanvasElement | null = null;
   /** Lo registra el viewport, que es quien tiene el renderer: dibuja un frame y lo devuelve como imagen. */
-  frameCapture: (() => Promise<Blob | null>) | null = null;
+  frameCapture: ((scale?: number) => Promise<Blob | null>) | null = null;
 
   private readonly lighting = new LightingRig(this.scene);
   private readonly room = new RoomView(this);
@@ -804,9 +804,30 @@ export class SceneService implements SceneContext {
     return true;
   }
 
-  /** Imagen PNG de lo que muestra el visor ahora mismo (null si no hay visor o está oculto). */
-  capturePng(): Promise<Blob | null> {
-    return this.frameCapture ? this.frameCapture() : Promise.resolve(null);
+  /**
+   * Imagen PNG de lo que muestra el visor ahora mismo (null si no hay visor o está oculto). Con
+   * `scale` mayor que 1 sale más grande y sin las ayudas de edición.
+   */
+  capturePng(scale = 1): Promise<Blob | null> {
+    return this.frameCapture ? this.frameCapture(scale) : Promise.resolve(null);
+  }
+
+  /**
+   * Esconde lo que es ayuda de edición (tiradores, guías, contornos) para sacar una imagen limpia
+   * del cuarto. Devuelve cómo dejarlo como estaba.
+   */
+  hideHelpers(): () => void {
+    const hidden = ['gizmo', 'guides', 'selection-outline'].flatMap((name) => {
+      const object = this.scene.getObjectByName(name);
+      return object?.visible ? [object] : [];
+    });
+    for (const object of hidden) object.visible = false;
+    this.highlighter?.setSelection([]);
+    this.highlighter?.setHover([]);
+    return () => {
+      for (const object of hidden) object.visible = true;
+      this.refreshSelection();
+    };
   }
 
   // ------------------------------------------------------------------ acciones (teclado / toolbar)

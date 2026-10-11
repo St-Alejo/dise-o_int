@@ -104,6 +104,10 @@ function initialView(): ViewMode {
             <strong>Imagen del cuarto</strong>
             <span class="muted">La vista 3D tal como se ve ahora (PNG)</span>
           </button>
+          <button type="button" class="menu-item" (click)="exportImage(3); exportMenu.open = false" [disabled]="viewMode() === 'plan'">
+            <strong>Imagen en alta resolución</strong>
+            <span class="muted">Tres veces más grande y sin las ayudas de edición (PNG)</span>
+          </button>
           <button type="button" class="menu-item" (click)="exportPlan(); exportMenu.open = false">
             <strong>Plano con medidas</strong>
             <span class="muted">Para imprimir o enviar (SVG)</span>
@@ -520,13 +524,13 @@ export class EditorComponent {
   }
 
   /** La vista 3D tal como se ve ahora, como imagen. */
-  protected async exportImage(): Promise<void> {
-    const blob = await this.scene.capturePng();
+  protected async exportImage(scale = 1): Promise<void> {
+    const blob = await this.scene.capturePng(scale);
     if (!blob) {
       this.toast.error('No se pudo capturar la vista 3D.');
       return;
     }
-    downloadBlob(blob, `${fileSlug(this.store.project()?.name ?? '')}.png`);
+    downloadBlob(blob, `${fileSlug(this.store.project()?.name ?? '')}${scale > 1 ? '-grande' : ''}.png`);
   }
 
   /** Lo que hay en el cuarto, agrupado y con precios, para una hoja de cálculo. */

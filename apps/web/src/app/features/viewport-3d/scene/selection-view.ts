@@ -28,6 +28,7 @@ export class SelectionView {
     ]);
     this.outline = new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color: COLORS.select, depthTest: false }));
     this.outline.renderOrder = 999;
+    this.outline.name = 'selection-outline';
     this.outline.visible = false;
     ctx.scene.add(this.outline);
   }

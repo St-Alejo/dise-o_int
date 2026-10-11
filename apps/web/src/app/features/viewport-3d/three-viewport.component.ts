@@ -33,6 +33,9 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
  * 3. En ngOnDestroy se libera TODA la memoria GPU (geometrías, materiales, texturas,
  *    render targets y el contexto WebGL): la causa nº1 de fugas en Angular + Three.js.
  */
+/** Lado más largo de una imagen exportada en grande (lo que admite cualquier GPU). */
+const MAX_CAPTURE_PX = 4096;
+
 @Component({
   selector: 'app-three-viewport',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -446,10 +449,26 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.setShadowSize(this.settings().shadowMap);
     this.scene.qualityState = () => this.governor.level;
     // El buffer no se conserva entre frames: se dibuja y se copia en el mismo instante.
-    this.scene.frameCapture = () => {
+    this.scene.frameCapture = (scale = 1) => {
       if (!canvas.width || !canvas.height) return Promise.resolve(null);
+      if (scale <= 1) {
+        paint();
+        return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      }
+      // En grande: se sube la resolución solo para este cuadro y se quitan las ayudas de edición.
+      const size = renderer.getSize(new THREE.Vector2());
+      const ratio = Math.min(renderer.getPixelRatio() * scale, MAX_CAPTURE_PX / Math.max(size.x, size.y));
+      const showHelpers = this.scene.hideHelpers();
+      renderer.setPixelRatio(ratio);
+      renderer.setSize(size.x, size.y, false);
+      this.postFx?.configure({ ao: this.settings().ao, pixelRatio: ratio });
+      this.postFx?.setSize(size.x, size.y);
       paint();
-      return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')).finally(() => {
+        showHelpers();
+        this.applyQuality();
+        this.scene.invalidate();
+      });
     };
     this.scene.postFxState = () => (this.postFx && this.settings().postFx ? { ao: this.postFx.aoEnabled } : null);
     void this.loadPostFx(renderer);
