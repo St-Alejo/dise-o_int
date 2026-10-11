@@ -46,6 +46,7 @@ DOOR_CLEARANCE_M = 0.9
 VARIETY_TOLERANCE = {"wall": 1.2, "facing-wall": 0.6, "corner": 0.6}
 CAMERA_WALL_ID = "w-front"  # pared detrás del fotógrafo (ver providers/shell.py)
 WALL_GAP_M = 0.02
+INSIDE_TOLERANCE_M = 0.004
 
 
 class LayoutEngine(Protocol):
@@ -458,7 +459,9 @@ class RulesLayoutEngine:
         d = item.dimensionsM
         for pose in self._poses(role, item, scene):
             fp = Footprint.of(pose.x, pose.z, d.x, d.z, pose.rot)
-            if not scene.room.inside(fp):
+            # Un pelo más estricto que quien valida después (5 mm): la posición se redondea al
+            # devolverla, y justo en el límite ese redondeo la sacaba del cuarto.
+            if not scene.room.inside(fp, INSIDE_TOLERANCE_M):
                 continue
             if layer == "floor" and any(overlaps(fp, zone, 0.0) for zone in blocked):
                 continue
