@@ -1,5 +1,6 @@
 import type { RoomFinishes, RoomShell } from '@interiores/shared-types';
 import { applyFinishes, buildRoom, disposeObject, type BuiltRoom } from '../room-builder';
+import { hidesRoom } from './cutaway';
 import type { SceneContext } from './render-loop';
 import { TextureLibrary } from './texture-library';
 
@@ -51,26 +52,29 @@ export class RoomView {
     this.ctx.invalidate();
   }
 
-  /** Recorte tipo "casa de muñecas": las paredes entre la cámara y el cuarto se vuelven translúcidas. */
+  /**
+   * Corte tipo "casa de muñecas": las paredes entre la cámara y el cuarto se ven cortadas a ras
+   * de suelo, con tapa. La pared entera deja de dibujarse pero sigue en la escena, así que su
+   * sombra no cambia al girar la cámara.
+   */
   updateCutaway(): void {
     if (!this.room) return;
     const cam = this.ctx.camera.position;
+    let changed = false;
     for (const wall of this.room.walls) {
-      const toCamX = cam.x - wall.midpoint.x;
-      const toCamZ = cam.z - wall.midpoint.z;
-      const facingAway = this.cutaway && wall.normal.x * toCamX + wall.normal.y * toCamZ < 0;
+      const cut = this.cutaway && hidesRoom(wall, cam);
+      if (wall.cut === cut) continue;
+      wall.cut = cut;
+      wall.stub.visible = cut;
       for (const m of wall.materials) {
-        const base = (m.userData['baseOpacity'] as number | undefined) ?? 1;
-        // La pared recortada queda como un velo; su penumbra, que es un adorno, desaparece.
-        const target = facingAway ? (m.userData['shade'] ? 0 : Math.min(base, 0.1)) : base;
-        if (m.opacity !== target) {
-          m.opacity = target;
-          m.depthWrite = target === 1;
-          m.needsUpdate = true;
-        }
+        m.colorWrite = !cut;
+        m.depthWrite = !cut && m.userData['baseDepthWrite'] !== false;
       }
+      // Los pases de posprocesado (oclusión, contorno) ignoran lo que está marcado así.
+      for (const g of wall.groups) g.userData['ghost'] = cut;
+      changed = true;
     }
-    this.ctx.invalidate();
+    if (changed) this.ctx.invalidate();
   }
 
   dispose(): void {

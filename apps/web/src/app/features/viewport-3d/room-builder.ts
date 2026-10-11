@@ -25,6 +25,10 @@ export const WALL_THICKNESS = 0.12;
 const EDGE_SHADE_M = 0.55;
 const BASEBOARD = { height: 0.08, depth: 0.012 };
 const FRAME = 0.06;
+/** Alto del murete que queda de una pared cuando se dibuja en corte. */
+export const CUT_HEIGHT = 0.1;
+/** Color de la tapa del corte: el macizo de la pared, como en un plano de sección. */
+const CUT_COLOR = '#7d746a';
 
 export interface WallInfo {
   wallId: string;
@@ -34,6 +38,14 @@ export interface WallInfo {
   midpoint: THREE.Vector3;
   /** El primero es el de la pared; los demás, sus marcos, vidrios, puertas y penumbra. */
   materials: THREE.Material[];
+  /** La pared entera y sus adornos: en corte dejan de verse, pero siguen dando sombra. */
+  groups: THREE.Object3D[];
+  /** Murete con tapa que se ve en su lugar cuando la pared está en corte. */
+  stub: THREE.Group;
+  /** Material de los lados del murete: se pinta igual que la pared. */
+  stubMaterial: THREE.MeshStandardMaterial;
+  /** Si ahora mismo se dibuja en corte. */
+  cut: boolean;
 }
 
 export interface BuiltRoom {
@@ -142,11 +154,11 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     trimGroup.position.copy(wallGroup.position);
     trimGroup.rotation.copy(wallGroup.rotation);
 
-    // Materiales POR PARED: el recorte "casa de muñecas" vuelve translúcida la pared entera
-    // (incluidos marcos, vidrios y puertas). `baseOpacity` guarda la opacidad normal de cada uno.
-    const material = new THREE.MeshStandardMaterial({ color: palette.wall, roughness: 0.92, transparent: true, opacity: 1 });
-    const trimMaterial = new THREE.MeshStandardMaterial({ color: palette.trim, roughness: 0.6, transparent: true, opacity: 1 });
-    const doorMaterial = new THREE.MeshStandardMaterial({ color: palette.door, roughness: 0.55, transparent: true, opacity: 1 });
+    // Materiales POR PARED: el corte "casa de muñecas" deja de dibujar la pared entera (incluidos
+    // marcos, vidrios y puertas) sin tocar a las demás.
+    const material = new THREE.MeshStandardMaterial({ color: palette.wall, roughness: 0.92 });
+    const trimMaterial = new THREE.MeshStandardMaterial({ color: palette.trim, roughness: 0.6 });
+    const doorMaterial = new THREE.MeshStandardMaterial({ color: palette.door, roughness: 0.55 });
     const glassMaterial = new THREE.MeshStandardMaterial({
       color: '#cfe3ee',
       transparent: true,
@@ -186,7 +198,17 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
         trimGroup.add(strip);
       }
     }
-    for (const m of materials) m.userData['baseOpacity'] = m.opacity;
+    for (const m of materials) m.userData['baseDepthWrite'] = m.depthWrite;
+    // Murete del corte: lo que queda a ras de suelo, con la tapa del color del macizo.
+    const stub = new THREE.Group();
+    stub.name = `stub-${wall.id}`;
+    stub.position.copy(wallGroup.position);
+    stub.rotation.copy(wallGroup.rotation);
+    stub.visible = false;
+    const stubMaterial = new THREE.MeshStandardMaterial({ color: palette.wall, roughness: 0.92 });
+    const capMaterial = new THREE.MeshStandardMaterial({ color: CUT_COLOR, roughness: 0.9 });
+    // Caras de una caja: +x, -x, +y (la tapa), -y, +z, -z.
+    const stubFaces = [stubMaterial, stubMaterial, capMaterial, stubMaterial, stubMaterial, stubMaterial];
     const box = (w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Group = wallGroup) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
       mesh.position.set(x, y, z);
@@ -207,6 +229,11 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       if (piece.y0 === 0) {
+        const low = new THREE.Mesh(new THREE.BoxGeometry(w, CUT_HEIGHT, WALL_THICKNESS), stubFaces);
+        low.position.set(piece.x0 - extendStart + w / 2, CUT_HEIGHT / 2, inWall);
+        low.receiveShadow = true;
+        low.raycast = () => undefined;
+        stub.add(low);
         const z = (inwardSign * BASEBOARD.depth) / 2;
         box(piece.x1 - piece.x0, BASEBOARD.height, BASEBOARD.depth, trimMaterial, (piece.x0 + piece.x1) / 2, BASEBOARD.height / 2, z, trimGroup).name = 'baseboard';
       }
@@ -234,12 +261,16 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
       }
     }
 
-    group.add(wallGroup, trimGroup);
+    group.add(wallGroup, trimGroup, stub);
     walls.push({
       wallId: wall.id,
       normal,
       midpoint: new THREE.Vector3((wall.start.x + wall.end.x) / 2, shell.heightM / 2, (wall.start.z + wall.end.z) / 2),
       materials,
+      groups: [wallGroup, trimGroup],
+      stub,
+      stubMaterial,
+      cut: false,
     });
   });
 
@@ -276,6 +307,7 @@ export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?
   for (const wall of room.walls) {
     const wallMat = wall.materials[0] as THREE.MeshStandardMaterial | undefined;
     if (wallMat) paint(wallMat, wallMaterialId(finishes, { id: wall.wallId }));
+    paint(wall.stubMaterial, wallMaterialId(finishes, { id: wall.wallId }));
   }
 }
 

@@ -17,13 +17,41 @@ const COLOR = { select: '#35b3a6', invalid: '#e53935', hover: '#ffffff' };
 /** Nombres de lo que es ayuda de edición y no geometría del cuarto: no proyecta oclusión. */
 const HELPERS = ['gizmo', 'guides'];
 
-/** La oclusión se calcula sin las ayudas de edición: un tirador no oscurece la pared de atrás. */
+/**
+ * Los pases que redibujan la escena con su propio material no saben qué es ayuda de edición ni
+ * qué pared está en corte: se les esconde mientras trabajan. Devuelve cómo dejarlo como estaba.
+ */
+function hideExtras(scene: THREE.Scene): () => void {
+  const hidden: THREE.Object3D[] = [];
+  for (const name of HELPERS) {
+    const helper = scene.getObjectByName(name);
+    if (helper?.visible) hidden.push(helper);
+  }
+  for (const part of scene.getObjectByName('room')?.children ?? []) {
+    if (part.visible && part.userData['ghost']) hidden.push(part);
+  }
+  for (const o of hidden) o.visible = false;
+  return () => {
+    for (const o of hidden) o.visible = true;
+  };
+}
+
+/** La oclusión se calcula sin las ayudas: un tirador no oscurece la pared de atrás. */
 class RoomAoPass extends GTAOPass {
   override render(...args: Parameters<GTAOPass['render']>): void {
-    const hidden = HELPERS.map((name) => this.scene.getObjectByName(name)).filter((o): o is THREE.Object3D => !!o?.visible);
-    for (const o of hidden) o.visible = false;
+    const restore = hideExtras(this.scene);
     super.render(...args);
-    for (const o of hidden) o.visible = true;
+    restore();
+  }
+}
+
+/** El contorno se ve a través de una pared en corte, que no tapa nada. */
+class RoomOutlinePass extends OutlinePass {
+  override render(...args: Parameters<OutlinePass['render']>): void {
+    if (!this.selectedObjects.length) return;
+    const restore = hideExtras(this.renderScene);
+    super.render(...args);
+    restore();
   }
 }
 
@@ -32,7 +60,7 @@ class RoomAoPass extends GTAOPass {
  * mezcla normal (color premultiplicado), que sí se distingue sobre claro y sobre oscuro.
  */
 function outlinePass(size: THREE.Vector2, scene: THREE.Scene, camera: THREE.Camera, color: string, strength: number): OutlinePass {
-  const pass = new OutlinePass(size, scene, camera);
+  const pass = new RoomOutlinePass(size, scene, camera);
   pass.visibleEdgeColor.set(color);
   pass.hiddenEdgeColor.set(color).multiplyScalar(0.35);
   pass.edgeStrength = strength;
