@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { ROOM_SHAPE_IDS, ROOM_TEMPLATES, ROOM_TYPES, ROOM_TYPE_LABELS, STYLES, type RoomShapeId } from '@interiores/shared-types';
+import { ActivatedRoute, Router } from '@angular/router';
+import { ROOM_SHAPE_IDS, ROOM_TEMPLATES, ROOM_TYPES, ROOM_TYPE_LABELS, STYLES, StyleIdSchema, type RoomShapeId } from '@interiores/shared-types';
 import type { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
@@ -475,6 +475,12 @@ export class NewProjectPage implements OnDestroy {
   /** Un error del servidor o de la foto; si no, lo que le falta al paso (solo tras intentar avanzar). */
   protected readonly message = computed(() => this.error() ?? (this.nagging() ? this.wizard.problem() : null));
   private sub: Subscription | null = null;
+
+  constructor() {
+    // Desde la página de inicio se llega con un estilo ya elegido (`?estilo=industrial`).
+    const style = StyleIdSchema.safeParse(inject(ActivatedRoute).snapshot.queryParamMap.get('estilo'));
+    if (style.success) this.wizard.patch({ styles: [style.data] });
+  }
 
   protected setNumber(key: NumberField, value: unknown): void {
     const n = value === null || value === '' ? null : Number(value);
