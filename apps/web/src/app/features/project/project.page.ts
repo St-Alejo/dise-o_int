@@ -17,6 +17,7 @@ import type { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { ProgressService } from '../../core/realtime/progress.service';
+import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { ToastService } from '../../core/ui/toast.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { StyleGalleryComponent } from '../style-gallery/style-gallery.component';
@@ -65,6 +66,7 @@ type View = 'estilos' | '3d';
               <button type="button" class="btn" (click)="openVersions()"><app-icon name="history" /> Versiones ({{ p.versions.length }})</button>
               <button type="button" class="btn" (click)="share()" [disabled]="working()"><app-icon name="share" /> Compartir</button>
               <button type="button" class="btn" (click)="downloadPdf()" [disabled]="working()"><app-icon name="receipt" /> Lista de compras</button>
+              <button type="button" class="btn" (click)="downloadDossier()" [disabled]="working()" title="Ficha del cuarto, plano acotado con los muebles y lista de compras"><app-icon name="download" /> Proyecto en PDF</button>
             </div>
           }
         </header>
@@ -377,13 +379,15 @@ export class ProjectPage implements OnInit {
   async downloadPdf(): Promise<void> {
     await this.run(async (id) => {
       await this.store.flush();
-      const blob = await this.api.shoppingListPdf(id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `lista-de-compras-${this.store.project()?.name ?? 'proyecto'}.pdf`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadBlob(await this.api.shoppingListPdf(id), `lista-de-compras-${fileSlug(this.store.project()?.name ?? 'proyecto')}.pdf`);
+    });
+  }
+
+  /** El proyecto entero en un PDF: ficha, plano acotado y lista de compras. */
+  async downloadDossier(): Promise<void> {
+    await this.run(async (id) => {
+      await this.store.flush();
+      downloadBlob(await this.api.dossierPdf(id), `${fileSlug(this.store.project()?.name ?? 'proyecto')}.pdf`);
     });
   }
 

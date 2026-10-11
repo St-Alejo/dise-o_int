@@ -4,8 +4,11 @@ import {
   DEFAULT_PROMPT_STRENGTH,
   DEFAULT_STYLES,
   ROOM_LIMITS,
+  ROOM_TYPE_LABELS,
   RoomGeometryError,
+  RoomPlan,
   STAGE_MESSAGES,
+  STYLES,
   UnknownMaterialError,
   assertValidFinishes,
   calibrateRoomShell,
@@ -14,6 +17,7 @@ import {
   clampToRoom,
   defaultResizeRanges,
   effectiveDimensions,
+  footprint,
   mountY,
   resizeRoomShell,
   scalePlacements,
@@ -61,6 +65,7 @@ import {
   type ProjectRecord,
 } from '../../ports/index.js';
 import { projectKeys, toDesignProject, toListItem } from './project.mapper.js';
+import type { ProjectDossier } from './shopping-list.pdf.js';
 import { newRoomFor } from './room-factory.js';
 
 export interface Actor {
@@ -502,6 +507,30 @@ export class ProjectsService {
   // ------------------------------------------------------------------ lista de compras
   async shoppingList(actor: Actor, id: string): Promise<ShoppingList> {
     return this.buildShoppingList(await this.own(actor, id));
+  }
+
+  /** Lo que lleva el dossier en PDF: la ficha del cuarto, su planta con muebles y la lista de compras. */
+  async dossier(actor: Actor, id: string): Promise<ProjectDossier> {
+    const project = await this.own(actor, id);
+    const shell = this.requireShell(project);
+    const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
+    const pieces = project.placements.flatMap((p) => {
+      const item = items.get(p.catalogItemId);
+      // En planta se dibuja lo que pisa el suelo; lo colgado y lo apoyado encima solo estorbaría.
+      if (!item || item.mount !== 'floor' || p.supportId || item.subcategory === 'rug') return [];
+      const dims = effectiveDimensions({ x: item.widthM, y: item.heightM, z: item.depthM }, p);
+      return [{ name: item.name, corners: footprint(p.position, dims, p.rotationY).corners.map((c) => ({ x: c.x, z: c.z })) }];
+    });
+    const style = project.selectedStyleId ? STYLES[project.selectedStyleId].label : null;
+    return {
+      name: project.name,
+      subtitle: [ROOM_TYPE_LABELS[project.roomType], style].filter(Boolean).join(' · '),
+      shell,
+      areaM2: RoomPlan.from(shell).area(),
+      pieces,
+      pieceCount: project.placements.length,
+      list: await this.buildShoppingList(project),
+    };
   }
 
   async buildShoppingList(project: ProjectRecord): Promise<ShoppingList> {

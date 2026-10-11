@@ -51,7 +51,7 @@ import type { Response } from 'express';
 import { openApiSchema, ZodPipe } from '../../common/zod.js';
 import { CurrentUser, RequestId, type AuthPrincipal } from '../auth/auth.decorators.js';
 import { ProjectsService, type Actor } from './projects.service.js';
-import { renderShoppingListPdf } from './shopping-list.pdf.js';
+import { renderProjectDossierPdf, renderShoppingListPdf } from './shopping-list.pdf.js';
 
 /** Tope duro de Multer; el límite configurable (UPLOAD_MAX_MB) lo aplica PhotoProcessor. */
 const MULTER_HARD_LIMIT = 50 * 1024 * 1024;
@@ -241,6 +241,17 @@ export class ProjectsController {
   @Get(':id/shopping-list')
   shoppingList(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string): Promise<ShoppingList> {
     return this.service.shoppingList(this.actor(user), id);
+  }
+
+  @Get(':id/dossier.pdf')
+  @Throttle(perMinute(12))
+  async dossierPdf(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string, @Res() res: Response): Promise<void> {
+    const pdf = await renderProjectDossierPdf(await this.service.dossier(this.actor(user), id));
+    res
+      .type('application/pdf')
+      .setHeader('content-disposition', `attachment; filename="proyecto-${id.slice(0, 8)}.pdf"`)
+      .setHeader('cache-control', 'no-store')
+      .send(pdf);
   }
 
   @Get(':id/shopping-list.pdf')

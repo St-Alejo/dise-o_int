@@ -156,6 +156,11 @@ export class ProjectsApi {
     return firstValueFrom(this.http.get<ShoppingList>(`${this.base}/${id}/shopping-list`));
   }
 
+  /** El proyecto en un PDF: ficha, plano acotado con muebles y lista de compras. */
+  dossierPdf(id: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(`${this.base}/${id}/dossier.pdf`, { responseType: 'blob' }));
+  }
+
   shoppingListPdf(id: string): Promise<Blob> {
     return firstValueFrom(this.http.get(`${this.base}/${id}/shopping-list.pdf`, { responseType: 'blob' }));
   }

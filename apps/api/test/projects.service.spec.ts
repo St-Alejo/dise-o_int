@@ -1,3 +1,4 @@
+import { renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { createRectangularShell, moveWall } from '@interiores/shared-types';
@@ -215,6 +216,30 @@ describe('ProjectsService', () => {
       const { x, z } = created.furniturePlacements[0]!.position;
       expect(x).toBeLessThan(4);
       expect(z).toBeLessThan(3.5);
+    });
+  });
+
+  describe('dossier (el proyecto en PDF)', () => {
+    it('reúne la ficha, la planta con los muebles de piso y la lista de compras, y el PDF sale con dos páginas', async () => {
+      const p = await readyProject();
+      await service.updateScene(alice, p.id, {
+        revision: p.revision,
+        furniturePlacements: [
+          { id: 'p1', catalogItemId: 'sofa-test', position: { x: 2, y: 0, z: 1 }, rotationY: 0, lockedByUser: false },
+          { id: 'p2', catalogItemId: 'lamp', position: { x: 2, y: 1.7, z: 1.75 }, rotationY: 0, lockedByUser: false },
+        ],
+      });
+      const dossier = await service.dossier(alice, p.id);
+      expect(dossier).toMatchObject({ name: 'Sala', subtitle: 'Sala', areaM2: 14, pieceCount: 2 });
+      // La lámpara de techo no se dibuja en planta; el sofá sí, con sus cuatro esquinas.
+      expect(dossier.pieces).toHaveLength(1);
+      expect(dossier.pieces[0]!.corners).toHaveLength(4);
+      expect(dossier.list.lines.length).toBeGreaterThan(0);
+
+      const pdf = await renderProjectDossierPdf(dossier);
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      expect(pdf.toString('latin1').match(/\/Type \/Page[^s]/g)).toHaveLength(2);
+      await expect(service.dossier(bob, p.id)).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 
