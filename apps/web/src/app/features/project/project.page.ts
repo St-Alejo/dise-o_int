@@ -23,6 +23,7 @@ import { StyleGalleryComponent } from '../style-gallery/style-gallery.component'
 import { EditorComponent } from '../viewport-3d/editor.component';
 import { DesignProjectStore } from './design-project.store';
 import { ProcessingPanelComponent } from './processing-panel.component';
+import { ProjectFactsComponent } from './project-facts.component';
 
 type View = 'estilos' | '3d';
 
@@ -30,7 +31,7 @@ type View = 'estilos' | '3d';
   selector: 'app-project-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DesignProjectStore],
-  imports: [RouterLink, DatePipe, ProcessingPanelComponent, StyleGalleryComponent, EditorComponent, IconComponent],
+  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, StyleGalleryComponent, EditorComponent, IconComponent],
   template: `
     <section class="container page">
       @if (store.loadError(); as err) {
@@ -67,6 +68,10 @@ type View = 'estilos' | '3d';
             </div>
           }
         </header>
+
+        @if (p.status === 'ready') {
+          <app-project-facts class="facts" />
+        }
 
         @if (p.status === 'failed') {
           <div class="card" role="alert">
@@ -154,6 +159,10 @@ type View = 'estilos' | '3d';
       display: flex;
       gap: 12px;
       align-items: center;
+    }
+    .facts {
+      display: block;
+      margin-bottom: 16px;
     }
     .title h1 {
       margin: 0;

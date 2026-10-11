@@ -4,7 +4,9 @@ import { RouterLink } from '@angular/router';
 import { ROOM_TYPE_LABELS, STYLES, type DesignProject, type PublicProject, type ShoppingList } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
+import { IconComponent } from '../../shared/ui/icon.component';
 import { DesignProjectStore } from '../project/design-project.store';
+import { ProjectFactsComponent } from '../project/project-facts.component';
 import { CompareSliderComponent } from '../style-gallery/compare-slider.component';
 import { SceneService } from '../viewport-3d/scene.service';
 import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component';
@@ -14,7 +16,7 @@ import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component'
   selector: 'app-public-project',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DesignProjectStore, SceneService],
-  imports: [RouterLink, CurrencyPipe, CompareSliderComponent, ThreeViewportComponent],
+  imports: [RouterLink, CurrencyPipe, CompareSliderComponent, ThreeViewportComponent, ProjectFactsComponent, IconComponent],
   template: `
     <section class="container page">
       @if (error()) {
@@ -27,6 +29,7 @@ import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component'
         <p class="badge badge-primary">Proyecto compartido · solo lectura</p>
         <h1>{{ p.name }}</h1>
         <p class="muted">{{ roomLabels[p.roomType] }}{{ p.selectedStyleId ? ' · estilo ' + styles[p.selectedStyleId].label : '' }}</p>
+        <app-project-facts />
 
         @if (selectedPreview(); as pr) {
           @if (p.sourcePhotoUrl && pr.imageUrl) {
@@ -37,6 +40,7 @@ import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component'
 
         @if (p.roomShell) {
           <h2>Recorrido 3D</h2>
+          <p class="muted hint">Arrastra para girar la vista o pulsa "Recorrer" para caminar por dentro. No puedes cambiar nada: es de solo lectura.</p>
           <div class="viewport"><app-three-viewport [readOnly]="true" /></div>
           @if (store.selectedItem(); as item) {
             <p class="card selected">
@@ -73,7 +77,14 @@ import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component'
             <tfoot><tr><th scope="row" colspan="2">Total aprox.</th><td><strong>{{ l.total | currency: l.currency : 'symbol' : '1.0-0' }}</strong></td></tr></tfoot>
           </table>
         }
-        <p class="muted cta">¿Quieres rediseñar tu propio cuarto? <a routerLink="/registro">Crea una cuenta gratis</a>.</p>
+        <aside class="cta card" aria-labelledby="cta-title">
+          <span class="icon-tile"><app-icon name="cube" /></span>
+          <div>
+            <h2 id="cta-title">¿Y tu cuarto?</h2>
+            <p class="muted">Este se hizo con Interiores IA a partir de una foto o de unas medidas. El tuyo tarda menos de un minuto.</p>
+          </div>
+          <a routerLink="/registro" class="btn btn-primary">Crear el mío gratis</a>
+        </aside>
       } @else {
         <div class="skeleton" style="height: 50vh" aria-busy="true"></div>
       }
@@ -111,8 +122,27 @@ import { ThreeViewportComponent } from '../viewport-3d/three-viewport.component'
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
+    .hint {
+      margin: 0;
+    }
     .cta {
-      margin-top: 24px;
+      margin-top: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      background: var(--gradient-brand);
+    }
+    .cta div {
+      flex: 1;
+      min-width: 220px;
+    }
+    .cta h2,
+    .cta p {
+      margin: 0;
+    }
+    .cta h2 {
+      font-size: var(--text-lg);
     }
   `,
 })
