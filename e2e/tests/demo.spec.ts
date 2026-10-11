@@ -98,3 +98,28 @@ test('presentar: recorre las vistas del cuarto con las flechas y al salir todo q
   // Y no se movió ni se borró nada por haber usado el teclado.
   expect(await placements(page)).toBeGreaterThan(5);
 });
+
+test('primeros pasos: salen la primera vez que se abre el editor y no vuelven', async ({ page }) => {
+  await page.addInitScript(() => {
+    // Solo en la primera carga: como si nunca se hubiera abierto el editor.
+    if (!sessionStorage.getItem('reiniciado')) {
+      localStorage.removeItem('interiores.tour.visto');
+      sessionStorage.setItem('reiniciado', '1');
+    }
+  });
+  await page.goto('/demo/estudio-industrial');
+  const tour = page.getByRole('complementary', { name: 'Primeros pasos' });
+  await expect(tour).toContainText('1 de 4');
+  await expect(tour).toContainText('Mueve y gira');
+  // No bloquea: el editor se puede usar con la franja abierta.
+  await expect(page.getByRole('button', { name: 'Presentar' })).toBeEnabled();
+  for (const step of ['2 de 4', '3 de 4', '4 de 4']) {
+    await tour.getByRole('button', { name: 'Siguiente' }).click();
+    await expect(tour).toContainText(step);
+  }
+  await tour.getByRole('button', { name: 'Entendido' }).click();
+  await expect(tour).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Objetos' })).toBeVisible({ timeout: 30_000 });
+  await expect(tour).toBeHidden();
+});

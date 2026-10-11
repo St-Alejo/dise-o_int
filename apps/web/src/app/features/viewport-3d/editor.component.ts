@@ -23,6 +23,7 @@ import { SwapCommand } from './commands';
 import { SceneService } from './scene.service';
 import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
 import { BudgetPanelComponent } from '../budget/budget-panel.component';
+import { EditorTourComponent } from '../onboarding/editor-tour.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
@@ -71,6 +72,7 @@ function initialView(): ViewMode {
     ArViewerComponent,
     PresentationOverlayComponent,
     BudgetPanelComponent,
+    EditorTourComponent,
     CurrencyPipe,
   ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
@@ -166,6 +168,9 @@ function initialView(): ViewMode {
       </div>
     }
 
+    @if (!presenting()) {
+      <app-editor-tour />
+    }
     <div class="layout">
       <div class="viewport-wrap" #wrap [class.presenting]="presenting()">
         <div class="stage" [class]="'stage stage-' + viewMode()">
