@@ -2,8 +2,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   STAGE_MESSAGES,
   STYLES,
+  decorate,
   finishesFromPhoto,
   resizeRoomShell,
+  type DecorItem,
   type DetectedObject,
   type FurniturePlacement,
   type InventoryItem,
@@ -300,7 +302,21 @@ export class PipelineService {
       this.aiCtx(ctx),
     );
     const lockedIds = new Set(locked.map((p) => p.id));
-    return [...locked, ...res.placements.filter((p) => !lockedIds.has(p.id))];
+    const placed = [...locked, ...res.placements.filter((p) => !lockedIds.has(p.id))];
+    // Con los muebles en su sitio, lo que hace que el cuarto se vea habitado: cortinas, un cuadro,
+    // la lámpara de la mesita. No ocupa piso, así que no puede estropear la distribución.
+    const items: DecorItem[] = catalog.map((c) => ({
+      id: c.id,
+      category: c.category,
+      subcategory: c.subcategory ?? undefined,
+      styleTags: c.styleTags,
+      roomTypes: c.roomTypes,
+      dimensionsM: { x: c.widthM, y: c.heightM, z: c.depthM },
+      mount: c.mount,
+      elevationDefaultM: c.spec?.elevationDefaultM,
+      resize: c.spec?.resize,
+    }));
+    return [...placed, ...decorate({ shell, roomType: project.roomType, styleId, placements: placed, items, seed })];
   }
 
   /**

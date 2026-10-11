@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { buildRoomFromSpec } from '@interiores/shared-types';
 import { AiServiceError } from '../src/common/errors.js';
 import { PipelineService, type JobContext } from '../src/modules/jobs/pipeline.service.js';
-import { FakeAi, FakeBroker, FakeQuota, InMemoryCatalogRepository, InMemoryProjectRepository } from './fakes.js';
+import { FakeAi, FakeBroker, FakeQuota, InMemoryCatalogRepository, InMemoryProjectRepository, catalogItem } from './fakes.js';
 
 describe('PipelineService', () => {
   let repo: InMemoryProjectRepository;
@@ -78,6 +78,23 @@ describe('PipelineService', () => {
     await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true }, { ...ctx(), kind: 'build-scene' });
     const project = (await repo.findById('p1'))!;
     expect(project.placements.map((p) => p.id)).toEqual(['mine', 'auto-1']);
+  });
+
+  it('tras distribuir, decora con lo que haya en el catálogo: cortinas a medida en la ventana', async () => {
+    const catalog = new InMemoryCatalogRepository();
+    await catalog.upsert(
+      catalogItem({ id: 'cortinas', name: 'Cortinas', category: 'textile', subcategory: 'curtains', mount: 'wall', widthM: 2.2, heightM: 2.4, depthM: 0.12, spec: { elevationDefaultM: 0 } }),
+    );
+    pipeline = new PipelineService(repo, catalog, ai, broker, new FakeQuota(100));
+    await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
+    const project = (await repo.findById('p1'))!;
+    const windows = project.roomShell!.openings.filter((o) => o.type === 'window');
+    const curtains = project.placements.filter((p) => p.catalogItemId === 'cortinas');
+    expect(windows.length).toBeGreaterThan(0);
+    expect(curtains).toHaveLength(Math.min(windows.length, 3));
+    expect(curtains[0]).toMatchObject({ origin: 'layout', lockedByUser: false, wallId: windows[0]!.wallId });
+    // La distribución del motor sigue ahí, primero.
+    expect(project.placements[0]!.id).toBe('auto-1');
   });
 
   it('build-scene con semilla pide al motor esa variante; sin semilla, la de siempre', async () => {
