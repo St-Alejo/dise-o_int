@@ -283,6 +283,17 @@ img {
   color: var(--accent-strong);
 }
 
+/* Bloques que aparecen al entrar en pantalla (directiva appReveal). */
+.reveal {
+  transition:
+    opacity 0.5s var(--ease),
+    transform 0.5s var(--ease);
+}
+.reveal-pending {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
 /* ---------- Botones ---------- */
 .btn {
   --btn-bg: var(--surface);
