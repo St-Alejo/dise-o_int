@@ -389,3 +389,76 @@ def test_con_inventario_de_la_foto_no_falta_lo_que_da_ambiente():
     assert {"sofa", "coffee-table", "rug", "pendant", "floor-lamp", "plant"} <= roles
     # Lo que no se vio ni da ambiente (el mueble de la tele, el sillón) no se inventa.
     assert not {"tv-stand", "armchair", "shelf"} & roles
+
+
+# ---------------------------------------------------------------- puntuación
+def _placement(pid, item_id, x, z, rot=0.0):
+    from interiores_ai.contracts import FurniturePlacement, Vector3
+
+    return FurniturePlacement(id=pid, catalogItemId=item_id, position=Vector3(x=x, y=0, z=z), rotationY=rot, lockedByUser=False)
+
+
+def _candidate(item_id, w, h, d, sub=None, mount="floor"):
+    from interiores_ai.contracts import Vector3
+
+    return LayoutCandidate(id=item_id, category="storage", subcategory=sub, styleTags=["moderno"], dimensionsM=Vector3(x=w, y=h, z=d), mount=mount)
+
+
+def test_la_nota_prefiere_dejar_paso_y_no_tapar_la_ventana():
+    from interiores_ai.layout.scoring import Balance, Walkways, WindowsClear, floor_pieces, layout_quality
+
+    shell = rectangular_shell(5, 4, 2.6, windows=[(0.5, 1.4, 1.2, 0.9)])
+    window = next(o for o in shell.openings if o.type == "window")
+    wall = next(w for w in shell.walls if w.id == window.wallId)
+    length = math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z)
+    wx = wall.start.x + (wall.end.x - wall.start.x) / length * window.offsetM
+    wz = wall.start.z + (wall.end.z - wall.start.z) / length * window.offsetM
+    catalog = {c.id: c for c in [_candidate("armario", 1.0, 2.0, 0.6), _candidate("mesa", 1.0, 0.7, 0.6), _candidate("alfombra", 2.0, 0.01, 1.4, sub="rug")]}
+
+    tapada = [_placement("a", "armario", wx, wz + (0.35 if wz < 2 else -0.35))]
+    libre = [_placement("a", "armario", 0.6 if wx > 2.5 else 4.4, 2.0)]
+    assert WindowsClear().rate(shell, floor_pieces(tapada, catalog)) == 0
+    assert WindowsClear().rate(shell, floor_pieces(libre, catalog)) == 1
+    assert layout_quality(shell, libre, catalog) > layout_quality(shell, tapada, catalog)
+
+    # Dos muebles a 20 cm: ni se tocan ni se pasa. Pegados o con 80 cm, bien.
+    def gap(metres):
+        return floor_pieces([_placement("a", "mesa", 1.5, 2.0), _placement("b", "mesa", 2.5 + metres, 2.0)], catalog)
+
+    assert Walkways().rate(shell, gap(0.2)) == 0
+    assert Walkways().rate(shell, gap(0.0)) == 1
+    assert Walkways().rate(shell, gap(0.8)) == 1
+    # Las alfombras no cuentan: no estorban.
+    assert len(floor_pieces([_placement("r", "alfombra", 2.5, 2.0)], catalog)) == 0
+    # Todo amontonado en una esquina pesa menos que repartido.
+    assert Balance().rate(shell, floor_pieces([_placement("a", "mesa", 2.5, 2.0)], catalog)) > Balance().rate(
+        shell, floor_pieces([_placement("a", "mesa", 0.6, 0.4)], catalog)
+    )
+    # Lo imprescindible manda: una distribución a la que le falta la mitad puntúa menos.
+    assert layout_quality(shell, libre, catalog, 0.5) < layout_quality(shell, tapada, catalog, 1.0)
+
+
+def test_otra_distribucion_elige_la_mejor_de_varias_y_es_repetible(catalog):
+    from interiores_ai.layout import rules_engine
+    from interiores_ai.layout.scoring import layout_quality
+
+    shell = rectangular_shell(5, 4.2, 2.6, windows=[(0.5, 1.4, 1.2, 0.9)])
+    by_id = {c.id: c for c in catalog}
+
+    def request(seed):
+        return PlaceFurnitureRequest(roomShell=shell, roomType="living", styleId="moderno", candidates=catalog, locked=[], seed=seed)
+
+    chosen = engine.place(request(5))
+    again = engine.place(request(5))
+    assert [(p.catalogItemId, p.position.x, p.position.z) for p in chosen.placements] == [
+        (p.catalogItemId, p.position.x, p.position.z) for p in again.placements
+    ]
+    assert_valid(shell, chosen, catalog)
+    # Ninguna de las variantes que se miraron es claramente mejor que la elegida.
+    quality = layout_quality(shell, chosen.placements, by_id, chosen.score)
+    for step in range(rules_engine.VARIANTS):
+        variant = engine._place_once(request((5 + step * 7919) % 2_147_483_647))
+        assert layout_quality(shell, variant.placements, by_id, variant.score) <= quality + rules_engine.QUALITY_TOLERANCE + 1e-9
+    # Sin semilla sigue saliendo la distribución de siempre, sin pasar por la selección.
+    plain = PlaceFurnitureRequest(roomShell=shell, roomType="living", styleId="moderno", candidates=catalog, locked=[])
+    assert [p.catalogItemId for p in engine.place(plain).placements] == [p.catalogItemId for p in engine._place_once(plain).placements]

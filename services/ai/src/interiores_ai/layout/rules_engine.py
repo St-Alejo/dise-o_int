@@ -34,6 +34,7 @@ from ..contracts import (
 )
 from .geometry import Footprint, angle_facing, forward, normalize_angle, overlaps, right
 from .polygon import RoomGeometry
+from .scoring import layout_quality
 
 # "wall" y "surface" no compiten por el piso: un cuadro o una lámpara de mesa no bloquean muebles.
 Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
@@ -47,6 +48,10 @@ VARIETY_TOLERANCE = {"wall": 1.2, "facing-wall": 0.6, "corner": 0.6}
 CAMERA_WALL_ID = "w-front"  # pared detrás del fotógrafo (ver providers/shell.py)
 WALL_GAP_M = 0.02
 INSIDE_TOLERANCE_M = 0.004
+# Con semilla, cuántas variantes se generan para quedarse con la mejor.
+VARIANTS = 4
+# Cuánto peor que la mejor puede ser una variante para seguir valiendo (la nota va de 0 a 1).
+QUALITY_TOLERANCE = 0.04
 
 
 class LayoutEngine(Protocol):
@@ -344,6 +349,21 @@ class RulesLayoutEngine:
     name = "rules-greedy-v1"
 
     def place(self, req: PlaceFurnitureRequest) -> PlaceFurnitureResponse:
+        """Sin semilla, la distribución de siempre. Con semilla ("otra distribución"), se generan
+        varias variantes y se devuelve la de la semilla pedida salvo que sea claramente peor que
+        otra: así cada semilla sigue dando algo distinto, pero nunca una mala habiendo una buena.
+        """
+        if req.seed is None:
+            return self._place_once(req)
+        catalog = {c.id: c for c in req.candidates}
+        variants = [
+            self._place_once(req.model_copy(update={"seed": (req.seed + step * 7919) % 2_147_483_647})) for step in range(VARIANTS)
+        ]
+        qualities = [layout_quality(req.roomShell, v.placements, catalog, v.score) for v in variants]
+        good_enough = max(qualities) - QUALITY_TOLERANCE
+        return next(v for v, q in zip(variants, qualities, strict=True) if q >= good_enough)
+
+    def _place_once(self, req: PlaceFurnitureRequest) -> PlaceFurnitureResponse:
         rng = random.Random(req.seed if req.seed is not None else 7)
         # Sin semilla se devuelve siempre la mejor distribución; con semilla, una variante válida
         # distinta para cada valor ("otra distribución").
