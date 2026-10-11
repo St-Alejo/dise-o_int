@@ -5,7 +5,9 @@ import { ROOM_SHAPE_IDS, ROOM_TEMPLATES, ROOM_TYPES, ROOM_TYPE_LABELS, STYLES, S
 import type { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
+import { IconComponent, type IconName } from '../../shared/ui/icon.component';
 import { FloorPlanComponent } from '../floor-plan/floor-plan.component';
+import { choicesOf } from './wizard-summary';
 import { NewProjectWizard, type ShapeChoice, type WizardData } from './wizard.store';
 
 const MAX_MB = 15;
@@ -21,6 +23,15 @@ const SHAPE_ICONS: Record<RoomShapeId, string> = Object.fromEntries(
 
 type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepthM';
 
+const ROOM_ICONS: Record<(typeof ROOM_TYPES)[number], IconName> = {
+  living: 'sofa',
+  bedroom: 'bed',
+  dining: 'table',
+  office: 'chair',
+  kitchen: 'kitchen',
+  bathroom: 'bath',
+};
+
 /**
  * Nuevo proyecto en tres pasos: de dónde sale el cuarto (foto o a mano), su forma y medidas con
  * el plano a la vista, y el tipo y estilo. Las reglas viven en `NewProjectWizard`.
@@ -28,20 +39,38 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
 @Component({
   selector: 'app-new-project',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, FloorPlanComponent],
+  imports: [FormsModule, FloorPlanComponent, IconComponent],
   template: `
     <section class="container page">
-      <h1>Nuevo proyecto</h1>
+      <div class="top">
+        <h1>Nuevo proyecto</h1>
+        <p class="muted">Paso {{ wizard.index() + 1 }} de {{ wizard.steps.length }}: {{ wizard.step().title.toLowerCase() }}.</p>
+      </div>
 
       <ol class="steps" aria-label="Pasos">
         @for (s of wizard.steps; track s.id; let i = $index) {
           <li>
             <button type="button" class="step" [class.done]="i < wizard.index()" [attr.aria-current]="i === wizard.index() ? 'step' : null" (click)="wizard.goTo(i)">
-              <span class="num" aria-hidden="true">{{ i + 1 }}</span>{{ s.title }}
+              <span class="num" aria-hidden="true">
+                @if (i < wizard.index()) {
+                  <app-icon name="check" />
+                } @else {
+                  {{ i + 1 }}
+                }
+              </span>
+              {{ s.title }}
             </button>
           </li>
         }
       </ol>
+
+      @if (choices().length) {
+        <ul class="choices" aria-label="Lo que llevas elegido">
+          @for (c of choices(); track c.label) {
+            <li><span class="muted">{{ c.label }}</span> {{ c.value }}</li>
+          }
+        </ul>
+      }
 
       @switch (wizard.step().id) {
         @case ('source') {
@@ -59,6 +88,7 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
                 <button type="button" class="btn btn-sm change" (click)="fileInput.click()">Cambiar foto</button>
               } @else {
                 <div class="drop-text">
+                  <span class="icon-tile big"><app-icon name="camera" /></span>
                   <h2>Con una foto</h2>
                   <p><strong>Arrastra aquí la foto de tu cuarto</strong></p>
                   <p class="muted">JPG, PNG o WebP, hasta {{ maxMb }} MB</p>
@@ -75,6 +105,7 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
                 <li><strong>Cuarto completo.</strong> Que se vean el piso, al menos dos paredes y las ventanas.</li>
               </ul>
               <div class="card stack manual">
+                <span class="icon-tile accent"><app-icon name="ruler" /></span>
                 <h2>Sin foto</h2>
                 <p class="muted">Elige la forma del cuarto, escribe sus medidas y lo amueblamos en 3D.</p>
                 <button type="button" class="btn" (click)="startManual()">Empezar sin foto</button>
@@ -168,7 +199,9 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
               <legend class="label">¿Qué cuarto es?</legend>
               <div class="row">
                 @for (r of roomTypes; track r) {
-                  <button type="button" class="chip" [attr.aria-pressed]="d().roomType === r" (click)="wizard.patch({ roomType: r })">{{ roomLabels[r] }}</button>
+                  <button type="button" class="chip" [attr.aria-pressed]="d().roomType === r" (click)="wizard.patch({ roomType: r })">
+                    <app-icon [name]="roomIcons[r]" /> {{ roomLabels[r] }}
+                  </button>
                 }
               </div>
             </fieldset>
@@ -220,6 +253,13 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
     .page {
       padding: 32px 0 64px;
     }
+    .top {
+      margin-bottom: var(--space-4);
+    }
+    .top h1,
+    .top p {
+      margin: 0;
+    }
     h2 {
       margin: 0;
       font-size: 1.15rem;
@@ -227,10 +267,48 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
     .steps {
       list-style: none;
       display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0;
+      margin: 0 0 var(--space-4);
+      flex-wrap: wrap;
+    }
+    /* Una línea une cada paso con el siguiente. */
+    .steps li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .steps li + li::before {
+      content: '';
+      width: clamp(12px, 4vw, 40px);
+      height: 2px;
+      border-radius: 2px;
+      background: var(--border);
+    }
+    .choices {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-2);
       padding: 0;
       margin: 0 0 var(--space-5);
-      flex-wrap: wrap;
+      font-size: var(--text-sm);
+    }
+    .choices li {
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: var(--tint-1);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .choices .muted {
+      font-weight: 400;
+    }
+    .big {
+      width: 60px;
+      height: 60px;
+      font-size: 1.7rem;
     }
     .step {
       display: inline-flex;
@@ -246,8 +324,12 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
     }
     .step[aria-current='step'] {
       border-color: var(--primary);
-      color: var(--text);
+      background: var(--primary-soft);
+      color: var(--primary-strong);
       font-weight: 600;
+    }
+    .step.done {
+      color: var(--text);
     }
     .num {
       display: grid;
@@ -283,6 +365,9 @@ type NumberField = 'widthM' | 'depthM' | 'heightM' | 'notchWidthM' | 'notchDepth
       place-items: center;
       overflow: hidden;
       transition: border-color 0.15s;
+    }
+    .dropzone:hover {
+      border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
     }
     .dropzone.over {
       border-color: var(--primary);
@@ -457,6 +542,7 @@ export class NewProjectPage implements OnDestroy {
   protected readonly accepted = ACCEPTED.join(',');
   protected readonly roomTypes = ROOM_TYPES;
   protected readonly roomLabels = ROOM_TYPE_LABELS;
+  protected readonly roomIcons = ROOM_ICONS;
   protected readonly allStyles = Object.values(STYLES);
   protected readonly shapes = ROOM_SHAPE_IDS.map((id) => ({ id, label: ROOM_TEMPLATES[id].label, description: ROOM_TEMPLATES[id].description, icon: SHAPE_ICONS[id] }));
 
@@ -467,6 +553,9 @@ export class NewProjectPage implements OnDestroy {
   private readonly error = signal<string | null>(null);
   /** Se intentó avanzar con el paso incompleto: desde entonces se muestra qué falta. */
   private readonly nagging = signal(false);
+
+  /** Resumen de lo elegido en los pasos ya pasados. */
+  protected readonly choices = computed(() => choicesOf(this.d(), this.wizard.index()));
 
   protected readonly hasNotch = computed(() => {
     const shape: ShapeChoice = this.d().shape;
