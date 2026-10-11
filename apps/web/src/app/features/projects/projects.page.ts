@@ -220,7 +220,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
     }
     .summary {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: var(--space-4) var(--space-6);
       margin: 0 0 var(--space-5);
       padding: var(--space-4) var(--space-5);
