@@ -70,6 +70,16 @@ export class QualityGovernor {
   }
 }
 
+/**
+ * Con qué nivel se empieza. A mano, el elegido. En automático, por arriba, salvo que el navegador
+ * esté dibujando por software (sin GPU): ahí el posprocesado tarda segundos por cuadro y no tiene
+ * sentido esperar a medirlo para bajarlo.
+ */
+export function startingLevel(choice: QualityChoice, rendererName: string | null): QualityLevel {
+  if (choice !== 'auto') return choice;
+  return rendererName && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(rendererName) ? 'low' : 'high';
+}
+
 export function loadQualityChoice(): QualityChoice {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);

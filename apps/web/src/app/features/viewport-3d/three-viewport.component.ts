@@ -20,7 +20,7 @@ import { IconComponent } from '../../shared/ui/icon.component';
 import { RoomActionsComponent } from '../floor-plan/room-actions.component';
 import { TIMES_OF_DAY } from './scene/lighting-rig';
 import type { PostFx } from './scene/post-fx';
-import { QUALITY, QUALITY_CHOICES, QualityGovernor, loadQualityChoice, saveQualityChoice, type QualityChoice, type QualityLevel } from './scene/quality';
+import { QUALITY, QUALITY_CHOICES, QualityGovernor, loadQualityChoice, saveQualityChoice, startingLevel, type QualityChoice } from './scene/quality';
 import { PaintPaletteComponent } from './tools/paint-palette.component';
 import { VIEWPORT_TOOLS } from './tools/tools';
 import { SceneService, VIEW_PRESETS } from './scene.service';
@@ -424,6 +424,9 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer = renderer;
+    // Ahora que se sabe quién dibuja, se decide con qué calidad empezar.
+    this.governor = this.newGovernor();
+    renderer.setPixelRatio(this.pixelRatio());
 
     const controls = new OrbitControls(this.scene.camera, canvas);
     controls.enableDamping = true;
@@ -520,7 +523,15 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   /** En automático se empieza por arriba y se baja si hace falta; a mano, el nivel no se mueve. */
   private newGovernor(): QualityGovernor {
     const choice = this.qualityChoice();
-    return new QualityGovernor(choice === 'auto' ? 'high' : (choice as QualityLevel), choice === 'auto');
+    return new QualityGovernor(startingLevel(choice, this.rendererName()), choice === 'auto');
+  }
+
+  /** Nombre de quien dibuja (la GPU o, sin ella, un renderizador por software). */
+  private rendererName(): string | null {
+    const gl = this.renderer?.getContext();
+    if (!gl) return null;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '') || null;
   }
 
   protected chooseQuality(choice: QualityChoice): void {
