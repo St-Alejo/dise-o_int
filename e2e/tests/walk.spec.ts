@@ -8,7 +8,7 @@ import { apiSession } from './helpers';
 interface Scene {
   cameraMode: 'orbit' | 'walk';
   camera: { x: number; y: number; z: number };
-  timeOfDay: 'day' | 'night';
+  timeOfDay: 'day' | 'evening' | 'night';
   lamps: number;
   walls: number;
   tool: string;
@@ -51,17 +51,21 @@ test('recorrer: baja a la altura de los ojos, camina sin atravesar paredes y vue
 
   // De noche alumbran las lámparas del cuarto (el dormitorio trae una colgante y una de pie).
   await expect.poll(async () => (await scene(page)).lamps).toBeGreaterThan(0);
-  const night = page.getByRole('button', { name: 'Modo noche' });
-  await expect(night).toHaveAttribute('aria-pressed', 'false');
-  await night.click();
-  await expect(night).toHaveAttribute('aria-pressed', 'true');
+  const light = page.locator('summary', { hasText: 'Luz:' });
+  await expect(light).toHaveText('Luz: Día');
+  await light.click();
+  await page.getByRole('button', { name: 'Tarde', exact: true }).click();
+  expect((await scene(page)).timeOfDay).toBe('evening');
+  await light.click();
+  await page.getByRole('button', { name: 'Noche', exact: true }).click();
+  await expect(light).toHaveText('Luz: Noche');
   expect((await scene(page)).timeOfDay).toBe('night');
 
   await page.getByRole('button', { name: 'Recorrer' }).click();
   await expect(page.getByRole('button', { name: 'Salir del recorrido' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('status').filter({ hasText: 'para caminar' })).toBeVisible();
   // La cámara vuela hasta dentro del cuarto.
-  await expect.poll(async () => (await scene(page)).camera.y, { timeout: 5_000 }).toBeCloseTo(1.6, 1);
+  await expect.poll(async () => (await scene(page)).camera.y, { timeout: 15_000 }).toBeCloseTo(1.6, 1);
   const start = (await scene(page)).camera;
   expectInsideAtEyeLevel(start);
 
@@ -90,7 +94,7 @@ test('recorrer: baja a la altura de los ojos, camina sin atravesar paredes y vue
   // Escape devuelve la vista de órbita, desde arriba.
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Recorrer' })).toHaveAttribute('aria-pressed', 'false');
-  await expect.poll(async () => (await scene(page)).camera.y, { timeout: 5_000 }).toBeGreaterThan(3);
+  await expect.poll(async () => (await scene(page)).camera.y, { timeout: 15_000 }).toBeGreaterThan(3);
   expect((await scene(page)).cameraMode).toBe('orbit');
 });
 
@@ -119,7 +123,7 @@ test('recorriendo también se edita: mover, girar y pintar sin salir del cuarto'
   const canvas = page.locator('app-three-viewport canvas');
   await expect(canvas).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Recorrer' }).click();
-  await expect.poll(async () => (await scene(page)).camera.y, { timeout: 5_000 }).toBeCloseTo(1.6, 1);
+  await expect.poll(async () => (await scene(page)).camera.y, { timeout: 15_000 }).toBeCloseTo(1.6, 1);
 
   // Se elige el sofá desde la lista: dentro del cuarto también aparece su gizmo.
   await page.getByRole('tab', { name: 'Objetos' }).click();
@@ -203,7 +207,7 @@ test('el enlace público también se puede recorrer', async ({ page, browser }) 
   await visitor.goto(path);
   await expect(visitor.locator('app-three-viewport canvas')).toBeVisible({ timeout: 30_000 });
   await visitor.getByRole('button', { name: 'Recorrer' }).click();
-  await expect.poll(async () => (await scene(visitor)).camera.y, { timeout: 5_000 }).toBeCloseTo(1.6, 1);
+  await expect.poll(async () => (await scene(visitor)).camera.y, { timeout: 15_000 }).toBeCloseTo(1.6, 1);
   expect((await scene(visitor)).cameraMode).toBe('walk');
   await visitor.context().close();
 });

@@ -65,8 +65,10 @@ export interface SceneSnapshot {
   selectedAt: { x: number; y: number; visible: boolean } | null;
   /** Tiradores del gizmo, con su posición en la ventana (para arrastrarlos en las pruebas). */
   gizmo: { kind: GizmoHandleKind; x: number; y: number }[];
-  /** Posprocesado en uso (null mientras no ha cargado o si el equipo no lo admite). */
+  /** Posprocesado en uso (null mientras no ha cargado o si la calidad no lo incluye). */
   postFx: { ao: boolean } | null;
+  /** Nivel de calidad con el que se está dibujando. */
+  quality: string;
   /** Mueble resaltado bajo el cursor. */
   hoveredId: string | null;
 }
@@ -181,6 +183,7 @@ export class SceneService implements SceneContext {
   private hoveredId: string | null = null;
   /** Lo registra el viewport: estado del posprocesado, para las pruebas. */
   postFxState: (() => { ao: boolean } | null) | null = null;
+  qualityState: (() => string) | null = null;
   private size = { width: 1, height: 1 };
   private pressed = false;
   /** Poses provisionales que llegan de fuera del visor (el plano, el aro de rotación). */
@@ -239,6 +242,17 @@ export class SceneService implements SceneContext {
 
   invalidate(): void {
     this.needsRender = true;
+  }
+
+  /** El renderer se recuperó tras perder la GPU: el entorno se había ido con ella. */
+  restoreRenderer(renderer: THREE.WebGLRenderer): void {
+    this.lighting.attachRenderer(renderer);
+    this.invalidate();
+  }
+
+  setShadowSize(size: number): void {
+    this.lighting.setShadowSize(size);
+    this.invalidate();
   }
 
   /** El posprocesado ya cargó (o se quitó, con null): desde ahora el contorno lo dibuja él. */
@@ -300,6 +314,7 @@ export class SceneService implements SceneContext {
       selectedAt: this.selectedOnScreen(),
       gizmo: this.gizmoView.handlePositions().map(({ kind, position }) => ({ kind, ...this.clientPoint(position) })),
       postFx: this.postFxState?.() ?? null,
+      quality: this.qualityState?.() ?? 'high',
       hoveredId: this.hoveredId,
     };
   }

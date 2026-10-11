@@ -18,7 +18,9 @@ import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RoomActionsComponent } from '../floor-plan/room-actions.component';
+import { TIMES_OF_DAY } from './scene/lighting-rig';
 import type { PostFx } from './scene/post-fx';
+import { QUALITY, QUALITY_CHOICES, QualityGovernor, loadQualityChoice, saveQualityChoice, type QualityChoice, type QualityLevel } from './scene/quality';
 import { PaintPaletteComponent } from './tools/paint-palette.component';
 import { VIEWPORT_TOOLS } from './tools/tools';
 import { SceneService, VIEW_PRESETS } from './scene.service';
@@ -91,9 +93,22 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
             </div>
           </details>
         }
-        <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="night()" (click)="scene.setTimeOfDay(night() ? 'day' : 'night')" title="De día alumbra el sol; de noche, las lámparas del cuarto">
-          Modo noche
-        </button>
+        <details class="views" #qualityMenu>
+          <summary class="btn btn-sm mode" aria-label="Calidad de la imagen" title="Calidad de la imagen: baja si el equipo va justo"><app-icon name="layers" /></summary>
+          <div class="views-list">
+            @for (q of qualityChoices; track q.id) {
+              <button type="button" class="view-item" [attr.aria-pressed]="qualityChoice() === q.id" (click)="chooseQuality(q.id); qualityMenu.open = false">{{ q.label }}</button>
+            }
+          </div>
+        </details>
+        <details class="views" #lightMenu>
+          <summary class="btn btn-sm mode" title="De día alumbra el sol; por la tarde entra bajo y cálido; de noche, las lámparas del cuarto">Luz: {{ timeLabel() }}</summary>
+          <div class="views-list">
+            @for (t of times; track t.id) {
+              <button type="button" class="view-item" [attr.aria-pressed]="scene.timeOfDay() === t.id" (click)="scene.setTimeOfDay(t.id); lightMenu.open = false">{{ t.label }}</button>
+            }
+          </div>
+        </details>
         <button type="button" class="btn btn-sm mode" [attr.aria-pressed]="walking()" (click)="toggleWalk()">
           {{ walking() ? 'Salir del recorrido' : 'Recorrer' }}
         </button>
@@ -106,7 +121,7 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
     }
     @if (contextLost()) {
       <div class="overlay" role="alert">
-        <p>La vista 3D se detuvo (el navegador liberó la GPU).</p>
+        <p>La vista 3D se detuvo (el navegador liberó la GPU). Vuelve sola en cuanto pueda.</p>
         <button class="btn btn-primary" type="button" (click)="reload()">Recargar vista</button>
       </div>
     } @else if (!scene.sceneReady()) {
@@ -286,6 +301,10 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
     .view-item:hover {
       background: var(--surface-2);
     }
+    .view-item[aria-pressed='true'] {
+      color: var(--primary);
+      font-weight: 600;
+    }
     .mode[aria-pressed='true'] {
       background: var(--primary);
       border-color: var(--primary);
@@ -352,7 +371,8 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   readonly readOnly = input(false);
   readonly contextLost = signal(false);
   protected readonly walking = computed(() => this.scene.cameraMode() === 'walk');
-  protected readonly night = computed(() => this.scene.timeOfDay() === 'night');
+  protected readonly times = TIMES_OF_DAY;
+  protected readonly timeLabel = computed(() => TIMES_OF_DAY.find((t) => t.id === this.scene.timeOfDay())!.label);
   protected readonly tools = VIEWPORT_TOOLS;
   protected readonly presets = VIEW_PRESETS;
   protected readonly step = Math.PI / 12;
@@ -378,6 +398,9 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
 
   private renderer: THREE.WebGLRenderer | null = null;
   private postFx: PostFx | null = null;
+  protected readonly qualityChoices = QUALITY_CHOICES;
+  protected readonly qualityChoice = signal<QualityChoice>(loadQualityChoice());
+  private governor = this.newGovernor();
   private controls: OrbitControls | null = null;
   private frameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -394,7 +417,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       this.contextLost.set(true);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(this.pixelRatio());
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -415,18 +438,21 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.frameRoom();
     this.scene.labels.attach(this.labelsRef().nativeElement);
     this.scene.labels.anchor(this.contextRef().nativeElement, () => this.scene.selectionAnchor());
-    // Con posprocesado pinta el compositor; mientras carga (o si falla), el renderer a secas.
-    const paint = () => (this.postFx ? this.postFx.render() : renderer.render(this.scene.scene, this.scene.camera));
+    // Con posprocesado pinta el compositor; mientras carga, si falla o en calidad baja, el renderer.
+    const paint = () => (this.postFx && this.settings().postFx ? this.postFx.render() : renderer.render(this.scene.scene, this.scene.camera));
+    this.scene.setShadowSize(this.settings().shadowMap);
+    this.scene.qualityState = () => this.governor.level;
     // El buffer no se conserva entre frames: se dibuja y se copia en el mismo instante.
     this.scene.frameCapture = () => {
       if (!canvas.width || !canvas.height) return Promise.resolve(null);
       paint();
       return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     };
-    this.scene.postFxState = () => (this.postFx ? { ao: this.postFx.aoEnabled } : null);
+    this.scene.postFxState = () => (this.postFx && this.settings().postFx ? { ao: this.postFx.aoEnabled } : null);
     void this.loadPostFx(renderer);
 
     canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     this.resizeObserver = new ResizeObserver(([entry]) => {
       if (!entry) return;
@@ -434,6 +460,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       renderer.setSize(width, height, false);
       this.postFx?.setSize(width, height);
       this.scene.setSize(width, height);
+      this.governor.reset();
     });
     this.resizeObserver.observe(this.host.nativeElement);
 
@@ -448,11 +475,22 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     // Todo el loop vive fuera de Angular: ningún frame dispara detección de cambios.
     this.zone.runOutsideAngular(() => {
       let last = performance.now();
+      let drewLast = false;
       const loop = (now: number) => {
         this.frameId = requestAnimationFrame(loop);
-        const dt = Math.min((now - last) / 1000, 0.1);
+        const elapsed = now - last;
+        const dt = Math.min(elapsed / 1000, 0.1);
         last = now;
-        if (this.scene.tick(dt)) paint();
+        const draw = this.scene.tick(dt);
+        if (draw) paint();
+        // Solo cuentan los cuadros dibujados uno tras otro: entre dos sueltos no hay ritmo que medir.
+        if (draw && drewLast) {
+          const level = this.governor.sample(elapsed);
+          if (level) this.applyQuality();
+        } else if (!draw) {
+          this.governor.reset();
+        }
+        drewLast = draw;
       };
       loop(last);
     });
@@ -463,12 +501,47 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     try {
       const { PostFx } = await import('./scene/post-fx');
       if (this.renderer !== renderer) return;
-      this.postFx = new PostFx(renderer, this.scene.scene, this.scene.camera, { ao: true, pixelRatio: renderer.getPixelRatio() });
-      this.scene.attachHighlighter(this.postFx);
+      this.postFx = new PostFx(renderer, this.scene.scene, this.scene.camera, { ao: this.settings().ao, pixelRatio: renderer.getPixelRatio() });
+      this.applyQuality();
     } catch {
       // Sin posprocesado el visor sigue funcionando con el contorno en planta.
       this.postFx = null;
     }
+  }
+
+  private settings() {
+    return QUALITY[this.governor.level];
+  }
+
+  private pixelRatio(): number {
+    return Math.min(window.devicePixelRatio, this.settings().maxPixelRatio);
+  }
+
+  /** En automático se empieza por arriba y se baja si hace falta; a mano, el nivel no se mueve. */
+  private newGovernor(): QualityGovernor {
+    const choice = this.qualityChoice();
+    return new QualityGovernor(choice === 'auto' ? 'high' : (choice as QualityLevel), choice === 'auto');
+  }
+
+  protected chooseQuality(choice: QualityChoice): void {
+    this.qualityChoice.set(choice);
+    saveQualityChoice(choice);
+    this.governor = this.newGovernor();
+    this.applyQuality();
+  }
+
+  /** Lleva el nivel de calidad vigente al renderer, al posprocesado y a las sombras. */
+  private applyQuality(): void {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const settings = this.settings();
+    const size = renderer.getSize(new THREE.Vector2());
+    renderer.setPixelRatio(this.pixelRatio());
+    renderer.setSize(size.x, size.y, false);
+    this.postFx?.configure({ ao: settings.ao, pixelRatio: renderer.getPixelRatio() });
+    this.postFx?.setSize(size.x, size.y);
+    this.scene.attachHighlighter(settings.postFx ? this.postFx : null);
+    this.scene.setShadowSize(settings.shadowMap);
   }
 
   /** Entra o sale del recorrido a pie; al entrar, el canvas toma el foco para que respondan las teclas. */
@@ -576,8 +649,16 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   }
 
   private readonly onContextLost = (e: Event) => {
+    // Sin esto el navegador no devuelve el contexto.
     e.preventDefault();
     this.zone.run(() => this.contextLost.set(true));
+  };
+
+  /** La GPU volvió: three rehace sus recursos al dibujar; lo generado a mano (el entorno) se repite. */
+  private readonly onContextRestored = () => {
+    if (!this.renderer) return;
+    this.scene.restoreRenderer(this.renderer);
+    this.zone.run(() => this.contextLost.set(false));
   };
 
   ngOnDestroy(): void {
@@ -585,11 +666,13 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     delete (window as { __scene?: unknown }).__scene;
     this.resizeObserver?.disconnect();
     this.canvasRef().nativeElement.removeEventListener('webglcontextlost', this.onContextLost);
+    this.canvasRef().nativeElement.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.controls?.dispose();
     this.scene.controls = null;
     this.scene.canvas = null;
     this.scene.frameCapture = null;
     this.scene.postFxState = null;
+    this.scene.qualityState = null;
     this.scene.attachHighlighter(null);
     this.postFx?.dispose();
     this.postFx = null;

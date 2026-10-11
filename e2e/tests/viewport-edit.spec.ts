@@ -11,6 +11,8 @@ interface Scene {
   selectedId: string | null;
   placements: number;
   gizmo: { kind: string; x: number; y: number }[];
+  quality: string;
+  postFx: { ao: boolean } | null;
 }
 const scene = (page: Page) => page.evaluate(() => (window as unknown as { __scene: Scene }).__scene);
 
@@ -160,4 +162,39 @@ test('visor 3D: mover una pared, pintarla y medir', async ({ page }) => {
   await canvas.focus();
   await page.keyboard.press('Escape');
   expect((await scene(page)).tool).toBe('select');
+});
+
+test('visor 3D: la calidad se elige y se recuerda, y la vista vuelve sola tras perder la GPU', async ({ page }) => {
+  const { id } = await roomWithOneSofa(page);
+  await page.goto(`/proyectos/${id}?vista=3d`);
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  const canvas = page.locator('app-three-viewport canvas');
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+
+  // Calidad alta: posprocesado con oclusión. Baja: se pinta directo.
+  const menu = page.locator('summary[aria-label="Calidad de la imagen"]');
+  await menu.click();
+  await page.getByRole('button', { name: 'Calidad alta' }).click();
+  await expect.poll(async () => (await scene(page)).postFx, { timeout: 20_000 }).toEqual({ ao: true });
+  expect((await scene(page)).quality).toBe('high');
+  await menu.click();
+  await page.getByRole('button', { name: 'Calidad baja' }).click();
+  expect(await scene(page)).toMatchObject({ quality: 'low', postFx: null });
+
+  await page.reload();
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  await expect.poll(async () => (await scene(page))?.quality).toBe('low');
+
+  // El navegador libera la GPU y la devuelve: el visor avisa y sigue sin recargar la página.
+  await canvas.evaluate((el) => {
+    const lose = (el as HTMLCanvasElement).getContext('webgl2')!.getExtension('WEBGL_lose_context')!;
+    (window as unknown as { __lose: WEBGL_lose_context }).__lose = lose;
+    lose.loseContext();
+  });
+  const stopped = page.getByRole('alert').filter({ hasText: 'La vista 3D se detuvo' });
+  await expect(stopped).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __lose: WEBGL_lose_context }).__lose.restoreContext());
+  await expect(stopped).toBeHidden();
+  expect((await scene(page)).placements).toBeGreaterThan(0);
+  await expect(page.getByRole('button', { name: 'Recorrer' })).toBeVisible();
 });
