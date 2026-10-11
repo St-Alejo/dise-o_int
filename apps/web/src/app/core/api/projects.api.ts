@@ -20,6 +20,7 @@ import type {
   ShoppingList,
   StyleId,
   UpdateRoomRequest,
+  DesignProjectVersion,
   ImportProjectRequest,
   SetHomeRequest,
   UpdateSceneRequest,
@@ -147,6 +148,11 @@ export class ProjectsApi {
   }
 
   /** Con `revision`, el servidor responde 409 si el proyecto cambió en otra pestaña. */
+  /** Una versión guardada entera, para compararla antes de restaurarla. */
+  version(id: string, versionId: string): Promise<DesignProjectVersion> {
+    return firstValueFrom(this.http.get<DesignProjectVersion>(`${this.base}/${id}/versions/${versionId}`));
+  }
+
   restoreVersion(id: string, versionId: string, revision?: number): Promise<DesignProject> {
     return firstValueFrom(
       this.http.post<DesignProject>(`${this.base}/${id}/versions/${versionId}/restore`, revision === undefined ? {} : { revision }),

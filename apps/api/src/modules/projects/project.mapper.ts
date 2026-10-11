@@ -1,6 +1,7 @@
 import {
   RoomPlan,
   type DesignProject,
+  type DesignProjectVersion,
   type DesignProjectVersionSummary,
   type ProjectListItem,
   type PublicProject,
@@ -36,6 +37,17 @@ export function toVersionSummary(v: VersionRecord): DesignProjectVersionSummary 
     note: v.note,
     itemCount: v.placements.length,
     createdAt: v.createdAt.toISOString(),
+  };
+}
+
+/** Una versión entera, con su planta y sus muebles, para compararla con el diseño actual. */
+export function toVersion(v: VersionRecord): DesignProjectVersion {
+  return {
+    ...toVersionSummary(v),
+    roomShell: v.roomShell,
+    furniturePlacements: v.placements,
+    selectedStyleId: v.selectedStyleId,
+    finishes: v.finishes,
   };
 }
 

@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
-import { ROOM_TYPE_LABELS, type JobProgressEvent, type StyleId } from '@interiores/shared-types';
+import { ROOM_TYPE_LABELS, type DesignProjectVersion, type JobProgressEvent, type StyleId } from '@interiores/shared-types';
 import type { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
@@ -25,6 +25,7 @@ import { EditorComponent } from '../viewport-3d/editor.component';
 import { DesignProjectStore } from './design-project.store';
 import { ProcessingPanelComponent } from './processing-panel.component';
 import { ProjectFactsComponent } from './project-facts.component';
+import { VersionCompareComponent } from './version-compare.component';
 
 type View = 'estilos' | '3d';
 
@@ -32,7 +33,7 @@ type View = 'estilos' | '3d';
   selector: 'app-project-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DesignProjectStore],
-  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, StyleGalleryComponent, EditorComponent, IconComponent],
+  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, VersionCompareComponent, StyleGalleryComponent, EditorComponent, IconComponent],
   template: `
     <section class="container page">
       @if (store.loadError(); as err) {
@@ -134,8 +135,16 @@ type View = 'estilos' | '3d';
                   <strong>Versión {{ v.number }}</strong> {{ v.note ? '— ' + v.note : '' }}
                   <div class="muted small">{{ v.createdAt | date: 'd MMM y, HH:mm' }} · {{ v.itemCount }} muebles</div>
                 </div>
+                <button type="button" class="btn btn-sm" (click)="compare(v.id)" [disabled]="working()" [attr.aria-expanded]="compared()?.id === v.id">
+                  {{ compared()?.id === v.id ? 'Ocultar' : 'Comparar' }}
+                </button>
                 <button type="button" class="btn btn-sm" (click)="restore(v.id)" [disabled]="working()">Restaurar</button>
               </div>
+              @if (compared(); as shown) {
+                @if (shown.id === v.id) {
+                  <app-version-compare class="compare" [version]="shown" />
+                }
+              }
             } @empty {
               <p class="muted">Todavía no guardaste ninguna versión.</p>
             }
@@ -165,6 +174,11 @@ type View = 'estilos' | '3d';
   styles: `
     .page {
       padding: 24px 0 64px;
+    }
+    .compare {
+      padding: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
     }
     .home {
       flex-wrap: wrap;
@@ -284,6 +298,8 @@ type View = 'estilos' | '3d';
 })
 export class ProjectPage implements OnInit {
   protected readonly store = inject(DesignProjectStore);
+  /** Versión que se está comparando con el diseño actual. */
+  protected readonly compared = signal<DesignProjectVersion | null>(null);
   private readonly api = inject(ProjectsApi);
   private readonly progress = inject(ProgressService);
   private readonly toast = inject(ToastService);
@@ -446,6 +462,15 @@ export class ProjectPage implements OnInit {
       this.store.patchProject(updated);
       if (updated.home) await this.router.navigate(['/proyectos/nuevo'], { queryParams: { vivienda: updated.home.id } });
     });
+  }
+
+  /** Trae la versión entera y la enseña junto al diseño actual (o la oculta si ya estaba abierta). */
+  async compare(versionId: string): Promise<void> {
+    if (this.compared()?.id === versionId) {
+      this.compared.set(null);
+      return;
+    }
+    await this.run(async (id) => this.compared.set(await this.api.version(id, versionId)));
   }
 
   noop(): void {}

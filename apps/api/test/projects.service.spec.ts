@@ -293,6 +293,26 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('version (comparar sin restaurar)', () => {
+    it('devuelve la versión entera y no cambia el proyecto', async () => {
+      const p = await readyProject();
+      const withSofa = await service.updateScene(alice, p.id, {
+        revision: p.revision,
+        furniturePlacements: [{ id: 'p1', catalogItemId: 'sofa-test', position: { x: 2, y: 0, z: 1 }, rotationY: 0, lockedByUser: false }],
+      });
+      const saved = await service.saveVersion(alice, p.id, 'con sofá');
+      await service.updateScene(alice, p.id, { revision: saved.revision, furniturePlacements: [] });
+      const version = await service.version(alice, p.id, saved.versions[0]!.id);
+      expect(version).toMatchObject({ number: 1, note: 'con sofá', itemCount: 1 });
+      expect(version.furniturePlacements).toEqual(withSofa.furniturePlacements);
+      expect(version.roomShell).toEqual(withSofa.roomShell);
+      // Mirarla no la restaura.
+      expect((await service.get(alice, p.id)).furniturePlacements).toHaveLength(0);
+      await expect(service.version(bob, p.id, saved.versions[0]!.id)).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.version(alice, p.id, '00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
   describe('duplicate', () => {
     it('copia el cuarto, los muebles y los acabados en un proyecto nuevo y listo', async () => {
       const p = await readyProject();

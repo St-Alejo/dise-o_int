@@ -37,6 +37,7 @@ import {
   type RoomFinishes,
   type StyleId,
   type UpdateRoomRequest,
+  type DesignProjectVersion,
   type ImportProjectRequest,
   type SetHomeRequest,
   type UpdateSceneRequest,
@@ -65,7 +66,7 @@ import {
   type IQuota,
   type ProjectRecord,
 } from '../../ports/index.js';
-import { projectKeys, toDesignProject, toListItem } from './project.mapper.js';
+import { projectKeys, toDesignProject, toListItem, toVersion } from './project.mapper.js';
 import type { ProjectDossier } from './shopping-list.pdf.js';
 import { newRoomFor } from './room-factory.js';
 
@@ -420,6 +421,14 @@ export class ProjectsService {
     await this.own(actor, id);
     await this.projects.addVersion(id, note?.trim() || null);
     return this.get(actor, id);
+  }
+
+  /** Una versión guardada entera (planta, muebles y acabados), sin restaurarla. */
+  async version(actor: Actor, id: string, versionId: string): Promise<DesignProjectVersion> {
+    await this.own(actor, id);
+    const version = await this.projects.getVersion(id, versionId);
+    if (!version) throw new NotFoundError('La versión no existe');
+    return toVersion(version);
   }
 
   async restoreVersion(actor: Actor, id: string, versionId: string, revision?: number): Promise<DesignProject> {

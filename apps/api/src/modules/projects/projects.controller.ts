@@ -45,6 +45,7 @@ import {
   type ShoppingList,
   type UpdateProjectRequest,
   type UpdateRoomRequest,
+  type DesignProjectVersion,
   type ImportProjectRequest,
   type SetHomeRequest,
   type UpdateSceneRequest,
@@ -225,6 +226,15 @@ export class ProjectsController {
     @Body(new ZodPipe(SaveVersionRequestSchema)) body: SaveVersionRequest,
   ): Promise<DesignProject> {
     return this.service.saveVersion(this.actor(user), id, body.note);
+  }
+
+  @Get(':id/versions/:versionId')
+  version(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Param('versionId', uuid) versionId: string,
+  ): Promise<DesignProjectVersion> {
+    return this.service.version(this.actor(user), id, versionId);
   }
 
   @Post(':id/versions/:versionId/restore')
