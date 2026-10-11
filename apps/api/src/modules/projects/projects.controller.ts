@@ -26,6 +26,7 @@ import {
   SaveVersionRequestSchema,
   SelectStyleRequestSchema,
   ImportProjectRequestSchema,
+  SetHomeRequestSchema,
   UpdateProjectRequestSchema,
   UpdateRoomRequestSchema,
   UpdateSceneRequestSchema,
@@ -45,6 +46,7 @@ import {
   type UpdateProjectRequest,
   type UpdateRoomRequest,
   type ImportProjectRequest,
+  type SetHomeRequest,
   type UpdateSceneRequest,
 } from '@interiores/shared-types';
 import type { Response } from 'express';
@@ -110,6 +112,16 @@ export class ProjectsController {
     @Body(new ZodPipe(UpdateProjectRequestSchema)) body: UpdateProjectRequest,
   ): Promise<DesignProject> {
     return this.service.rename(this.actor(user), id, body.name, body.revision);
+  }
+
+  @Put(':id/home')
+  @ApiBody({ schema: openApiSchema(SetHomeRequestSchema) })
+  setHome(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(SetHomeRequestSchema)) body: SetHomeRequest,
+  ): Promise<DesignProject> {
+    return this.service.setHome(this.actor(user), id, body);
   }
 
   @Post(':id/duplicate')

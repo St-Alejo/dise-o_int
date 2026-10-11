@@ -73,6 +73,8 @@ function toProject(row: ProjectRow): ProjectRecord {
     finishes: parseFinishes(row.finishes),
     requestedRoom: parseRoomDims(row.requestedRoom),
     photoInventory: parseInventory(row.photoInventory),
+    homeId: row.homeId,
+    homeName: row.homeName,
     selectedStyleId: row.selectedStyleId as StyleId | null,
     requestedStyles: row.requestedStyles as StyleId[],
     saved: row.saved,
@@ -124,6 +126,8 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.finishes !== undefined) data.finishes = nullableJson(patch.finishes);
   if (patch.requestedRoom !== undefined) data.requestedRoom = nullableJson(patch.requestedRoom);
   if (patch.photoInventory !== undefined) data.photoInventory = nullableJson(patch.photoInventory);
+  if (patch.homeId !== undefined) data.homeId = patch.homeId;
+  if (patch.homeName !== undefined) data.homeName = patch.homeName;
   if (patch.selectedStyleId !== undefined) data.selectedStyleId = patch.selectedStyleId;
   if (patch.requestedStyles !== undefined) data.requestedStyles = patch.requestedStyles;
   if (patch.saved !== undefined) data.saved = patch.saved;
@@ -150,6 +154,8 @@ export class PrismaProjectRepository implements IProjectRepository {
         finishes: nullableJson(data.finishes),
         requestedRoom: nullableJson(data.requestedRoom),
         photoInventory: nullableJson(data.photoInventory),
+        homeId: data.homeId ?? null,
+        homeName: data.homeName ?? null,
         selectedStyleId: data.selectedStyleId,
         requestedStyles: data.requestedStyles,
         saved: data.saved,

@@ -82,6 +82,8 @@ export const CreateProjectFieldsSchema = z.object({
   widthM: optionalNumberField(side),
   depthM: optionalNumberField(side),
   heightM: optionalNumberField(height),
+  /** Vivienda (de la misma persona) a la que se añade el cuarto nuevo. */
+  homeId: z.string().uuid().optional(),
   /**
    * Cuarto definido a mano (forma, medidas y aberturas), como JSON. Con él la foto es opcional y
    * manda sobre lo que se estime de ella.
@@ -123,8 +125,25 @@ export const ProjectListItemSchema = z.object({
   /** Suma de los precios de catálogo de los muebles colocados (los que no tienen precio no cuentan). */
   estimatedTotal: z.number().nonnegative().optional(),
   currency: z.string().length(3).optional(),
+  /** Vivienda a la que pertenece el cuarto (los que comparten id se enseñan juntos). */
+  homeId: z.string().optional(),
+  homeName: z.string().optional(),
 });
 export type ProjectListItem = z.infer<typeof ProjectListItemSchema>;
+
+/**
+ * `PUT /projects/:id/home`: a qué vivienda pertenece un cuarto.
+ * - `homeName` sin `homeId`: crea una vivienda con ese nombre (o renombra la que ya tiene).
+ * - `homeId`: lo mete en esa vivienda, que debe ser de la misma persona.
+ * - `homeId: null`: lo saca de su vivienda.
+ */
+export const SetHomeRequestSchema = z
+  .object({
+    homeId: z.string().uuid().nullable().optional(),
+    homeName: z.string().trim().min(1).max(80).optional(),
+  })
+  .refine((v) => v.homeId !== undefined || v.homeName !== undefined, { message: 'Indica la vivienda o su nombre' });
+export type SetHomeRequest = z.infer<typeof SetHomeRequestSchema>;
 
 /**
  * `revision` es opcional en las operaciones que tocan el proyecto fuera del editor: si el

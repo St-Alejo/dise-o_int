@@ -60,6 +60,32 @@ export function roomTypesOf(projects: readonly ProjectListItem[]): RoomType[] {
   return [...new Set(projects.map((p) => p.roomType))];
 }
 
+/** Una vivienda tal como se resume en la lista: sus cuartos y lo que suman. */
+export interface HomeSummary {
+  id: string;
+  name: string;
+  rooms: { id: string; name: string }[];
+  areaM2: number;
+  pieces: number;
+  /** Total estimado de todos sus cuartos (0 si ninguno tiene precios). */
+  total: number;
+}
+
+/** Las viviendas que hay entre los proyectos, por nombre; los cuartos sueltos no forman ninguna. */
+export function homesOf(projects: readonly ProjectListItem[]): HomeSummary[] {
+  const homes = new Map<string, HomeSummary>();
+  for (const p of projects) {
+    if (!p.homeId) continue;
+    const home = homes.get(p.homeId) ?? { id: p.homeId, name: p.homeName ?? 'Vivienda', rooms: [], areaM2: 0, pieces: 0, total: 0 };
+    home.rooms.push({ id: p.id, name: p.name });
+    home.areaM2 = Math.round((home.areaM2 + (p.areaM2 ?? 0)) * 10) / 10;
+    home.pieces += p.itemCount;
+    home.total += p.estimatedTotal ?? 0;
+    homes.set(p.homeId, home);
+  }
+  return [...homes.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
+
 export function summarize(projects: readonly ProjectListItem[]): ProjectsSummary {
   return {
     total: projects.length,

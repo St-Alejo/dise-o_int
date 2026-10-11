@@ -273,6 +273,15 @@ export const DesignProjectSchema = z.object({
   saved: z.boolean(),
   /** Control de concurrencia optimista: el cliente la reenvía al guardar. */
   revision: z.number().int().nonnegative(),
+  /** Vivienda a la que pertenece este cuarto, con todos los cuartos que la forman (este incluido). */
+  home: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      rooms: z.array(z.object({ id: z.string(), name: z.string(), roomType: RoomTypeSchema })),
+    })
+    .nullable()
+    .optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

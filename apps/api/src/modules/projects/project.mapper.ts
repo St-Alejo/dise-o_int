@@ -55,6 +55,8 @@ export function toDesignProject(
   versions: VersionRecord[],
   shared: boolean,
   signer: MediaUrlSigner,
+  /** Los cuartos de su vivienda (él incluido); vacío si va suelto. */
+  homeRooms: readonly ProjectRecord[] = [],
 ): DesignProject {
   return {
     id: project.id,
@@ -73,6 +75,15 @@ export function toDesignProject(
     visibility: shared ? 'shared-link' : 'private',
     saved: project.saved,
     revision: project.revision,
+    home: project.homeId
+      ? {
+          id: project.homeId,
+          name: project.homeName ?? 'Vivienda',
+          rooms: [...homeRooms]
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            .map((room) => ({ id: room.id, name: room.name, roomType: room.roomType })),
+        }
+      : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   };
@@ -125,5 +136,6 @@ export function toListItem(project: ProjectRecord, signer: MediaUrlSigner, price
     saved: project.saved,
     updatedAt: project.updatedAt.toISOString(),
     ...listSummary(project, prices),
+    ...(project.homeId ? { homeId: project.homeId, homeName: project.homeName ?? 'Vivienda' } : {}),
   };
 }

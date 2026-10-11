@@ -243,6 +243,56 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('viviendas (varios cuartos juntos)', () => {
+    const room = { shape: 'rect' as const, widthM: 4, depthM: 3, heightM: 2.6 };
+
+    it('un cuarto funda una vivienda y los siguientes se crean dentro de ella', async () => {
+      const sala = await readyProject();
+      expect(sala.home).toBeNull();
+      const withHome = await service.setHome(alice, sala.id, { homeName: 'Apartamento' });
+      expect(withHome.home).toMatchObject({ name: 'Apartamento', rooms: [{ id: sala.id, name: 'Sala', roomType: 'living' }] });
+
+      const cocina = await service.create(alice, { name: 'Cocina', roomType: 'kitchen', roomSpec: room, homeId: withHome.home!.id }, undefined);
+      expect(cocina.home!.rooms.map((r) => r.name)).toEqual(['Sala', 'Cocina']);
+      // Desde cualquiera de sus cuartos se ve la vivienda entera, y la lista los marca.
+      expect((await service.get(alice, sala.id)).home!.rooms).toHaveLength(2);
+      expect((await service.list(alice)).map((p) => p.homeName)).toEqual(['Apartamento', 'Apartamento']);
+    });
+
+    it('renombrar la vivienda desde un cuarto la renombra en todos', async () => {
+      const sala = await service.setHome(alice, (await readyProject()).id, { homeName: 'Piso' });
+      const otro = await service.create(alice, { name: 'Estudio', roomType: 'office', roomSpec: room, homeId: sala.home!.id }, undefined);
+      await service.setHome(alice, otro.id, { homeName: 'Casa de la playa' });
+      expect((await service.get(alice, sala.id)).home!.name).toBe('Casa de la playa');
+    });
+
+    it('un cuarto suelto entra en una vivienda existente y puede salir de ella', async () => {
+      const sala = await service.setHome(alice, (await readyProject()).id, { homeName: 'Piso' });
+      const suelto = await service.create(alice, { name: 'Baño', roomType: 'bathroom', roomSpec: room }, undefined);
+      const dentro = await service.setHome(alice, suelto.id, { homeId: sala.home!.id });
+      expect(dentro.home).toMatchObject({ id: sala.home!.id, name: 'Piso' });
+      expect(dentro.home!.rooms).toHaveLength(2);
+      const fuera = await service.setHome(alice, suelto.id, { homeId: null });
+      expect(fuera.home).toBeNull();
+      expect((await service.get(alice, sala.id)).home!.rooms).toHaveLength(1);
+    });
+
+    it('nadie entra en la vivienda de otra persona, ni creando ni moviendo un cuarto', async () => {
+      const sala = await service.setHome(alice, (await readyProject()).id, { homeName: 'Piso' });
+      const ajeno = await service.create(bob, { name: 'Cuarto de Bob', roomType: 'bedroom', roomSpec: room }, undefined);
+      await expect(service.setHome(bob, ajeno.id, { homeId: sala.home!.id })).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.create(bob, { name: 'Otro', roomType: 'bedroom', roomSpec: room, homeId: sala.home!.id }, undefined)).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.setHome(bob, sala.id, { homeName: 'Mío' })).rejects.toBeInstanceOf(NotFoundError);
+      expect((await service.list(bob)).every((p) => !p.homeId)).toBe(true);
+    });
+
+    it('duplicar un cuarto lo deja en la misma vivienda', async () => {
+      const sala = await service.setHome(alice, (await readyProject()).id, { homeName: 'Piso' });
+      const copia = await service.duplicate(alice, sala.id);
+      expect(copia.home!.rooms).toHaveLength(2);
+    });
+  });
+
   describe('duplicate', () => {
     it('copia el cuarto, los muebles y los acabados en un proyecto nuevo y listo', async () => {
       const p = await readyProject();

@@ -38,6 +38,7 @@ import {
   type StyleId,
   type UpdateRoomRequest,
   type ImportProjectRequest,
+  type SetHomeRequest,
   type UpdateSceneRequest,
   type Vector3,
   CreateProjectFieldsSchema,
@@ -134,6 +135,8 @@ export class ProjectsService {
     const processed = photo ? await this.photos.process(photo, this.config.UPLOAD_MAX_MB * 1024 * 1024) : null;
     if (processed) await this.quota.consume(actor.userId, styles.length);
 
+    // Un cuarto nuevo dentro de una vivienda: la vivienda tiene que ser de quien lo crea.
+    const home = fields.homeId ? await this.homeOf(actor, fields.homeId) : null;
     const id = randomUUID();
     try {
       if (processed) {
@@ -156,6 +159,8 @@ export class ProjectsService {
         selectedStyleId: null,
         requestedStyles: styles,
         saved: false,
+        homeId: home?.id ?? null,
+        homeName: home?.name ?? null,
       });
       const jobId = await this.enqueueFirstJob(id, room.firstJob, styles, actor);
       this.logger.log({ projectId: id, jobId, kind: room.firstJob, requestId: actor.requestId }, 'Proyecto creado y encolado');
@@ -221,6 +226,8 @@ export class ProjectsService {
       finishes: source.finishes,
       requestedRoom: source.requestedRoom,
       photoInventory: source.photoInventory ?? null,
+      homeId: source.homeId ?? null,
+      homeName: source.homeName ?? null,
       selectedStyleId: source.selectedStyleId,
       requestedStyles: source.requestedStyles,
       saved: false,
@@ -257,6 +264,37 @@ export class ProjectsService {
     });
     this.logger.log({ projectId: created.id, pieces: placements.length, requestId: actor.requestId }, 'Proyecto importado');
     return this.toDto(created);
+  }
+
+  // ------------------------------------------------------------------ viviendas
+  /**
+   * A qué vivienda pertenece un cuarto. Una vivienda no es una entidad aparte: son los cuartos de
+   * una persona que comparten `homeId`, así que crearla, renombrarla o vaciarla es tocar esos cuartos.
+   */
+  async setHome(actor: Actor, id: string, req: SetHomeRequest): Promise<DesignProject> {
+    const project = await this.own(actor, id);
+    if (req.homeId === null) {
+      return this.toDto(await this.projects.update(id, { homeId: null, homeName: null }));
+    }
+    if (req.homeId) {
+      const home = await this.homeOf(actor, req.homeId);
+      return this.toDto(await this.projects.update(id, { homeId: home.id, homeName: req.homeName ?? home.name }));
+    }
+    const name = req.homeName!;
+    if (!project.homeId) {
+      return this.toDto(await this.projects.update(id, { homeId: randomUUID(), homeName: name }));
+    }
+    // Ya tiene vivienda: el nombre nuevo es para todos sus cuartos.
+    const rooms = (await this.projects.listByOwner(actor.userId)).filter((p) => p.homeId === project.homeId);
+    await Promise.all(rooms.map((room) => this.projects.update(room.id, { homeName: name })));
+    return this.toDto((await this.projects.findById(id))!);
+  }
+
+  /** La vivienda `homeId` de esta persona; si no tiene ningún cuarto en ella, no existe para ella. */
+  private async homeOf(actor: Actor, homeId: string): Promise<{ id: string; name: string }> {
+    const room = (await this.projects.listByOwner(actor.userId)).find((p) => p.homeId === homeId);
+    if (!room) throw new ValidationError('Esa vivienda no existe');
+    return { id: homeId, name: room.homeName ?? 'Vivienda' };
   }
 
   /** Borrado REAL de base de datos y archivos (§8.4 privacidad). */
@@ -587,7 +625,8 @@ export class ProjectsService {
       this.projects.listVersions(project.id),
       this.projects.hasActiveShareLink(project.id),
     ]);
-    return toDesignProject(project, previews, versions, shared, this.signer);
+    const homeRooms = project.homeId ? (await this.projects.listByOwner(project.ownerId)).filter((p) => p.homeId === project.homeId) : [];
+    return toDesignProject(project, previews, versions, shared, this.signer, homeRooms);
   }
 
   private requireShell(project: ProjectRecord): RoomShell {

@@ -21,6 +21,7 @@ import type {
   StyleId,
   UpdateRoomRequest,
   ImportProjectRequest,
+  SetHomeRequest,
   UpdateSceneRequest,
 } from '@interiores/shared-types';
 import { Observable, filter, firstValueFrom, map, shareReplay } from 'rxjs';
@@ -35,6 +36,8 @@ export interface NewProject {
   styles: StyleId[];
   room?: RoomDimensionsInput;
   roomSpec?: RoomSpec;
+  /** Vivienda a la que se añade el cuarto. */
+  homeId?: string;
 }
 
 /** Cliente tipado de la API REST (los tipos vienen de @interiores/shared-types). */
@@ -67,6 +70,7 @@ export class ProjectsApi {
       form.append('heightM', String(req.room.heightM));
     }
     if (req.roomSpec) form.append('roomSpec', JSON.stringify(req.roomSpec));
+    if (req.homeId) form.append('homeId', req.homeId);
     if (req.photo) form.append('photo', req.photo, req.photo.name);
     return this.http.post<DesignProject>(this.base, form, { reportProgress: true, observe: 'events' }).pipe(
       filter((e: HttpEvent<DesignProject>) => e.type === HttpEventType.UploadProgress || e.type === HttpEventType.Response),
@@ -97,6 +101,11 @@ export class ProjectsApi {
 
   progress(id: string): Promise<JobProgressEvent[]> {
     return firstValueFrom(this.http.get<JobProgressEvent[]>(`${this.base}/${id}/progress`));
+  }
+
+  /** Mete el cuarto en una vivienda (nueva o existente), la renombra o lo saca de ella. */
+  setHome(id: string, body: SetHomeRequest): Promise<DesignProject> {
+    return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/home`, body));
   }
 
   /** Convierte un cuarto hecho sin cuenta (la demo) en un proyecto propio. */

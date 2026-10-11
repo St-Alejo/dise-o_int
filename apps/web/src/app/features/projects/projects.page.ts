@@ -6,7 +6,7 @@ import { ROOM_TYPE_LABELS, STYLES, type ProjectListItem, type RoomType } from '@
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
-import { filterProjects, oneDecimal, outlineSvg, roomTypesOf, summarize, type ProjectSort } from './projects-filter';
+import { filterProjects, homesOf, oneDecimal, outlineSvg, roomTypesOf, summarize, type ProjectSort } from './projects-filter';
 
 const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> = {
   uploaded: { label: 'En cola', cls: 'badge' },
@@ -87,6 +87,33 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
           }
         </dl>
 
+        @if (homes().length) {
+          <section class="homes" aria-labelledby="homes-title">
+            <h2 id="homes-title" class="eyebrow">Viviendas</h2>
+            <ul role="list">
+              @for (h of homes(); track h.id) {
+                <li>
+                  <div>
+                    <strong class="home-name">{{ h.name }}</strong>
+                    <span class="muted">
+                      {{ h.rooms.length }} {{ h.rooms.length === 1 ? 'cuarto' : 'cuartos' }}
+                      @if (h.areaM2) { · {{ oneDecimal(h.areaM2) }} m² }
+                      · {{ h.pieces }} {{ h.pieces === 1 ? 'mueble' : 'muebles' }}
+                      @if (h.total) { · {{ h.total | currency: 'USD' : 'symbol-narrow' : '1.0-0' }} }
+                    </span>
+                  </div>
+                  <div class="row home-rooms">
+                    @for (r of h.rooms; track r.id) {
+                      <a class="chip" [routerLink]="['/proyectos', r.id]">{{ r.name }}</a>
+                    }
+                    <a class="chip add" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: h.id }"><app-icon name="plus" /> Añadir cuarto</a>
+                  </div>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
         <div class="row filters">
           @if (roomTypes().length > 1) {
             <div class="row types" role="group" aria-label="Filtrar por tipo de cuarto">
@@ -151,6 +178,9 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
                   } @else {
                     <h2 class="name">{{ p.name }}</h2>
                     <span [class]="status[p.status].cls">{{ status[p.status].label }}</span>
+                    @if (p.homeName) {
+                      <span class="badge badge-primary" [title]="'Es un cuarto de la vivienda ' + p.homeName">{{ p.homeName }}</span>
+                    }
                   }
                 </div>
                 <ul class="facts" [attr.aria-label]="'Datos de ' + p.name">
@@ -205,6 +235,40 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
     </section>
   `,
   styles: `
+    .homes {
+      margin-bottom: var(--space-5);
+    }
+    .homes ul {
+      list-style: none;
+      margin: var(--space-2) 0 0;
+      padding: 0;
+      border-top: 1px solid var(--rule);
+    }
+    .homes li {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3) var(--space-5);
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    .home-name {
+      display: block;
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      font-weight: 500;
+    }
+    .home-rooms {
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .home-rooms .chip {
+      text-decoration: none;
+    }
+    .home-rooms .add {
+      color: var(--primary);
+    }
     .page {
       padding: var(--space-6) 0 64px;
     }
@@ -410,6 +474,8 @@ export class ProjectsPage implements OnInit {
   protected readonly shown = computed(() => filterProjects(this.projects(), { query: this.query(), roomType: this.roomType(), sort: this.sort() }));
   protected readonly summary = computed(() => summarize(this.projects()));
   protected readonly roomTypes = computed(() => roomTypesOf(this.projects()));
+  /** Viviendas: los cuartos que se agruparon bajo un mismo nombre. */
+  protected readonly homes = computed(() => homesOf(this.projects()));
   protected readonly status = STATUS;
   protected readonly roomLabels = ROOM_TYPE_LABELS;
   protected readonly roomIcons = ROOM_ICONS;

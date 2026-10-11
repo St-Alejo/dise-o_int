@@ -564,11 +564,17 @@ export class NewProjectPage implements OnDestroy {
   /** Un error del servidor o de la foto; si no, lo que le falta al paso (solo tras intentar avanzar). */
   protected readonly message = computed(() => this.error() ?? (this.nagging() ? this.wizard.problem() : null));
   private sub: Subscription | null = null;
+  /** Vivienda a la que se añadirá el cuarto, si se llegó desde uno de sus cuartos. */
+  protected homeId: string | null = null;
 
   constructor() {
     // Desde la página de inicio se llega con un estilo ya elegido (`?estilo=industrial`).
-    const style = StyleIdSchema.safeParse(inject(ActivatedRoute).snapshot.queryParamMap.get('estilo'));
+    const query = inject(ActivatedRoute).snapshot.queryParamMap;
+    const style = StyleIdSchema.safeParse(query.get('estilo'));
     if (style.success) this.wizard.patch({ styles: [style.data] });
+    // Desde un proyecto se llega con su vivienda (`?vivienda=<id>`): el cuarto nuevo entra en ella.
+    const home = query.get('vivienda');
+    if (home && /^[0-9a-f-]{36}$/i.test(home)) this.homeId = home;
   }
 
   protected setNumber(key: NumberField, value: unknown): void {
@@ -624,7 +630,7 @@ export class NewProjectPage implements OnDestroy {
     this.error.set(null);
     this.uploading.set(true);
     this.uploadPct.set(0);
-    this.sub = this.api.create(request).subscribe({
+    this.sub = this.api.create(this.homeId ? { ...request, homeId: this.homeId } : request).subscribe({
       next: (e) => {
         if (e.kind === 'progress') this.uploadPct.set(e.pct);
         else void this.router.navigate(['/proyectos', e.project.id]);

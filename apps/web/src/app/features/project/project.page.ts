@@ -71,6 +71,23 @@ type View = 'estilos' | '3d';
           }
         </header>
 
+        @if (p.home; as home) {
+          <nav class="home row" [attr.aria-label]="'Cuartos de la vivienda ' + home.name">
+            <span class="home-name"><app-icon name="layers" /> {{ home.name }}</span>
+            @for (room of home.rooms; track room.id) {
+              <!-- Enlace normal: cada cuarto se abre con su propio editor, desde cero. -->
+              <a class="chip" [href]="'/proyectos/' + room.id + '?vista=3d'" [attr.aria-current]="room.id === p.id ? 'page' : null">{{ room.name }}</a>
+            }
+            <a class="chip add" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: home.id }"><app-icon name="plus" /> Añadir cuarto</a>
+          </nav>
+        } @else if (p.status === 'ready') {
+          <p class="home-start">
+            <button type="button" class="btn btn-sm btn-ghost" (click)="startHome()" [disabled]="working()" title="Crea una vivienda con este cuarto para ir sumando los demás: se ven juntos y con sus totales">
+              <app-icon name="plus" /> Añadir otro cuarto a esta vivienda
+            </button>
+          </p>
+        }
+
         @if (p.status === 'ready') {
           <app-project-facts class="facts" />
         }
@@ -148,6 +165,36 @@ type View = 'estilos' | '3d';
   styles: `
     .page {
       padding: 24px 0 64px;
+    }
+    .home {
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .home-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: var(--space-2);
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+    }
+    .home .chip {
+      text-decoration: none;
+    }
+    .home .chip[aria-current='page'] {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--on-primary);
+    }
+    .home .add {
+      color: var(--primary);
+    }
+    .home-start {
+      margin: -4px 0 12px;
     }
     .head {
       display: flex;
@@ -388,6 +435,16 @@ export class ProjectPage implements OnInit {
     await this.run(async (id) => {
       await this.store.flush();
       downloadBlob(await this.api.dossierPdf(id), `${fileSlug(this.store.project()?.name ?? 'proyecto')}.pdf`);
+    });
+  }
+
+  /** Funda una vivienda con este cuarto y lleva al asistente para crear el siguiente dentro de ella. */
+  async startHome(): Promise<void> {
+    await this.run(async (id) => {
+      const name = this.store.project()?.name ?? 'cuarto';
+      const updated = await this.api.setHome(id, { homeName: `Vivienda de ${name}`.slice(0, 80) });
+      this.store.patchProject(updated);
+      if (updated.home) await this.router.navigate(['/proyectos/nuevo'], { queryParams: { vivienda: updated.home.id } });
     });
   }
 

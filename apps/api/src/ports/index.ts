@@ -47,6 +47,9 @@ export interface ProjectRecord {
   requestedRoom: RoomDimensions | null;
   /** Muebles reconocidos en la foto: "Otra distribución" vuelve a colocar esos. */
   photoInventory?: InventoryItem[] | null;
+  /** Vivienda a la que pertenece el cuarto (null o ausente = suelto). */
+  homeId?: string | null;
+  homeName?: string | null;
   selectedStyleId: StyleId | null;
   requestedStyles: StyleId[];
   saved: boolean;
@@ -121,6 +124,8 @@ export type ProjectPatch = Partial<
     | 'finishes'
     | 'requestedRoom'
     | 'photoInventory'
+    | 'homeId'
+    | 'homeName'
     | 'selectedStyleId'
     | 'requestedStyles'
     | 'saved'

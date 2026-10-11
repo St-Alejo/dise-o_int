@@ -1,5 +1,5 @@
 import type { ProjectListItem } from '@interiores/shared-types';
-import { filterProjects, oneDecimal, outlineSvg, roomTypesOf, summarize, type ProjectFilter } from './projects-filter';
+import { homesOf, filterProjects, oneDecimal, outlineSvg, roomTypesOf, summarize, type ProjectFilter } from './projects-filter';
 
 const project = (over: Partial<ProjectListItem>): ProjectListItem => ({
   id: over.name ?? 'p',
@@ -68,5 +68,26 @@ describe('resumen de la lista', () => {
 
   it('lista los tipos de cuarto presentes sin repetir', () => {
     expect(roomTypesOf(LIST)).toEqual(['living', 'bathroom']);
+  });
+});
+
+describe('homesOf', () => {
+  const room = (id: string, extra: Partial<ProjectListItem> = {}): ProjectListItem =>
+    ({ id, name: id, roomType: 'living', status: 'ready', thumbnailUrl: null, itemCount: 2, saved: true, updatedAt: '2026-01-01T00:00:00.000Z', ...extra }) as ProjectListItem;
+
+  it('agrupa los cuartos de cada vivienda y suma área, piezas y total', () => {
+    const homes = homesOf([
+      room('sala', { homeId: 'h1', homeName: 'Piso', areaM2: 20, estimatedTotal: 1000 }),
+      room('suelto'),
+      room('cocina', { homeId: 'h1', homeName: 'Piso', areaM2: 9.5, estimatedTotal: 500, itemCount: 5 }),
+      room('estudio', { homeId: 'h2', homeName: 'Ático' }),
+    ]);
+    expect(homes.map((h) => h.name)).toEqual(['Ático', 'Piso']);
+    expect(homes[1]).toMatchObject({ id: 'h1', areaM2: 29.5, pieces: 7, total: 1500 });
+    expect(homes[1]!.rooms.map((r) => r.name)).toEqual(['sala', 'cocina']);
+  });
+
+  it('sin viviendas no hay nada que agrupar', () => {
+    expect(homesOf([room('a'), room('b')])).toEqual([]);
   });
 });
