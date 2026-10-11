@@ -12,18 +12,33 @@ Plan completo en [`plan.md`](plan.md). Rutas relativas a `diseño de interiores/
 
 Cada tarea cierra con pruebas en verde, commit y push.
 
+## Estado y desviaciones (2026-10-11)
+
+Hechos los bloques A (salvo A4, A6 y A7), B (salvo B3), C y D (salvo D8).
+
+- **A4:** el kit de muebles ya tenía cantos redondeados y materiales con brillo; las texturas PBR
+  descargadas se descartaron (peso en el repositorio). Ver ADR-0018.
+- **A2:** foco ancho por ventana en vez de luz de área; el entorno sigue siendo `RoomEnvironment`.
+- **B1:** el catálogo ya traía la decoración; faltaba que alguien la colocara (B2).
+- **B2:** la pasada de decoración vive en `shared-types` (TypeScript) y la aplica la API, no el
+  servicio de IA. Ver ADR-0019.
+- **D4:** el antes y después compara el cuarto vacío con el amueblado, no una foto con su 3D.
+- **D:** sin fotos de terceros; la cabecera sigue sólida. Ver ADR-0020.
+- De paso: una prueba de propiedades de la cocina fallaba en `main` (un mueble quedaba 5 mm fuera
+  por redondeo) y la franja de datos del proyecto tenía una lista de definiciones mal formada.
+
 ## A — 3D más real
 
-- [ ] **A1 Posprocesado.** `v3d/scene/post-fx.ts` cargado con `import()`: oclusión ambiental y contorno
+- [x] **A1 Posprocesado.** `v3d/scene/post-fx.ts` cargado con `import()`: oclusión ambiental y contorno
   de selección y de hover. *Hecho cuando:* el visor pinta por el composer sin perder el render bajo
   demanda; `window.__scene.postFx` lo refleja; el bundle inicial no sube.
-- [ ] **A2 Luz.** Luz de ventana, sombras suaves, entorno del propio cuarto y preset `tarde`.
+- [x] **A2 Luz.** Luz de ventana, sombras suaves, entorno del propio cuarto y preset `tarde`.
   *Hecho cuando:* hay tres horas con spec de presets y el botón del visor las recorre.
-- [ ] **A3 Paredes en corte.** Las paredes que tapan la cámara se ven cortadas, no translúcidas.
+- [x] **A3 Paredes en corte.** Las paredes que tapan la cámara se ven cortadas, no translúcidas.
   *Hecho cuando:* la decisión es una función pura con spec y al recorrer las paredes van enteras.
 - [ ] **A4 Materiales y detalle.** Texturas PBR autoalojadas, cantos redondeados, paletas de pared
   desaturadas. *Hecho cuando:* `ATTRIBUTION.md` lista cada textura y los proyectos viejos abren igual.
-- [ ] **A5 Calidad adaptativa y recuperación.** `v3d/scene/quality.ts` y `webglcontextrestored`.
+- [x] **A5 Calidad adaptativa y recuperación.** `v3d/scene/quality.ts` y `webglcontextrestored`.
   *Hecho cuando:* los escalones tienen spec y perder el contexto no obliga a recargar.
 - [ ] **A6 Cámara y captura.** Cenital ortográfica y `capturePng(escala)`.
 - [ ] **A7 Restos del visor.** "Cambiar" en la barra contextual, pintar el techo, materiales del mueble
@@ -34,33 +49,33 @@ Cada tarea cierra con pruebas en verde, commit y push.
 
 ## B — Cuartos menos vacíos
 
-- [ ] **B1 Catálogo de decoración.** Cuadros, espejos, plantas, cortinas, alfombras, lámparas.
-- [ ] **B2 Pasada de decoración** en `rules_engine.py` (pared y superficie) y kits de cocina y baño.
+- [x] **B1 Catálogo de decoración.** Cuadros, espejos, plantas, cortinas, alfombras, lámparas.
+- [x] **B2 Pasada de decoración** en `rules_engine.py` (pared y superficie) y kits de cocina y baño.
 - [ ] **B3 Puntuación.** `layout/scoring.py`: varias candidatas, gana la mejor.
-- [ ] **B4 Inventario de la foto guardado** (`photoInventory`, migración aditiva).
+- [x] **B4 Inventario de la foto guardado** (`photoInventory`, migración aditiva).
 
 ### Punto de control B
-- [ ] `pytest` y contrato en verde; un cuarto nuevo de cada tipo sale amueblado y sin errores de revisión.
+- [x] `pytest` y contrato en verde; un cuarto nuevo de cada tipo sale amueblado y sin errores de revisión.
 
 ## C — Demo sin registro y plantillas
 
-- [ ] **C1 Puerto `ProjectPersistence`** con `ApiPersistence` y `LocalPersistence`.
-- [ ] **C2 Plantillas amuebladas** en `shared-types/src/furnished-templates.ts`, con spec.
-- [ ] **C3 Rutas `/demo/:plantilla` y `/plantillas`.**
-- [ ] **C4 Guardar la demo en la cuenta** (`POST /projects/import`).
+- [x] **C1 Puerto `ProjectPersistence`** con `ApiPersistence` y `LocalPersistence`.
+- [x] **C2 Plantillas amuebladas** en `shared-types/src/furnished-templates.ts`, con spec.
+- [x] **C3 Rutas `/demo/:plantilla` y `/plantillas`.**
+- [x] **C4 Guardar la demo en la cuenta** (`POST /projects/import`).
 
 ### Punto de control C
-- [ ] e2e `demo.spec.ts` en verde.
+- [x] e2e `demo.spec.ts` en verde.
 
 ## D — Landing editorial
 
-- [ ] **D1 Sistema editorial** en `styles.scss`: escala fluida, rejilla, filetes, sin fondos alternos.
-- [ ] **D2 Capturas reproducibles** (`e2e/scripts/landing-shots.mjs`) y fotos libres con atribución.
-- [ ] **D3 Encabezado** con render a todo el ancho y conmutador de hora.
-- [ ] **D4 Pasos y antes/después** (`before-after.component.ts`).
-- [ ] **D5 El editor** (texto fijo y captura que cambia).
-- [ ] **D6 Estilos y plantillas.**
-- [ ] **D7 Qué reconoce, preguntas, cierre, cabecera y pie.**
+- [x] **D1 Sistema editorial** en `styles.scss`: escala fluida, rejilla, filetes, sin fondos alternos.
+- [x] **D2 Capturas reproducibles** (`e2e/scripts/landing-shots.mjs`) y fotos libres con atribución.
+- [x] **D3 Encabezado** con render a todo el ancho y conmutador de hora.
+- [x] **D4 Pasos y antes/después** (`before-after.component.ts`).
+- [x] **D5 El editor** (texto fijo y captura que cambia).
+- [x] **D6 Estilos y plantillas.**
+- [x] **D7 Qué reconoce, preguntas, cierre, cabecera y pie.**
 - [ ] **D8 Mismo lenguaje** en acceso, 404 y estado vacío.
 
 ### Punto de control D
