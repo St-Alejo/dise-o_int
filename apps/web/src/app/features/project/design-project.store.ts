@@ -20,7 +20,7 @@ import { ApiError } from '../../core/api/api-error';
 import { CatalogApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
 import { CommandHistory, MacroCommand, SetFinishesCommand, SetRoomCommand, type Placements, type SceneCommand, type SceneState } from '../viewport-3d/commands';
-import { DraftStore, draftIsRecoverable, isTransient, retryDelayMs, sceneKey, sceneOf, type SceneDraft } from './save-resilience';
+import { DraftStore, draftIsRecoverable, isTransient, mergeScene, retryDelayMs, sceneFromKey, sceneKey, sceneOf, type SceneDraft } from './save-resilience';
 import { planPlacement, type PlacementPlan } from './placement-planner';
 import { ProjectPersistence } from './project-persistence';
 
@@ -472,12 +472,14 @@ export class DesignProjectStore {
       } else if (isTransient(e.status)) {
         // Falló la red o el servidor: los cambios siguen aquí y se reintenta solo, cada vez más espaciado.
         this.saveState.set('error');
-        if (this.retries === 0 && !this.offline()) this.toast.error(`No se pudo guardar: ${e.userMessage} Se reintentará solo.`);
+        if (this.retries === 0 && !this.offline()) {
+          this.toast.error(`No se pudo guardar: ${e.userMessage} Se reintentará solo.`, { label: 'Reintentar ahora', run: () => void this.retrySave() });
+        }
         if (this.retryTimer) clearTimeout(this.retryTimer);
         this.retryTimer = setTimeout(() => void this.retrySave(), retryDelayMs(this.retries++));
       } else {
         this.saveState.set('error');
-        this.toast.error(`No se pudo guardar: ${e.userMessage}`);
+        this.toast.error(`No se pudo guardar: ${e.userMessage}`, { label: 'Reintentar', run: () => void this.retrySave() });
       }
     }
   }
@@ -495,6 +497,23 @@ export class DesignProjectStore {
           this.rebased = true;
           this.project.set(fresh);
           this.saveState.set('dirty');
+          this.saveTimer = setTimeout(() => void this.flush(), 0);
+          return;
+        }
+        // La escena del servidor cambió: si no tocó lo mismo que aquí, se combinan los dos cambios.
+        const base = sceneFromKey(this.baseline);
+        const merged = base ? mergeScene(base, { placements: this.placements(), finishes: this.finishes(), shell: this.shell() }, sceneOf(fresh)) : null;
+        if (merged) {
+          this.rebased = true;
+          this.project.set(fresh);
+          this.baseline = sceneKey(sceneOf(fresh));
+          this.placements.set(merged.placements);
+          this.finishes.set(merged.finishes);
+          // La planta del servidor es la guardada; si la local es otra, viaja en el próximo guardado.
+          this.savedShell = fresh.roomShell;
+          this.shell.set(merged.shell);
+          this.saveState.set('dirty');
+          this.toast.show('Tus cambios se combinaron con otros que ya estaban guardados.');
           this.saveTimer = setTimeout(() => void this.flush(), 0);
           return;
         }

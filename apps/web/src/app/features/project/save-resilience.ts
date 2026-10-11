@@ -16,6 +16,49 @@ export function sceneKey(scene: SceneContent): string {
   return JSON.stringify([scene.placements, scene.finishes, scene.shell]);
 }
 
+/** La escena que hay detrás de una clave de `sceneKey` (null si la clave no es de una escena). */
+export function sceneFromKey(key: string): SceneContent | null {
+  try {
+    const [placements, finishes, shell] = JSON.parse(key) as [SceneContent['placements'], SceneContent['finishes'], SceneContent['shell']];
+    return Array.isArray(placements) ? { placements, finishes: finishes ?? null, shell: shell ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** De tres versiones de una cosa, la que vale: la que cambió. Si cambiaron las dos y distinto, conflicto. */
+function settle<T>(base: T, local: T, server: T): { ok: true; value: T } | { ok: false } {
+  if (same(local, server) || same(server, base)) return { ok: true, value: local };
+  if (same(local, base)) return { ok: true, value: server };
+  return { ok: false };
+}
+
+/**
+ * Fusión a tres bandas de la escena: `base` es lo último que se sabía guardado, `local` lo que hay
+ * en este navegador y `server` lo que tiene ahora el servidor. Si cada lado tocó cosas distintas
+ * (un mueble aquí, otro allí, o aquí un mueble y allí la pintura), se quedan los dos cambios.
+ * Devuelve null si los dos tocaron lo mismo de forma distinta: eso lo decide la persona.
+ */
+export function mergeScene(base: SceneContent, local: SceneContent, server: SceneContent): SceneContent | null {
+  const finishes = settle(base.finishes, local.finishes, server.finishes);
+  const shell = settle(base.shell, local.shell, server.shell);
+  if (!finishes.ok || !shell.ok) return null;
+
+  const byId = (scene: SceneContent) => new Map(scene.placements.map((p) => [p.id, p]));
+  const [baseById, localById, serverById] = [byId(base), byId(local), byId(server)];
+  const placements: SceneContent['placements'][number][] = [];
+  // El orden del servidor manda; lo añadido aquí va al final.
+  const ids = [...serverById.keys(), ...[...localById.keys()].filter((id) => !serverById.has(id))];
+  for (const id of ids) {
+    const piece = settle(baseById.get(id), localById.get(id), serverById.get(id));
+    if (!piece.ok) return null;
+    if (piece.value) placements.push(piece.value);
+  }
+  return { placements, finishes: finishes.value, shell: shell.value };
+}
+
 export function sceneOf(project: Pick<DesignProject, 'furniturePlacements' | 'finishes' | 'roomShell'>): SceneContent {
   return { placements: project.furniturePlacements, finishes: project.finishes ?? null, shell: project.roomShell };
 }

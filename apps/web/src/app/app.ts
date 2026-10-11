@@ -116,6 +116,9 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       @for (t of toast.toasts(); track t.id) {
         <div class="toast" [class]="'toast toast-' + t.kind" role="status">
           <span>{{ t.message }}</span>
+          @if (t.action; as action) {
+            <button type="button" class="btn btn-sm toast-action" (click)="toast.act(t)">{{ action.label }}</button>
+          }
           <button type="button" class="icon-btn" aria-label="Cerrar aviso" (click)="toast.dismiss(t.id)"><app-icon name="close" /></button>
         </div>
       }

@@ -22,10 +22,10 @@ class AppErrorHandler implements ErrorHandler {
     console.error(error);
     const msg = error instanceof Error ? error.message : String(error);
     if (/ChunkLoadError|Failed to fetch dynamically imported module/.test(msg)) {
-      this.toast.error('Hay una versión nueva de la app. Recarga la página.');
+      this.toast.error('Hay una versión nueva de la app.', { label: 'Recargar', run: () => location.reload() });
       return;
     }
-    this.toast.error('Algo salió mal. Si persiste, recarga la página.');
+    this.toast.error('Algo salió mal. Si persiste, recarga la página.', { label: 'Recargar', run: () => location.reload() });
   }
 }
 
