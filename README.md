@@ -12,7 +12,7 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
   - Lista de objetos, copiar y pegar, arrastrar del catálogo y exportar la imagen o el plano con medidas. Todo se deshace con Ctrl+Z, también "Otra distribución".
 - **Revisión del diseño.** Avisa si un mueble bloquea la puerta, si no se llega a otro, si algo tapa una ventana o si el cuarto quedó demasiado lleno, y lleva al mueble implicado.
 - **No se pierde trabajo.** Si la red falla, los cambios esperan y se envían al volver; si se cierra la pestaña, al regresar se ofrecen recuperar.
-- **Recorrer el cuarto.** La cámara baja a la altura de los ojos y se camina con el teclado sin atravesar paredes ni muebles, también en el enlace público. De noche el cuarto lo alumbran sus lámparas.
+- **Recorrer el cuarto.** La cámara baja a la altura de los ojos y se camina con el teclado sin atravesar paredes ni muebles, también en el enlace público. De noche el cuarto lo alumbran sus lámparas. Dentro también se edita: se arrastra un mueble para moverlo y el fondo para mirar, y siguen disponibles el gizmo, las paredes, pintar y medir. El sol entra por la ventana, los rincones llevan penumbra y los muebles su sombra de contacto ([ADR-0016](docs/adr/0016-recorrido-editable-y-luz-de-interior.md)).
 - **Otra distribución.** Un botón reacomoda los muebles de otra forma válida, sin tapar ventanas ni bloquear la puerta, respetando los que fijaste.
 - **Track A — propuestas 2D.** Varios estilos a la vez, con un comparador antes/después y un control de intensidad.
 - **Track B — escena 3D editable.** Muebles reales a escala (catálogo CC0) que puedes mover, rotar y cambiar, con deshacer y rehacer, realidad aumentada ("ver en mi cuarto"), versiones, un link público y una lista de compras en PDF.

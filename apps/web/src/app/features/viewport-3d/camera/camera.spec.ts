@@ -108,6 +108,13 @@ describe('WalkMode', () => {
     expect(mode.entryPose().target.z).toBeCloseTo(1.5);
   });
 
+  it('si el cuarto se corre, la persona va con él', () => {
+    const { camera, mode } = walker();
+    mode.shiftBy(0.5, -0.25);
+    expect(run(mode, 0.1)).toBe(true);
+    expect(camera.position.toArray()).toEqual([2.5, WALKER.eyeHeightM, 2.25]);
+  });
+
   it('las teclas mueven a la persona y al soltarlas se detiene', () => {
     const { camera, mode } = walker();
     expect(mode.key('KeyW', true)).toBe(true);

@@ -85,6 +85,13 @@ export class WalkMode implements CameraMode {
     this.dirty = true;
   }
 
+  /** El cuarto se corrió (se movió una pared que arrastra el origen): la persona va con él. */
+  shiftBy(dx: number, dz: number): void {
+    this.state = { ...this.state, x: this.state.x + dx, z: this.state.z + dz };
+    if (this.goal) this.goal = { x: this.goal.x + dx, z: this.goal.z + dz };
+    this.dirty = true;
+  }
+
   /** Caminar hasta un punto del piso (doble clic). Una tecla de movimiento lo cancela. */
   goTo(point: Point2): void {
     this.goal = point;

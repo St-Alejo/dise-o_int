@@ -61,6 +61,8 @@ export interface SceneSnapshot {
   /** Herramienta activa del visor. */
   tool: ViewportToolId;
   selectedId: string | null;
+  /** Dónde se ve en la ventana el mueble seleccionado (su centro) y si queda delante de la cámara. */
+  selectedAt: { x: number; y: number; visible: boolean } | null;
   /** Tiradores del gizmo, con su posición en la ventana (para arrastrarlos en las pruebas). */
   gizmo: { kind: GizmoHandleKind; x: number; y: number }[];
 }
@@ -98,9 +100,7 @@ export class SceneService implements SceneContext {
   private readonly dragController = new DragController(this, this.store, this.furniture, {
     canvas: () => this.canvas,
     readOnly: () => this.readOnly(),
-    setCameraEnabled: (enabled) => {
-      if (this.controls) this.controls.enabled = enabled;
-    },
+    setCameraEnabled: (enabled) => this.setOrbitEnabled(enabled),
     refreshSelection: (invalid) => this.refreshSelection(invalid),
     guides: (guides) => this.showSnapGuides(guides),
   });
@@ -180,6 +180,8 @@ export class SceneService implements SceneContext {
   /** Mundo del recorrido (paredes y muebles que estorban); se recalcula si cambia la escena. */
   private walkWorld: WalkWorld | null = null;
   private lookFrom: { x: number; y: number } | null = null;
+  /** La cámara está dentro del cuarto (recorrido): cambia cómo se ilumina. */
+  private inside = false;
   private readonly raycaster = new THREE.Raycaster();
   private readonly floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -198,6 +200,7 @@ export class SceneService implements SceneContext {
       untracked(() => {
         this.walkWorld = null;
         this.furniture.sync(placements, catalog, (id) => this.dragController.holds(id));
+        this.furniture.setGlow(this.lighting.glow);
         this.syncLamps();
       });
     });
@@ -268,8 +271,18 @@ export class SceneService implements SceneContext {
       placements: this.furniture.count,
       tool: this.tool(),
       selectedId: this.store.selectedId(),
+      selectedAt: this.selectedOnScreen(),
       gizmo: this.gizmoView.handlePositions().map(({ kind, position }) => ({ kind, ...this.clientPoint(position) })),
     };
+  }
+
+  private selectedOnScreen(): SceneSnapshot['selectedAt'] {
+    const placement = this.store.selected();
+    const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
+    if (!placement || !item) return null;
+    const centre = { ...placement.position, y: placement.position.y + effectiveDimensions(item.dimensionsM, placement).y / 2 };
+    const ndc = new THREE.Vector3(centre.x, centre.y, centre.z).project(this.camera);
+    return { ...this.clientPoint(centre), visible: ndc.z < 1 && Math.abs(ndc.x) < 0.9 && Math.abs(ndc.y) < 0.9 };
   }
 
   async dispose(): Promise<void> {
@@ -292,6 +305,7 @@ export class SceneService implements SceneContext {
       return;
     }
     this.lighting.fitToRoom(shell);
+    this.room.setCeilingShadow(this.inside);
     // Reencuadrar solo al abrir un cuarto nuevo (no al calibrar), para no marear al usuario.
     if (this.framedShellId !== shell.id) {
       this.frameRoom(shell);
@@ -399,7 +413,7 @@ export class SceneService implements SceneContext {
     const pose = placement ? (this.previewed?.get(placement.id) ?? this.dragController.poseOf(placement.id)) : null;
     this.selection.update(placement && item ? { placement, item, pose, invalid } : null);
     const single = this.store.selection().length <= 1;
-    const editable = single && !this.readOnly() && this.cameraMode() !== 'walk' && this.tool() === 'select';
+    const editable = single && !this.readOnly() && this.tool() === 'select';
     this.gizmoView.update(editable ? this.gizmo.layout(pose) : null);
     this.showExtraSelection();
     this.showClearances(editable && placement && item && item.mount === 'floor' && !placement.supportId ? { placement, item, pose } : null);
@@ -502,7 +516,7 @@ export class SceneService implements SceneContext {
 
   // ------------------------------------------------------------------ herramientas
   setTool(id: ViewportToolId): void {
-    if (this.readOnly() || this.cameraMode() === 'walk') return;
+    if (this.readOnly()) return;
     this.tools.use(id);
     this.paintTarget.set(null);
     if (this.canvas) this.canvas.style.cursor = '';
@@ -558,7 +572,12 @@ export class SceneService implements SceneContext {
    * izquierda o la del fondo todo se corre, y la cámara lo acompaña para que no parezca un salto.
    */
   panBy(dx: number, dz: number): void {
-    if (this.cameraMode() === 'walk') return;
+    if (this.cameraMode() === 'walk') {
+      // Recorriendo, quien se corre con el cuarto es la persona.
+      this.walk.shiftBy(dx, dz);
+      this.invalidate();
+      return;
+    }
     this.camera.position.x += dx;
     this.camera.position.z += dz;
     if (this.controls) {
@@ -575,6 +594,7 @@ export class SceneService implements SceneContext {
   setTimeOfDay(time: TimeOfDay): void {
     this.timeOfDay.set(time);
     this.lighting.setTimeOfDay(time);
+    this.furniture.setGlow(this.lighting.glow);
     this.invalidate();
   }
 
@@ -599,12 +619,11 @@ export class SceneService implements SceneContext {
   setCameraMode(mode: CameraModeId): void {
     if (mode === this.cameraMode() || !this.store.shell()) return;
     if (mode === 'walk') {
-      // Recorrer es solo mirar: nada seleccionado y el mundo de colisión al día.
-      this.setTool('select');
-      this.store.select(null);
+      // Se entra con lo que hubiera seleccionado y con la herramienta en uso: dentro también se edita.
       this.walkWorld = null;
     } else {
       this.room.setCutaway(true);
+      this.setInside(false);
     }
     this.director.switchTo(mode);
     this.invalidate();
@@ -613,7 +632,15 @@ export class SceneService implements SceneContext {
   private onCameraArrived(mode: CameraModeId): void {
     // Dentro del cuarto las paredes se ven enteras; desde fuera se recortan las que estorban.
     this.room.setCutaway(mode === 'orbit');
+    this.setInside(mode === 'walk');
     this.invalidate();
+  }
+
+  /** Luz de interior: el techo da sombra y el sol baja para entrar por la ventana. */
+  private setInside(inside: boolean): void {
+    this.inside = inside;
+    this.room.setCeilingShadow(inside);
+    this.lighting.setInterior(inside);
   }
 
   /** Tecla durante el recorrido; devuelve true si era de movimiento. */
@@ -645,57 +672,62 @@ export class SceneService implements SceneContext {
   }
 
   // ------------------------------------------------------------------ interacción
+  /**
+   * El gesto es de la herramienta activa (mover un mueble, una pared, medir…). Recorriendo, lo que
+   * la herramienta no toma sirve para mirar alrededor: se agarra un mueble para moverlo y el
+   * vacío para girar la vista.
+   */
   onPointerDown(event: PointerEvent): void {
-    if (this.cameraMode() !== 'walk') {
-      const e = event.button === 0 ? this.toolEvent(event) : null;
-      if (!e) return;
+    const walking = this.cameraMode() === 'walk';
+    const e = event.button === 0 ? this.toolEvent(event) : null;
+    if (e) {
       this.pressed = true;
       this.paintTarget.set(null);
       if (this.tools.down(e)) {
         // La herramienta se queda con el gesto: la cámara espera a que se suelte.
-        if (this.controls) this.controls.enabled = false;
+        this.setOrbitEnabled(false);
         this.canvas?.setPointerCapture(event.pointerId);
       }
-      return;
     }
+    if (!walking || this.tools.busy || this.dragController.dragging()) return;
     this.lookFrom = { x: event.clientX, y: event.clientY };
     this.canvas?.setPointerCapture(event.pointerId);
   }
 
   onPointerMove(event: PointerEvent): void {
-    if (this.cameraMode() !== 'walk') {
-      const e = this.toolEvent(event);
-      if (!e) return;
-      const cursor = this.tools.move(e, this.pressed);
-      if (this.canvas && cursor !== null && (cursor || this.tool() !== 'select')) this.canvas.style.cursor = cursor;
+    if (this.lookFrom) {
+      this.walk.look(event.clientX - this.lookFrom.x, event.clientY - this.lookFrom.y);
+      this.lookFrom = { x: event.clientX, y: event.clientY };
+      this.invalidate();
       return;
     }
-    if (!this.lookFrom) return;
-    this.walk.look(event.clientX - this.lookFrom.x, event.clientY - this.lookFrom.y);
-    this.lookFrom = { x: event.clientX, y: event.clientY };
-    this.invalidate();
+    const e = this.toolEvent(event);
+    if (!e) return;
+    const cursor = this.tools.move(e, this.pressed);
+    if (this.canvas && cursor !== null && (cursor || this.tool() !== 'select')) this.canvas.style.cursor = cursor;
   }
 
   onPointerUp(event: PointerEvent): void {
-    if (this.cameraMode() !== 'walk') {
-      const e = this.pressed ? this.toolEvent(event) : null;
-      if (!e) return;
+    const e = this.pressed ? this.toolEvent(event) : null;
+    if (e) {
       this.pressed = false;
       const captured = this.tools.busy;
       this.tools.up(e);
-      if (captured) {
-        if (this.controls) this.controls.enabled = true;
-        if (this.canvas?.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
-      }
-      return;
+      if (captured) this.setOrbitEnabled(true);
     }
     this.lookFrom = null;
     if (this.canvas?.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
   }
 
-  /** Doble clic durante el recorrido: caminar hasta ese punto del piso. */
+  /** Los controles de órbita solo mandan en su modo: recorriendo, la cámara la lleva la persona. */
+  private setOrbitEnabled(enabled: boolean): void {
+    if (this.controls) this.controls.enabled = enabled && this.cameraMode() !== 'walk';
+  }
+
+  /** Doble clic durante el recorrido: caminar hasta ese punto del piso (si no se señala un mueble). */
   onDoubleClick(event: MouseEvent): void {
-    if (this.cameraMode() !== 'walk') return;
+    if (this.cameraMode() !== 'walk' || this.tool() !== 'select') return;
+    if (this.pickAt(event.clientX, event.clientY)) return;
     const hit = this.floorPointAt(event.clientX, event.clientY);
     if (!hit) return;
     this.walk.goTo(hit);
@@ -704,13 +736,23 @@ export class SceneService implements SceneContext {
 
   /** Punto del piso que queda bajo una posición de la pantalla (para soltar un mueble del catálogo). */
   floorPointAt(clientX: number, clientY: number): { x: number; z: number } | null {
-    if (!this.canvas) return null;
-    const rect = this.canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null;
-    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.camera);
+    if (!this.aimAt(clientX, clientY)) return null;
     const hit = this.raycaster.ray.intersectPlane(this.floorPlane, new THREE.Vector3());
     return hit ? { x: hit.x, z: hit.z } : null;
+  }
+
+  /** Mueble que hay bajo una posición de la pantalla. */
+  private pickAt(clientX: number, clientY: number): string | null {
+    return this.aimAt(clientX, clientY) ? this.furniture.pick(this.raycaster) : null;
+  }
+
+  /** Apunta el rayo de la escena a una posición de la pantalla; false si el visor no se ve. */
+  private aimAt(clientX: number, clientY: number): boolean {
+    const rect = this.canvas?.getBoundingClientRect();
+    if (!rect?.width || !rect.height) return false;
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    return true;
   }
 
   /** Imagen PNG de lo que muestra el visor ahora mismo (null si no hay visor o está oculto). */

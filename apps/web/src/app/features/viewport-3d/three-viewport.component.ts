@@ -99,7 +99,7 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       </div>
       @if (walking()) {
         <p class="walk-help" role="status">
-          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> o flechas para caminar · arrastra para mirar · doble clic para ir a un punto · <kbd>Esc</kbd> para salir
+          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> para caminar · arrastra el vacío para mirar{{ readOnly() ? '' : ' y un mueble para moverlo' }} · doble clic para ir a un punto · <kbd>Esc</kbd> para salir
         </p>
       }
     }
@@ -354,8 +354,8 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly tools = VIEWPORT_TOOLS;
   protected readonly presets = VIEW_PRESETS;
   protected readonly step = Math.PI / 12;
-  /** Se puede editar: no es la vista pública, la escena está lista y no se está recorriendo. */
-  protected readonly editable = computed(() => !this.readOnly() && this.scene.sceneReady() && !this.contextLost() && !this.walking());
+  /** Se puede editar (también recorriendo el cuarto): no es la vista pública y la escena está lista. */
+  protected readonly editable = computed(() => !this.readOnly() && this.scene.sceneReady() && !this.contextLost());
   protected readonly locked = computed(() => !!this.store.selected()?.lockedByUser);
   /** La barra del mueble acompaña a la selección; se esconde mientras se arrastra. */
   protected readonly showContext = computed(() => this.editable() && !!this.edits && !!this.store.selected() && !this.scene.dragging() && this.scene.tool() === 'select');
@@ -370,7 +370,8 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   private readonly contextRef = viewChild.required<ElementRef<HTMLElement>>('context');
   protected readonly orbitLabel =
     'Vista 3D del cuarto. Arrastra para mover muebles; flechas para desplazar el seleccionado, R para rotar, Supr para quitar.';
-  protected readonly walkLabel = 'Recorrido del cuarto a pie. W, A, S, D o flechas para caminar; Escape para salir.';
+  protected readonly walkLabel =
+    'Recorrido del cuarto a pie. W, A, S, D o flechas para caminar; arrastra un mueble para moverlo, R para rotarlo, Supr para quitarlo; Escape para salir.';
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
 
   private renderer: THREE.WebGLRenderer | null = null;
@@ -473,7 +474,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
 
   /** Un mueble del catálogo arrastrado sobre el visor se puede soltar en el piso. */
   protected onDragOver(event: DragEvent): void {
-    if (!this.edits?.dragged() || this.walking()) return;
+    if (!this.edits?.dragged()) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     this.scene.showGhost(this.edits?.dragged() ?? null, event.clientX, event.clientY);
@@ -482,7 +483,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   protected onDrop(event: DragEvent): void {
     const edits = this.edits;
     const item = edits?.dragged();
-    if (!edits || !item || this.walking()) return;
+    if (!edits || !item) return;
     event.preventDefault();
     this.scene.showGhost(null);
     edits.dragged.set(null);
@@ -495,11 +496,19 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
 
   onKey(event: KeyboardEvent): void {
     if (this.walking()) {
-      // Recorriendo, las teclas mueven a la persona; Escape vuelve a la vista de órbita.
-      if (event.key === 'Escape') this.scene.setCameraMode('orbit');
-      else if (!this.scene.walkKey(event.code, true)) return;
-      event.preventDefault();
-      return;
+      // Recorriendo, las teclas de caminar mueven a la persona (W no cambia de herramienta ni las
+      // flechas empujan el mueble); las demás siguen editando. Con Ctrl son atajos del editor.
+      const shortcut = event.ctrlKey || event.metaKey;
+      if (!shortcut && this.scene.walkKey(event.code, true)) {
+        event.preventDefault();
+        return;
+      }
+      // Escape deshace por capas: la herramienta, la selección y, al final, el recorrido.
+      if (event.key === 'Escape' && this.scene.tool() === 'select' && !this.store.selected()) {
+        event.preventDefault();
+        this.scene.setCameraMode('orbit');
+        return;
+      }
     }
     // Atajos de herramienta: V mover, W paredes, B pintar, M medir.
     const tool = event.ctrlKey || event.metaKey || event.altKey ? undefined : VIEWPORT_TOOLS.find((t) => t.key === event.key.toLowerCase());

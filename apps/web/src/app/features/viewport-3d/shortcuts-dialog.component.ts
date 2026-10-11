@@ -51,7 +51,9 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
       { keys: ['W', 'A', 'S', 'D'], does: 'Caminar (también con las flechas)' },
       { keys: ['Shift'], does: 'Correr' },
       { keys: ['doble clic'], does: 'Ir a ese punto' },
-      { keys: ['Esc'], does: 'Salir del recorrido' },
+      { keys: ['arrastrar'], does: 'Sobre un mueble, moverlo; sobre el fondo, mirar alrededor' },
+      { keys: ['R'], does: 'Girar el mueble seleccionado (Supr lo quita)' },
+      { keys: ['Esc'], does: 'Soltar la selección; otra vez, salir del recorrido' },
     ],
   },
 ];
