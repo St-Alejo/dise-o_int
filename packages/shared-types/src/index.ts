@@ -18,6 +18,7 @@ export * from './snapping.js';
 export * from './arrange.js';
 export * from './design-check.js';
 export * from './decorate.js';
+export * from './budget.js';
 export * from './furnished-templates.js';
 export * from './spatial-resolver.js';
 export * from './design-operations.js';

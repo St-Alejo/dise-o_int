@@ -22,6 +22,7 @@ import { planSvg } from '../floor-plan/floor-plan-model';
 import { SwapCommand } from './commands';
 import { SceneService } from './scene.service';
 import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
+import { BudgetPanelComponent } from '../budget/budget-panel.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
@@ -69,6 +70,7 @@ function initialView(): ViewMode {
     ChatPanelComponent,
     ArViewerComponent,
     PresentationOverlayComponent,
+    BudgetPanelComponent,
     CurrencyPipe,
   ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
@@ -201,6 +203,7 @@ function initialView(): ViewMode {
             <span class="spacer"></span>
             <div>Total aprox. <strong>{{ store.totalPrice() | currency: 'USD' : 'symbol' : '1.0-0' }}</strong></div>
           </div>
+          <app-budget-panel />
           <div class="tabs" role="tablist" aria-label="Panel del editor">
             <button type="button" role="tab" id="tab-add" aria-controls="panel-add" [attr.aria-selected]="panelTab() === 'add'" (click)="panelTab.set('add')">Añadir muebles</button>
             <button type="button" role="tab" id="tab-objects" aria-controls="panel-objects" [attr.aria-selected]="panelTab() === 'objects'" (click)="panelTab.set('objects')">Objetos</button>
