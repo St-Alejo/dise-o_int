@@ -82,7 +82,9 @@ function initialView(): ViewMode {
       </div>
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
       <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas"><app-icon name="ruler" /> Medidas del cuarto</button>
-      <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están"><app-icon name="shuffle" /> Otra distribución</button>
+      @if (!demo()) {
+        <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están"><app-icon name="shuffle" /> Otra distribución</button>
+      }
       <button
         type="button"
         class="btn btn-sm review"
@@ -195,7 +197,9 @@ function initialView(): ViewMode {
             <button type="button" role="tab" id="tab-add" aria-controls="panel-add" [attr.aria-selected]="panelTab() === 'add'" (click)="panelTab.set('add')">Añadir muebles</button>
             <button type="button" role="tab" id="tab-objects" aria-controls="panel-objects" [attr.aria-selected]="panelTab() === 'objects'" (click)="panelTab.set('objects')">Objetos</button>
             <button type="button" role="tab" id="tab-room" aria-controls="panel-room" [attr.aria-selected]="panelTab() === 'room'" (click)="panelTab.set('room')">Cuarto y acabados</button>
-            <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
+            @if (!demo()) {
+              <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
+            }
           </div>
           @if (panelTab() === 'chat') {
             <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat">
@@ -474,6 +478,8 @@ export class EditorComponent {
   private readonly toast = inject(ToastService);
 
   readonly busy = input(false);
+  /** Demostración sin cuenta: no hay servidor al que pedir otra distribución ni asistente. */
+  readonly demo = input(false);
   readonly autoLayout = output<void>();
 
   private readonly shortcuts = viewChild.required<ShortcutsDialogComponent>('shortcuts');

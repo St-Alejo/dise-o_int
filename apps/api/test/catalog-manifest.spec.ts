@@ -1,4 +1,6 @@
 /** El manifiesto completo es coherente: ids, recetas, materiales, medidas, montajes y búsqueda. */
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { FURNITURE } from '@interiores/furniture-kit';
 import { searchCatalog, type SearchableItem } from '@interiores/shared-types';
@@ -89,5 +91,16 @@ describe('manifiesto del catálogo', () => {
     expect(top('espejo')[0]).toBe('mirror');
     expect(top('nevera')[0]).toBe('fridge');
     expect(top('cortinas')[0]).toBe('curtains');
+  });
+
+  it('las plantillas amuebladas de la web solo usan muebles que existen en el catálogo', () => {
+    const dir = fileURLToPath(new URL('../../web/public/escenas/', import.meta.url));
+    const ids = new Set(FULL_MANIFEST.map((e) => e.id));
+    const scenes = readdirSync(dir).filter((f) => f.endsWith('.json'));
+    expect(scenes.length).toBeGreaterThanOrEqual(5);
+    for (const file of scenes) {
+      const scene = JSON.parse(readFileSync(dir + file, 'utf8')) as { furniturePlacements: { catalogItemId: string }[] };
+      for (const p of scene.furniturePlacements) expect(ids.has(p.catalogItemId), `${file}: ${p.catalogItemId}`).toBe(true);
+    }
   });
 });

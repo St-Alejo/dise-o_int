@@ -37,6 +37,16 @@ export const routes: Routes = [
     title: 'Proyecto — Interiores IA',
   },
   {
+    path: 'plantillas',
+    loadComponent: () => import('./features/demo/templates.page').then((m) => m.TemplatesPage),
+    title: 'Plantillas — Interiores IA',
+  },
+  {
+    path: 'demo/:plantilla',
+    loadComponent: () => import('./features/demo/demo.page').then((m) => m.DemoPage),
+    title: 'Demostración — Interiores IA',
+  },
+  {
     path: 'p/:token',
     loadComponent: () => import('./features/public/public-project.page').then((m) => m.PublicProjectPage),
     title: 'Proyecto compartido — Interiores IA',

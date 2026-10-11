@@ -17,11 +17,12 @@ import {
   type Vector3,
 } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
-import { CatalogApi, ProjectsApi } from '../../core/api/projects.api';
+import { CatalogApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
 import { CommandHistory, MacroCommand, SetFinishesCommand, SetRoomCommand, type Placements, type SceneCommand, type SceneState } from '../viewport-3d/commands';
 import { DraftStore, draftIsRecoverable, isTransient, retryDelayMs, sceneKey, sceneOf, type SceneDraft } from './save-resilience';
 import { planPlacement, type PlacementPlan } from './placement-planner';
+import { ProjectPersistence } from './project-persistence';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'conflict' | 'error';
 
@@ -38,7 +39,7 @@ const AUTOSAVE_MS = 1200;
  */
 @Injectable()
 export class DesignProjectStore {
-  private readonly api = inject(ProjectsApi);
+  private readonly api = inject(ProjectPersistence);
   private readonly catalogApi = inject(CatalogApi);
   private readonly toast = inject(ToastService);
 
