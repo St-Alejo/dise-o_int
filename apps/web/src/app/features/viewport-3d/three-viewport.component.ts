@@ -18,6 +18,7 @@ import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RoomActionsComponent } from '../floor-plan/room-actions.component';
+import type { PostFx } from './scene/post-fx';
 import { PaintPaletteComponent } from './tools/paint-palette.component';
 import { VIEWPORT_TOOLS } from './tools/tools';
 import { SceneService, VIEW_PRESETS } from './scene.service';
@@ -376,6 +377,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
 
   private renderer: THREE.WebGLRenderer | null = null;
+  private postFx: PostFx | null = null;
   private controls: OrbitControls | null = null;
   private frameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -413,12 +415,16 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.frameRoom();
     this.scene.labels.attach(this.labelsRef().nativeElement);
     this.scene.labels.anchor(this.contextRef().nativeElement, () => this.scene.selectionAnchor());
+    // Con posprocesado pinta el compositor; mientras carga (o si falla), el renderer a secas.
+    const paint = () => (this.postFx ? this.postFx.render() : renderer.render(this.scene.scene, this.scene.camera));
     // El buffer no se conserva entre frames: se dibuja y se copia en el mismo instante.
     this.scene.frameCapture = () => {
       if (!canvas.width || !canvas.height) return Promise.resolve(null);
-      renderer.render(this.scene.scene, this.scene.camera);
+      paint();
       return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     };
+    this.scene.postFxState = () => (this.postFx ? { ao: this.postFx.aoEnabled } : null);
+    void this.loadPostFx(renderer);
 
     canvas.addEventListener('webglcontextlost', this.onContextLost);
 
@@ -426,6 +432,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       if (!entry) return;
       const { width, height } = entry.contentRect;
       renderer.setSize(width, height, false);
+      this.postFx?.setSize(width, height);
       this.scene.setSize(width, height);
     });
     this.resizeObserver.observe(this.host.nativeElement);
@@ -445,10 +452,23 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
         this.frameId = requestAnimationFrame(loop);
         const dt = Math.min((now - last) / 1000, 0.1);
         last = now;
-        if (this.scene.tick(dt)) renderer.render(this.scene.scene, this.scene.camera);
+        if (this.scene.tick(dt)) paint();
       };
       loop(last);
     });
+  }
+
+  /** El posprocesado va en un chunk aparte: el visor ya se ve mientras llega. */
+  private async loadPostFx(renderer: THREE.WebGLRenderer): Promise<void> {
+    try {
+      const { PostFx } = await import('./scene/post-fx');
+      if (this.renderer !== renderer) return;
+      this.postFx = new PostFx(renderer, this.scene.scene, this.scene.camera, { ao: true, pixelRatio: renderer.getPixelRatio() });
+      this.scene.attachHighlighter(this.postFx);
+    } catch {
+      // Sin posprocesado el visor sigue funcionando con el contorno en planta.
+      this.postFx = null;
+    }
   }
 
   /** Entra o sale del recorrido a pie; al entrar, el canvas toma el foco para que respondan las teclas. */
@@ -569,6 +589,10 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.controls = null;
     this.scene.canvas = null;
     this.scene.frameCapture = null;
+    this.scene.postFxState = null;
+    this.scene.attachHighlighter(null);
+    this.postFx?.dispose();
+    this.postFx = null;
     this.scene.labels.anchor(this.contextRef().nativeElement, null);
     void this.scene.dispose();
     this.renderer?.renderLists.dispose();

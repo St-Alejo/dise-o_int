@@ -70,6 +70,11 @@ export class FurnitureView {
     return null;
   }
 
+  /** Lo que se ve de esas piezas (sin su sombra de contacto), para dibujarles un contorno. */
+  objectsOf(ids: readonly string[]): THREE.Object3D[] {
+    return ids.flatMap((id) => this.nodes.get(id)?.group.children.filter((o) => o.name !== 'contact-shadow') ?? []);
+  }
+
   /** Brillo de las pantallas de lámpara (cambia con la hora del día). */
   setGlow(intensity: number): void {
     this.factory.setGlow(intensity);

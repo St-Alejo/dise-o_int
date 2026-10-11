@@ -15,3 +15,9 @@ export interface SceneContext {
 export interface FrameSystem {
   update(dt: number): boolean;
 }
+
+/** Quien dibuja el contorno de lo seleccionado y de lo que está bajo el cursor (el posprocesado). */
+export interface Highlighter {
+  setSelection(objects: readonly THREE.Object3D[], invalid?: boolean): void;
+  setHover(objects: readonly THREE.Object3D[]): void;
+}

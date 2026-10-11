@@ -16,6 +16,8 @@ export interface SelectionTarget {
 /** Contorno de la pieza seleccionada: su huella en planta, roja si la pose no es válida. */
 export class SelectionView {
   private readonly outline: THREE.LineLoop;
+  /** Con contorno de posprocesado, la huella solo hace falta para avisar de una pose inválida. */
+  outlined = false;
 
   constructor(private readonly ctx: SceneContext) {
     const geometry = new THREE.BufferGeometry().setFromPoints([
@@ -31,7 +33,7 @@ export class SelectionView {
   }
 
   update(target: SelectionTarget | null): void {
-    this.outline.visible = !!target;
+    this.outline.visible = !!target && (!this.outlined || !!target.invalid);
     if (target) {
       const { placement, item, pose, invalid } = target;
       const pos = pose?.position ?? placement.position;

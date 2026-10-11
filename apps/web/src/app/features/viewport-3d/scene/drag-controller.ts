@@ -52,6 +52,8 @@ export interface DragHost {
   refreshSelection(invalid?: boolean): void;
   /** Líneas con las que quedó alineada la pieza que se arrastra (vacío = ninguna). */
   guides?(guides: readonly SnapGuide[]): void;
+  /** Mueble bajo el cursor sin gesto en curso (null = ninguno), para resaltarlo. */
+  hover?(id: string | null): void;
 }
 
 interface Drag {
@@ -148,7 +150,9 @@ export class DragController {
     const canvas = this.host.canvas();
     if (!this.drag) {
       if (canvas && event.pointerType === 'mouse') {
-        canvas.style.cursor = this.pick(event) ? (this.host.readOnly() ? 'pointer' : 'grab') : '';
+        const id = this.pick(event);
+        canvas.style.cursor = id ? (this.host.readOnly() ? 'pointer' : 'grab') : '';
+        this.host.hover?.(id);
       }
       return;
     }

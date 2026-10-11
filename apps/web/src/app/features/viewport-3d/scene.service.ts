@@ -31,7 +31,7 @@ import { GizmoView } from './scene/gizmo-view';
 import { GuidesView } from './scene/guides-view';
 import { OverlayLabels } from './scene/overlay-labels';
 import { LightingRig, type TimeOfDay } from './scene/lighting-rig';
-import type { FrameSystem, SceneContext } from './scene/render-loop';
+import type { FrameSystem, Highlighter, SceneContext } from './scene/render-loop';
 import { RoomView } from './scene/room-view';
 import { SelectionActions } from './scene/selection-actions';
 import { SelectionView } from './scene/selection-view';
@@ -65,6 +65,10 @@ export interface SceneSnapshot {
   selectedAt: { x: number; y: number; visible: boolean } | null;
   /** Tiradores del gizmo, con su posición en la ventana (para arrastrarlos en las pruebas). */
   gizmo: { kind: GizmoHandleKind; x: number; y: number }[];
+  /** Posprocesado en uso (null mientras no ha cargado o si el equipo no lo admite). */
+  postFx: { ao: boolean } | null;
+  /** Mueble resaltado bajo el cursor. */
+  hoveredId: string | null;
 }
 
 /**
@@ -103,6 +107,7 @@ export class SceneService implements SceneContext {
     setCameraEnabled: (enabled) => this.setOrbitEnabled(enabled),
     refreshSelection: (invalid) => this.refreshSelection(invalid),
     guides: (guides) => this.showSnapGuides(guides),
+    hover: (id) => this.setHover(id),
   });
   private readonly systems: FrameSystem[] = [];
 
@@ -172,6 +177,10 @@ export class SceneService implements SceneContext {
   readonly cameraMode = this.director.mode.asReadonly();
 
   private needsRender = true;
+  private highlighter: Highlighter | null = null;
+  private hoveredId: string | null = null;
+  /** Lo registra el viewport: estado del posprocesado, para las pruebas. */
+  postFxState: (() => { ao: boolean } | null) | null = null;
   private size = { width: 1, height: 1 };
   private pressed = false;
   /** Poses provisionales que llegan de fuera del visor (el plano, el aro de rotación). */
@@ -232,6 +241,23 @@ export class SceneService implements SceneContext {
     this.needsRender = true;
   }
 
+  /** El posprocesado ya cargó (o se quitó, con null): desde ahora el contorno lo dibuja él. */
+  attachHighlighter(highlighter: Highlighter | null): void {
+    this.highlighter = highlighter;
+    this.selection.outlined = !!highlighter;
+    this.refreshSelection();
+    this.invalidate();
+  }
+
+  /** Resalta el mueble bajo el cursor; el seleccionado ya tiene su propio contorno. */
+  private setHover(id: string | null): void {
+    const hovered = id && !this.store.selection().some((p) => p.id === id) ? id : null;
+    if (hovered === this.hoveredId) return;
+    this.hoveredId = hovered;
+    this.highlighter?.setHover(hovered ? this.furniture.objectsOf([hovered]) : []);
+    this.invalidate();
+  }
+
   /** Registra algo que avanza en cada frame. */
   addFrameSystem(system: FrameSystem): void {
     this.systems.push(system);
@@ -273,6 +299,8 @@ export class SceneService implements SceneContext {
       selectedId: this.store.selectedId(),
       selectedAt: this.selectedOnScreen(),
       gizmo: this.gizmoView.handlePositions().map(({ kind, position }) => ({ kind, ...this.clientPoint(position) })),
+      postFx: this.postFxState?.() ?? null,
+      hoveredId: this.hoveredId,
     };
   }
 
@@ -412,6 +440,11 @@ export class SceneService implements SceneContext {
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
     const pose = placement ? (this.previewed?.get(placement.id) ?? this.dragController.poseOf(placement.id)) : null;
     this.selection.update(placement && item ? { placement, item, pose, invalid } : null);
+    this.highlighter?.setSelection(
+      this.furniture.objectsOf(this.store.selection().map((p) => p.id)),
+      invalid,
+    );
+    if (this.hoveredId && this.store.selection().some((p) => p.id === this.hoveredId)) this.setHover(null);
     const single = this.store.selection().length <= 1;
     const editable = single && !this.readOnly() && this.tool() === 'select';
     this.gizmoView.update(editable ? this.gizmo.layout(pose) : null);
@@ -682,6 +715,7 @@ export class SceneService implements SceneContext {
     const e = event.button === 0 ? this.toolEvent(event) : null;
     if (e) {
       this.pressed = true;
+      this.setHover(null);
       this.paintTarget.set(null);
       if (this.tools.down(e)) {
         // La herramienta se queda con el gesto: la cámara espera a que se suelte.
