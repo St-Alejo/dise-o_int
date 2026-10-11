@@ -147,15 +147,6 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       color: var(--text-muted);
       background: color-mix(in srgb, var(--bg) 70%, transparent);
     }
-    /* En un visor angosto (vista dividida) las dos barras no caben en una fila: las vistas bajan. */
-    @container visor (max-width: 620px) {
-      .modes {
-        top: 54px;
-      }
-      .room-actions {
-        top: 98px;
-      }
-    }
     .labels {
       position: absolute;
       inset: 0;
@@ -336,6 +327,16 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       border-radius: 999px;
       font-size: 0.85rem;
       box-shadow: var(--shadow);
+    }
+    /* En un visor angosto (vista dividida) las dos barras no caben en una fila: las vistas bajan.
+       Va al final: con la misma especificidad, gana la regla que se declara después. */
+    @container visor (max-width: 620px) {
+      .modes {
+        top: 54px;
+      }
+      .room-actions {
+        top: 98px;
+      }
     }
   `,
 })
