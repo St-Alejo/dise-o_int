@@ -35,6 +35,12 @@ const BACK_TO_ORBIT_MS = 1600;
     }
   `,
   styles: `
+    /* Fuera del flujo: va dentro de la rejilla del editor y no debe quitarle sitio al visor. */
+    :host {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
     .bar {
       position: absolute;
       inset: auto 0 0 0;

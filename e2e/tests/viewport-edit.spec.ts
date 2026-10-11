@@ -98,6 +98,8 @@ test('visor 3D: mover una pared, pintarla y medir', async ({ page }) => {
   const canvas = page.locator('app-three-viewport canvas');
   await expect(canvas).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1500);
+  // Primero el foco (que puede desplazar la página para enseñar el visor) y después se mide dónde está.
+  await canvas.focus();
   const box = (await canvas.boundingBox())!;
   // La pared del fondo queda arriba y hacia el centro en la vista inicial.
   const wall = { x: box.x + box.width * 0.42, y: box.y + box.height * 0.3 };
