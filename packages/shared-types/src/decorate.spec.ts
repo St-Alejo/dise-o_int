@@ -26,7 +26,9 @@ const CATALOG: DecorItem[] = [
   item('lavamanos', 'bathroom', 'vanity', [0.8, 0.85, 0.5]),
   item('fregadero', 'kitchen', 'sink', [1, 0.9, 0.6]),
   item('bajo', 'kitchen', 'kitchen-base', [0.8, 0.9, 0.6]),
+  item('estufa', 'kitchen', 'stove', [0.6, 0.9, 0.6]),
   item('cortinas', 'textile', 'curtains', [2.2, 2.4, 0.12], 'wall', { elevationDefaultM: 0 }),
+  item('cortinas-verdes', 'textile', 'curtains', [2.6, 2.5, 0.15], 'wall', { elevationDefaultM: 0 }),
   item('cuadro-grande', 'wall-decor', 'wall-art', [1.2, 0.8, 0.035], 'wall', { elevationDefaultM: 1.2 }),
   item('cuadro-chico', 'wall-decor', 'wall-art', [0.5, 0.7, 0.03], 'wall', { elevationDefaultM: 1.3, styleTags: ['moderno'] }),
   item('tele', 'electronics', 'tv', [1.23, 0.71, 0.06], 'wall', { elevationDefaultM: 1 }),
@@ -79,6 +81,8 @@ describe('decorate', () => {
     const window = shell.openings.find((o) => o.type === 'window')!;
     const [curtains] = only(added, 'curtains');
     expect(curtains!.wallId).toBe(windowWall);
+    // Entre dos cortinas igual de adecuadas, la más sobria (la primera), no la más grande.
+    expect(curtains!.catalogItemId).toBe('cortinas');
     expect(curtains!.dimensionsM!.x).toBeGreaterThan(window.widthM);
     expect(curtains!.dimensionsM!.x).toBeLessThanOrEqual(2.2 * 1.3 + 1e-9);
     expect(curtains!.elevationM! + curtains!.dimensionsM!.y).toBeGreaterThan(window.sillHeightM + window.heightM);
@@ -120,6 +124,13 @@ describe('decorate', () => {
     expect(only(decorate({ shell, roomType: 'kitchen', styleId: null, placements: [], items: CATALOG }), 'curtains')).toHaveLength(0);
     const kitchen = decorate({ shell: room, roomType: 'kitchen', styleId: null, placements: [against(room, freeWall, 'fregadero', 0.3), against(room, freeWall, 'bajo', 0.6)], items: CATALOG });
     expect(only(kitchen, 'kitchen-wall').length).toBeGreaterThanOrEqual(2);
+    // Con estufa en medio de la hilera, encima de ella no va ninguna alacena.
+    const wall = wallFrames(room).find((f) => f.id === freeWall)!;
+    const row = [against(room, freeWall, 'bajo', 0.25, 'b1'), against(room, freeWall, 'estufa', 0.5), against(room, freeWall, 'bajo', 0.75, 'b2')];
+    const stoveAt = alongOf(wall, row[1]!.position);
+    const cabinets = only(decorate({ shell: room, roomType: 'kitchen', styleId: null, placements: row, items: CATALOG }), 'kitchen-wall');
+    expect(cabinets.length).toBeGreaterThanOrEqual(2);
+    for (const c of cabinets) expect(Math.abs(alongOf(wall, c.position) - stoveAt)).toBeGreaterThanOrEqual(0.3 + 0.4 - 0.03);
     expect(only(kitchen, 'wall-art')).toHaveLength(0);
     const bath = decorate({ shell: room, roomType: 'bathroom', styleId: null, placements: [against(room, freeWall, 'lavamanos')], items: CATALOG });
     expect(only(bath, 'mirror')[0]!.elevationM).toBeCloseTo(0.85 + 0.2);

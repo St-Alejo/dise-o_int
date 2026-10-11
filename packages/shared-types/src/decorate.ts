@@ -77,13 +77,17 @@ export function decorate(input: DecorateInput): FurniturePlacement[] {
   const present = (sub: string) => scene.some((e) => subOf(e) === sub);
   const nextId = () => `deco-${Math.floor(random() * 2 ** 40).toString(16).padStart(10, '0')}`;
 
-  /** La mejor pieza de ese tipo: primero las del estilo; entre iguales, la mayor (o una al azar con semilla). */
-  const pick = (sub: string, mount: Mount, fits: (item: DecorItem) => boolean = () => true): DecorItem | null => {
+  /**
+   * La mejor pieza de ese tipo: primero las del estilo. Entre iguales, la mayor (un cuadro grande
+   * llena más la pared) o, con `neutral`, la primera por id, que es la más sobria del catálogo.
+   * Con semilla, una al azar.
+   */
+  const pick = (sub: string, mount: Mount, fits: (item: DecorItem) => boolean = () => true, neutral = false): DecorItem | null => {
     const options = input.items.filter((i) => i.subcategory === sub && i.mount === mount && i.roomTypes.includes(roomType) && fits(i));
     if (!options.length) return null;
     const inStyle = (i: DecorItem) => (styleId && i.styleTags.includes(styleId) ? 1 : 0);
     const best = Math.max(...options.map(inStyle));
-    const top = options.filter((i) => inStyle(i) === best).sort((a, b) => b.dimensionsM.x - a.dimensionsM.x || a.id.localeCompare(b.id));
+    const top = options.filter((i) => inStyle(i) === best).sort((a, b) => (neutral ? 0 : b.dimensionsM.x - a.dimensionsM.x) || a.id.localeCompare(b.id));
     return varied ? top[Math.floor(random() * top.length)]! : top[0]!;
   };
 
@@ -167,7 +171,7 @@ export function decorate(input: DecorateInput): FurniturePlacement[] {
     const windows = shell.openings.filter((o) => o.type === 'window').sort((a, b) => b.widthM * b.heightM - a.widthM * a.heightM);
     for (const o of windows.slice(0, MAX_CURTAINS)) {
       const wall = frames.find((f) => f.id === o.wallId);
-      const item = pick('curtains', 'wall');
+      const item = pick('curtains', 'wall', undefined, true);
       if (!wall || !item) continue;
       const along = wall.startAtBase ? o.offsetM : wall.length - o.offsetM;
       const room = 2 * Math.min(along, wall.length - along) - 0.1;
@@ -185,12 +189,27 @@ export function decorate(input: DecorateInput): FurniturePlacement[] {
     if (at && tv) hang(tv, at.wall, at.along, tvStand.dims.y + 0.18);
   }
 
-  // 3. Alacenas sobre la hilera de la cocina (no sobre la estufa: ahí va la campana).
+  // 3. Alacenas sobre la hilera de la cocina: una junto a otra donde quepan, nunca sobre la
+  // estufa (ahí va la campana) ni tapando la ventana.
   if (roomType === 'kitchen' && !present('kitchen-wall')) {
     const cabinet = pick('kitchen-wall', 'wall');
-    for (const e of scene.filter((x) => onFloor(x) && ['kitchen-base', 'sink'].includes(subOf(x)))) {
+    const row = scene.filter((x) => onFloor(x) && ['kitchen-base', 'sink', 'stove'].includes(subOf(x))).flatMap((e) => {
       const at = wallBehind(e);
-      if (cabinet && at) hang(cabinet, at.wall, at.along, cabinet.elevationDefaultM ?? 1.45);
+      return at ? [{ ...at, half: e.dims.x / 2, stove: subOf(e) === 'stove' }] : [];
+    });
+    const wall = row[0]?.wall;
+    if (cabinet && wall) {
+      const onWall = row.filter((r) => r.wall.id === wall.id);
+      const half = cabinet.dimensionsM.x / 2;
+      const from = Math.min(...onWall.map((r) => r.along - r.half));
+      const to = Math.max(...onWall.map((r) => r.along + r.half));
+      const overStove = (along: number) => onWall.some((r) => r.stove && Math.abs(along - r.along) < r.half + half - 0.02);
+      // Puede asomar un poco más allá de la hilera: junto a una ventana ancha no queda otro sitio.
+      const start = Math.max(half + 0.05, from - 0.3);
+      const end = Math.min(wall.length - half - 0.05, to + 0.3);
+      for (let along = start; along <= end + 1e-6; along += 0.1) {
+        if (!overStove(along)) hang(cabinet, wall, along, cabinet.elevationDefaultM ?? 1.45);
+      }
     }
   }
 
