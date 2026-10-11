@@ -19,8 +19,13 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
   imports: [ReactiveFormsModule, RouterLink, IconComponent],
   template: `
     <section class="wrap">
-      <form class="card stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <h1>{{ isRegister() ? 'Crea tu cuenta' : 'Bienvenido de nuevo' }}</h1>
+      <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <p class="eyebrow">{{ isRegister() ? 'Cuenta nueva' : 'Entrar' }}</p>
+        @if (isRegister()) {
+          <h1 class="title-xl">Crea tu cuenta, <em>es un minuto.</em></h1>
+        } @else {
+          <h1 class="title-xl">Bienvenido <em>de nuevo.</em></h1>
+        }
         <p class="muted intro">{{ isRegister() ? 'Gratis y en menos de un minuto.' : 'Tus proyectos te esperan donde los dejaste.' }}</p>
         @if (expired()) {
           <p class="alert alert-warning" role="alert">Tu sesión expiró. Vuelve a entrar para continuar.</p>
@@ -101,15 +106,16 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
       align-items: center;
       padding: clamp(var(--space-5), 6vw, 72px) var(--space-4);
     }
+    /* Sin caja: el formulario respira sobre el fondo, con un filete arriba. */
     form {
-      box-shadow: var(--shadow);
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--rule);
     }
-    h1 {
-      font-size: var(--text-2xl);
+    .eyebrow {
       margin: 0;
     }
     .intro {
-      margin: calc(var(--space-2) * -1) 0 0;
+      margin: 0;
     }
     .switch {
       text-align: center;

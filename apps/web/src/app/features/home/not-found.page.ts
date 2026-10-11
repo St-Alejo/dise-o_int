@@ -15,11 +15,12 @@ import { IconComponent } from '../../shared/ui/icon.component';
         <circle class="knob" cx="60" cy="68" r="3" />
       </svg>
       <p class="eyebrow">Error 404</p>
-      <h1>Esta página no existe</h1>
+      <h1 class="title-xl">Esta página <em>no existe.</em></h1>
       <p class="muted">Puede que el enlace esté mal escrito o que el proyecto se haya borrado: los que no se guardan desaparecen a las 24 horas.</p>
       <div class="row">
         <a routerLink="/" class="btn btn-primary"><app-icon name="back" /> Ir al inicio</a>
         <a routerLink="/proyectos" class="btn">Mis proyectos</a>
+        <a routerLink="/plantillas" class="arrow-link">Ver las plantillas <app-icon name="arrowRight" /></a>
       </div>
     </section>
   `,
@@ -39,6 +40,8 @@ import { IconComponent } from '../../shared/ui/icon.component';
       max-width: 52ch;
     }
     .row {
+      flex-wrap: wrap;
+      align-items: center;
       justify-content: center;
       margin-top: var(--space-3);
     }
