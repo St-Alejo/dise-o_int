@@ -27,7 +27,13 @@ una primera versión de G (viviendas).
 - **D:** sin fotos de terceros; la cabecera sigue sólida. Ver ADR-0020.
 - **F1:** el PDF lleva ficha, plano acotado y compras; no lleva render (el servidor no dibuja 3D).
 - **G:** viviendas como agrupación de cuartos, no como tabla `Room`; sin planta conjunta. Ver ADR-0021.
-- **Pendiente:** A7, B3, D8, E1 a E6, E8, F4, F5 y la planta conjunta de G3.
+- **Segunda tanda (misma fecha):** hechos A7, B3, D8, E1 a E6, E8, F4, F5 y la vista cenital de A6.
+  - La vista cenital es un teleobjetivo, no una cámara ortográfica.
+  - El tope de presupuesto se guarda en el navegador, no en el servidor.
+  - De los componentes base se hicieron el control segmentado y el teclado de pestañas; los
+    diálogos y las ayudas siguen con `<dialog>` y `title` nativos.
+  - `editor.component.ts` no se partió en barra, panel y escenario.
+- **Pendiente:** la planta conjunta de G3 (cuartos conectados).
 - De paso: una prueba de propiedades de la cocina fallaba en `main` (un mueble quedaba 5 mm fuera
   por redondeo) y la franja de datos del proyecto tenía una lista de definiciones mal formada.
 
@@ -44,8 +50,8 @@ una primera versión de G (viviendas).
   desaturadas. *Hecho cuando:* `ATTRIBUTION.md` lista cada textura y los proyectos viejos abren igual.
 - [x] **A5 Calidad adaptativa y recuperación.** `v3d/scene/quality.ts` y `webglcontextrestored`.
   *Hecho cuando:* los escalones tienen spec y perder el contexto no obliga a recargar.
-- [ ] **A6 Cámara y captura.** Cenital ortográfica y `capturePng(escala)`.
-- [ ] **A7 Restos del visor.** "Cambiar" en la barra contextual, pintar el techo, materiales del mueble
+- [x] **A6 Cámara y captura.** Cenital ortográfica y `capturePng(escala)`.
+- [x] **A7 Restos del visor.** "Cambiar" en la barra contextual, pintar el techo, materiales del mueble
   con la herramienta de pintar.
 
 ### Punto de control A
@@ -55,7 +61,7 @@ una primera versión de G (viviendas).
 
 - [x] **B1 Catálogo de decoración.** Cuadros, espejos, plantas, cortinas, alfombras, lámparas.
 - [x] **B2 Pasada de decoración** en `rules_engine.py` (pared y superficie) y kits de cocina y baño.
-- [ ] **B3 Puntuación.** `layout/scoring.py`: varias candidatas, gana la mejor.
+- [x] **B3 Puntuación.** `layout/scoring.py`: varias candidatas, gana la mejor.
 - [x] **B4 Inventario de la foto guardado** (`photoInventory`, migración aditiva).
 
 ### Punto de control B
@@ -80,29 +86,29 @@ una primera versión de G (viviendas).
 - [x] **D5 El editor** (texto fijo y captura que cambia).
 - [x] **D6 Estilos y plantillas.**
 - [x] **D7 Qué reconoce, preguntas, cierre, cabecera y pie.**
-- [ ] **D8 Mismo lenguaje** en acceso, 404 y estado vacío.
+- [x] **D8 Mismo lenguaje** en acceso, 404 y estado vacío.
 
 ### Punto de control D
 - [ ] axe y desborde (320–1440) en verde; pesos dentro del presupuesto; despliegue y humo en producción.
 
 ## E — Robustez
 
-- [ ] **E1 Partir `projects.service.ts`** y segregar el repositorio (sin cambio de comportamiento).
-- [ ] **E2 Fusión en el 409** y botón "Reintentar".
-- [ ] **E3 Táctil y móvil** del editor, con specs `@mobile`.
-- [ ] **E4 axe** en editor, asistente y proyectos.
-- [ ] **E5 Componentes base** en `shared/ui` y partir `editor.component.ts`.
-- [ ] **E6 IA con tiempo límite y cortacircuitos;** cuota y caché de visión en Redis.
+- [x] **E1 Partir `projects.service.ts`** y segregar el repositorio (sin cambio de comportamiento).
+- [x] **E2 Fusión en el 409** y botón "Reintentar".
+- [x] **E3 Táctil y móvil** del editor, con specs `@mobile`.
+- [x] **E4 axe** en editor, asistente y proyectos.
+- [x] **E5 Componentes base** en `shared/ui` y partir `editor.component.ts`.
+- [x] **E6 IA con tiempo límite y cortacircuitos;** cuota y caché de visión en Redis.
 - [x] **E7 Umbral de cobertura** y `resilience.mjs` en CI.
-- [ ] **E8 Primeros pasos** (recorrido guiado).
+- [x] **E8 Primeros pasos** (recorrido guiado).
 
 ## F — Exportar y presentar
 
 - [x] **F1 PDF del proyecto.**
 - [x] **F2 Imagen en alta resolución.**
 - [x] **F3 Modo presentación.**
-- [ ] **F4 Presupuesto con tope.**
-- [ ] **F5 Comparar versiones.**
+- [x] **F4 Presupuesto con tope.**
+- [x] **F5 Comparar versiones.**
 
 ## G — Varios cuartos por proyecto
 
