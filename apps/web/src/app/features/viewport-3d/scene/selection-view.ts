@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { disposeObject } from '../room-builder';
 import type { SceneContext } from './render-loop';
 
-const COLORS = { select: new THREE.Color('#d49a79'), invalid: new THREE.Color('#e53935') };
+const COLORS = { select: new THREE.Color('#35b3a6'), invalid: new THREE.Color('#e53935') };
 
 export interface SelectionTarget {
   placement: FurniturePlacement;

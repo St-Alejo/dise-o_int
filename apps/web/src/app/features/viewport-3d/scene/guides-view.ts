@@ -9,7 +9,7 @@ const STYLE: Record<GuideLayer, { color: string; dashed: boolean }> = {
   snap: { color: '#1a73e8', dashed: false },
   clearance: { color: '#3f8f72', dashed: true },
   measure: { color: '#c62828', dashed: false },
-  selection: { color: '#d49a79', dashed: false },
+  selection: { color: '#35b3a6', dashed: false },
   ghost: { color: '#3f8f72', dashed: true },
 };
 

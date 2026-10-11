@@ -3,7 +3,7 @@ import type { GizmoHandleKind, GizmoLayout } from '../mounts/gizmo-math';
 import { disposeObject } from '../room-builder';
 import type { SceneContext } from './render-loop';
 
-const COLOR = { rotate: '#d49a79', size: '#3f8f72', hover: '#1a73e8' };
+const COLOR = { rotate: '#f08a63', size: '#3f8f72', hover: '#1a73e8' };
 /** Tamaño de un tirador a un metro de la cámara: se escala con la distancia para verse siempre igual. */
 const HANDLE_PER_METRE = 0.016;
 

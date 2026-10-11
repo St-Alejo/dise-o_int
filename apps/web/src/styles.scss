@@ -6,17 +6,21 @@
 
 :root {
   color-scheme: light;
-  --bg: #f7f4ef;
+  --bg: #faf8f4;
   --surface: #ffffff;
-  --surface-2: #f1ece4;
-  --border: #e3dbcf;
-  --text: #2a2521;
-  --text-muted: #6f655b;
-  --primary: #8a5a44;
-  --primary-strong: #6f4633;
-  --primary-soft: #f3e6dc;
+  --surface-2: #f1efe9;
+  --border: #e2ded5;
+  --text: #17201f;
+  --text-muted: #5a6664;
+  --primary: #0f5e5a;
+  --primary-strong: #0a4744;
+  --primary-soft: #dcefec;
   --on-primary: #ffffff;
-  --accent: #3f6b5a;
+  --accent: #bb4a20;
+  --accent-strong: #9c3a16;
+  --accent-soft: #fbe6dc;
+  /* Solo decorativo: no llega al contraste de texto. */
+  --highlight: #e2a52a;
   --danger: #b3261e;
   --danger-soft: #fbe9e7;
   --warning: #8a6100;
@@ -24,9 +28,15 @@
   --success: #2e7d32;
   --success-soft: #e6f4ea;
   --focus: #1a73e8;
-  --shadow-sm: 0 1px 2px rgb(42 37 33 / 8%);
-  --shadow: 0 4px 16px rgb(42 37 33 / 10%);
-  --shadow-lg: 0 16px 48px rgb(42 37 33 / 18%);
+  /* Fondos de sección alternos y el único degradado de la marca (encabezado y cierre). */
+  --tint-1: #f1f6f4;
+  --tint-2: #fbf1ea;
+  --tint-3: #f6f2e6;
+  --gradient-brand: linear-gradient(135deg, #e3f1ee 0%, #faf8f4 48%, #fbe9df 100%);
+  --ring: color-mix(in srgb, var(--primary) 28%, transparent);
+  --shadow-sm: 0 1px 2px rgb(23 32 31 / 8%);
+  --shadow: 0 4px 16px rgb(23 32 31 / 10%);
+  --shadow-lg: 0 16px 48px rgb(23 32 31 / 18%);
   --radius-sm: 8px;
   --radius: 14px;
   --radius-lg: 22px;
@@ -45,17 +55,20 @@
 
 @mixin dark-tokens {
   color-scheme: dark;
-  --bg: #171412;
-  --surface: #211d1a;
-  --surface-2: #2a2521;
-  --border: #3a332d;
-  --text: #f1ebe4;
-  --text-muted: #b3a89c;
-  --primary: #d49a79;
-  --primary-strong: #e6b394;
-  --primary-soft: #3a2a21;
-  --on-primary: #1b1410;
-  --accent: #8cc4ad;
+  --bg: #0f1615;
+  --surface: #172120;
+  --surface-2: #1f2b2a;
+  --border: #2f3d3b;
+  --text: #edf2f0;
+  --text-muted: #a3b1ae;
+  --primary: #5cc9bd;
+  --primary-strong: #86dcd2;
+  --primary-soft: #173532;
+  --on-primary: #06201e;
+  --accent: #f08a63;
+  --accent-strong: #f6a585;
+  --accent-soft: #3a2218;
+  --highlight: #f0c25a;
   --danger: #f28b82;
   --danger-soft: #3b1f1d;
   --warning: #f2c94c;
@@ -63,6 +76,10 @@
   --success: #81c995;
   --success-soft: #1e3324;
   --focus: #8ab4f8;
+  --tint-1: #121c1b;
+  --tint-2: #1a1917;
+  --tint-3: #171a16;
+  --gradient-brand: linear-gradient(135deg, #12302d 0%, #0f1615 50%, #2c1c14 100%);
   --shadow: 0 4px 16px rgb(0 0 0 / 40%);
   --shadow-lg: 0 16px 48px rgb(0 0 0 / 55%);
 }
