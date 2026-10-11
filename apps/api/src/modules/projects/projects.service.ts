@@ -101,7 +101,10 @@ export class ProjectsService {
   // ------------------------------------------------------------------ lectura
   async list(actor: Actor): Promise<ProjectListItem[]> {
     const rows = await this.projects.listByOwner(actor.userId);
-    return rows.map((p) => toListItem(p, this.signer));
+    // Una sola consulta al catálogo para toda la lista, no una por proyecto.
+    const ids = [...new Set(rows.flatMap((p) => p.placements.map((placement) => placement.catalogItemId)))];
+    const prices = new Map((ids.length ? await this.catalog.findByIds(ids) : []).map((item) => [item.id, item]));
+    return rows.map((p) => toListItem(p, this.signer, prices));
   }
 
   async get(actor: Actor, id: string): Promise<DesignProject> {

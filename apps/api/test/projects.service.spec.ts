@@ -35,6 +35,7 @@ describe('ProjectsService', () => {
   let broker: FakeBroker;
   let quota: FakeQuota;
   let service: ProjectsService;
+  let catalog: InMemoryCatalogRepository;
   const alice = { userId: 'alice', requestId: 'req-1' };
   const bob = { userId: 'bob' };
 
@@ -44,9 +45,10 @@ describe('ProjectsService', () => {
     queue = new FakeQueue();
     broker = new FakeBroker();
     quota = new FakeQuota(10);
+    catalog = new InMemoryCatalogRepository();
     service = new ProjectsService(
       repo,
-      new InMemoryCatalogRepository(),
+      catalog,
       storage,
       queue,
       broker,
@@ -354,6 +356,33 @@ describe('ProjectsService', () => {
       await service.remove(alice, p.id);
       expect([...storage.objects.keys()].some((k) => k.includes(p.id))).toBe(false);
       expect(await repo.findById(p.id)).toBeNull();
+    });
+
+    it('la lista de proyectos resume área, estilo y total estimado con una sola consulta al catálogo', async () => {
+      const p = await readyProject();
+      await readyProject();
+      const base = { rotationY: 0, lockedByUser: false };
+      await service.updateScene(alice, p.id, {
+        revision: p.revision,
+        furniturePlacements: [
+          { id: 'a', catalogItemId: 'sofa-test', position: { x: 1.1, y: 0, z: 0.5 }, ...base },
+          { id: 'b', catalogItemId: 'sofa-test', position: { x: 2.9, y: 0, z: 3 }, ...base },
+          { id: 'c', catalogItemId: 'lamp', position: { x: 2, y: 0, z: 2 }, ...base },
+        ],
+      });
+      const findByIds = vi.spyOn(catalog, 'findByIds');
+      const item = (await service.list(alice)).find((x) => x.id === p.id)!;
+      expect(findByIds).toHaveBeenCalledTimes(1);
+      expect(item).toMatchObject({ itemCount: 3, estimatedTotal: 1100, currency: 'USD' });
+      expect(item.areaM2).toBeGreaterThan(1);
+    });
+
+    it('un proyecto sin muebles omite el total estimado', async () => {
+      const p = await readyProject();
+      await service.updateScene(alice, p.id, { revision: p.revision, furniturePlacements: [] });
+      const item = (await service.list(alice)).find((x) => x.id === p.id)!;
+      expect(item.estimatedTotal).toBeUndefined();
+      expect(item.currency).toBeUndefined();
     });
 
     it('la lista de compras agrupa por mueble y suma precios', async () => {

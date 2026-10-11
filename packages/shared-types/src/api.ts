@@ -115,6 +115,12 @@ export const ProjectListItemSchema = z.object({
   itemCount: z.number().int().nonnegative(),
   saved: z.boolean(),
   updatedAt: z.string(),
+  /** Datos de resumen para la tarjeta. Opcionales: faltan mientras el cuarto no está listo. */
+  areaM2: z.number().nonnegative().optional(),
+  styleId: StyleIdSchema.optional(),
+  /** Suma de los precios de catálogo de los muebles colocados (los que no tienen precio no cuentan). */
+  estimatedTotal: z.number().nonnegative().optional(),
+  currency: z.string().length(3).optional(),
 });
 export type ProjectListItem = z.infer<typeof ProjectListItemSchema>;
 

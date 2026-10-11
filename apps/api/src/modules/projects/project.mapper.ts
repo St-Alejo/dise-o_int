@@ -1,12 +1,13 @@
-import type {
-  DesignProject,
-  DesignProjectVersionSummary,
-  ProjectListItem,
-  PublicProject,
-  StylePreview,
+import {
+  RoomPlan,
+  type DesignProject,
+  type DesignProjectVersionSummary,
+  type ProjectListItem,
+  type PublicProject,
+  type StylePreview,
 } from '@interiores/shared-types';
 import type { MediaUrlSigner } from '../../infrastructure/media/media-url-signer.js';
-import type { PreviewRecord, ProjectRecord, VersionRecord } from '../../ports/index.js';
+import type { CatalogRecord, PreviewRecord, ProjectRecord, VersionRecord } from '../../ports/index.js';
 
 /** Claves S3: todo lo de un proyecto vive bajo un prefijo → borrado real con una sola operación. */
 export const projectKeys = {
@@ -92,7 +93,27 @@ export function toPublicProject(
   return rest;
 }
 
-export function toListItem(project: ProjectRecord, signer: MediaUrlSigner): ProjectListItem {
+const round = (value: number, decimals: number) => Math.round(value * 10 ** decimals) / 10 ** decimals;
+
+/** Precio y moneda de cada mueble del catálogo que hace falta para el resumen de la lista. */
+export type CatalogPrices = ReadonlyMap<string, Pick<CatalogRecord, 'price' | 'currency'>>;
+
+/** Área, estilo y total estimado de la tarjeta; cada dato se omite si no se puede calcular. */
+function listSummary(project: ProjectRecord, prices: CatalogPrices): Pick<ProjectListItem, 'areaM2' | 'styleId' | 'estimatedTotal' | 'currency'> {
+  const priced = project.placements.flatMap((p) => {
+    const item = prices.get(p.catalogItemId);
+    return item && item.price !== null ? [item] : [];
+  });
+  return {
+    ...(project.roomShell ? { areaM2: round(RoomPlan.from(project.roomShell).area(), 1) } : {}),
+    ...(project.selectedStyleId ? { styleId: project.selectedStyleId } : {}),
+    ...(priced.length
+      ? { estimatedTotal: round(priced.reduce((sum, item) => sum + (item.price ?? 0), 0), 2), currency: priced[0]!.currency }
+      : {}),
+  };
+}
+
+export function toListItem(project: ProjectRecord, signer: MediaUrlSigner, prices: CatalogPrices = new Map()): ProjectListItem {
   return {
     id: project.id,
     name: project.name,
@@ -102,5 +123,6 @@ export function toListItem(project: ProjectRecord, signer: MediaUrlSigner): Proj
     itemCount: project.placements.length,
     saved: project.saved,
     updatedAt: project.updatedAt.toISOString(),
+    ...listSummary(project, prices),
   };
 }
