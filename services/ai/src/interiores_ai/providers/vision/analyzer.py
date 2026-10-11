@@ -3,10 +3,9 @@
 import hashlib
 import io
 import threading
-from collections import OrderedDict
 from collections.abc import Callable
 from datetime import UTC, date, datetime
-from typing import get_args
+from typing import Protocol, get_args
 
 from PIL import Image
 from pydantic import ValidationError
@@ -17,14 +16,23 @@ from ...logging import log
 from ..base import ProviderError, RoomAnalysis
 from .client import VisionClient
 from .guess import PROMPT, RoomGuess
+from .shared_state import AnalysisCache, MemoryAnalysisCache
 from .shell_spec import shell_from_guess
 
 STYLE_IDS = set(get_args(StyleId))
 FLOOR_MATERIALS = {"wood", "tile", "carpet", "concrete", "other"}
 
 
+class Budget(Protocol):
+    """Un tope de llamadas: en memoria (`DailyBudget`) o compartido en Redis (`RedisDailyBudget`)."""
+
+    def take(self) -> bool: ...
+    @property
+    def remaining(self) -> int: ...
+
+
 class DailyBudget:
-    """Tope de llamadas por día (UTC): cuida la cuota de una capa gratuita. Se reinicia con el proceso."""
+    """Tope de llamadas por día (UTC), en memoria: se reinicia con el proceso y no se comparte."""
 
     def __init__(self, limit: int, today: Callable[[], date] = lambda: datetime.now(UTC).date()) -> None:
         self._limit = limit
@@ -56,13 +64,11 @@ class VisionRoomAnalyzer:
     antes de gastar. Cualquier fallo es un `ProviderError`, que el analizador de respaldo absorbe.
     """
 
-    def __init__(self, client: VisionClient, *, budget: DailyBudget, max_side: int = 1024, cache_size: int = 64) -> None:
+    def __init__(self, client: VisionClient, *, budget: Budget, max_side: int = 1024, cache: AnalysisCache | None = None) -> None:
         self._client = client
         self._budget = budget
         self._max_side = max_side
-        self._cache: OrderedDict[str, RoomAnalysis] = OrderedDict()
-        self._cache_size = cache_size
-        self._lock = threading.Lock()
+        self._cache = cache or MemoryAnalysisCache()
 
     @property
     def name(self) -> str:
@@ -71,20 +77,15 @@ class VisionRoomAnalyzer:
     def analyze(self, image: RGB, room_type: RoomType) -> RoomAnalysis:
         jpeg = self._prepare(image)
         key = hashlib.sha256(jpeg).hexdigest()
-        with self._lock:
-            cached = self._cache.get(key)
-            if cached is not None:
-                self._cache.move_to_end(key)
-                return cached
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
         if not self._budget.take():
             raise ProviderError("Se agotó el presupuesto diario del modelo de visión", retryable=False)
         guess = self._validate(self._client.describe(jpeg, PROMPT))
         analysis = self._build(guess)
         log.info("vision", model=self._client.model, shape=guess.shape, openings=len(analysis.shell.openings), objects=len(analysis.objects), left_today=self._budget.remaining)
-        with self._lock:
-            self._cache[key] = analysis
-            while len(self._cache) > self._cache_size:
-                self._cache.popitem(last=False)
+        self._cache.put(key, analysis)
         return analysis
 
     def _prepare(self, image: RGB) -> bytes:

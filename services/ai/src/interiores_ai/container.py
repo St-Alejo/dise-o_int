@@ -10,7 +10,15 @@ from .providers.fallback import FallbackRoomAnalyzer
 from .providers.replicate import ReplicateClient, ReplicateRoomAnalyzer, ReplicateStyleGenerator
 from .providers.room_mock import MockRoomAnalyzer
 from .providers.style_mock import MockStyleGenerator
-from .providers.vision import DailyBudget, GroqVisionClient, VisionRoomAnalyzer
+from .providers.vision import (
+    Budget,
+    DailyBudget,
+    GroqVisionClient,
+    RedisAnalysisCache,
+    RedisDailyBudget,
+    VisionRoomAnalyzer,
+)
+from .providers.vision.shared_state import AnalysisCache
 from .storage import ObjectStorage, S3Storage
 
 
@@ -29,6 +37,17 @@ class Container:
         return {"room": self.room_analyzer.name, "style": self.style_generator.name, "external": external}
 
 
+def vision_state(settings: Settings) -> tuple[Budget, AnalysisCache | None]:
+    """Cuota y caché de visión: en Redis si hay `REDIS_URL`; si no, en la memoria de este proceso."""
+    if not settings.redis_url:
+        return DailyBudget(settings.vision_per_day), None
+    import redis  # solo se carga si se usa
+
+    client = redis.Redis.from_url(settings.redis_url, socket_timeout=2, socket_connect_timeout=2)
+    log.info("vision_estado", detail="cuota y caché compartidas en Redis")
+    return RedisDailyBudget(client, settings.vision_per_day), RedisAnalysisCache(client)
+
+
 def build_container(settings: Settings, storage: ObjectStorage | None = None) -> Container:
     room_kind = settings.resolved_room_analyzer()
     style_kind = settings.resolved_style_generator()
@@ -41,9 +60,11 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
     if client and room_kind == "replicate":
         room = ReplicateRoomAnalyzer(client, settings.replicate_depth_model)
     elif room_kind == "vision" and settings.groq_api_key:
+        budget, cache = vision_state(settings)
         vision = VisionRoomAnalyzer(
             GroqVisionClient(settings.groq_api_key, settings.vision_model, timeout_s=settings.vision_timeout_s),
-            budget=DailyBudget(settings.vision_per_day),
+            budget=budget,
+            cache=cache,
         )
         # Si el modelo alcanza su límite, está caído o responde algo inválido, contesta el local.
         room = FallbackRoomAnalyzer(vision, MockRoomAnalyzer())

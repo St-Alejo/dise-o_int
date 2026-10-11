@@ -287,3 +287,114 @@ def test_dos_fotos_distintas_dan_dos_distribuciones_distintas(catalog):
     assert minimal != furnished
     assert len(minimal) < len(furnished) < len(placed(None)) + 1
     assert any(i.startswith("sofa") for i in minimal) and any(i.startswith("sofa") for i in furnished)
+
+
+# ---------------------------------------------------------------- cuota y caché compartidas
+class FakeRedis:
+    """Un Redis de mentira: lo justo para contar y guardar; con `broken`, todo falla."""
+
+    def __init__(self):
+        self.data: dict[str, str] = {}
+        self.expires: dict[str, int] = {}
+        self.broken = False
+
+    def _check(self):
+        if self.broken:
+            raise ConnectionError("redis caído")
+
+    def incr(self, name):
+        self._check()
+        self.data[name] = str(int(self.data.get(name, "0")) + 1)
+        return int(self.data[name])
+
+    def decr(self, name):
+        self._check()
+        self.data[name] = str(int(self.data.get(name, "0")) - 1)
+        return int(self.data[name])
+
+    def expire(self, name, time):
+        self._check()
+        self.expires[name] = time
+
+    def get(self, name):
+        self._check()
+        return self.data.get(name)
+
+    def set(self, name, value, ex=None):
+        self._check()
+        self.data[name] = value
+        if ex:
+            self.expires[name] = ex
+
+
+def test_la_cuota_en_redis_la_comparten_dos_replicas_y_se_renueva_cada_dia():
+    from datetime import date
+
+    from interiores_ai.providers.vision import RedisDailyBudget
+
+    redis = FakeRedis()
+    today = [date(2026, 5, 1)]
+    one = RedisDailyBudget(redis, 3, today=lambda: today[0])
+    other = RedisDailyBudget(redis, 3, today=lambda: today[0])
+    assert [one.take(), other.take(), one.take()] == [True, True, True]
+    # El tope es de las dos juntas, y pasarse no deja el contador por encima.
+    assert other.take() is False
+    assert one.remaining == 0
+    assert redis.data["vision:budget:2026-05-01"] == "3"
+    assert redis.expires["vision:budget:2026-05-01"] > 24 * 3600
+    today[0] = date(2026, 5, 2)
+    assert other.take() is True
+    assert one.remaining == 2
+
+
+def test_sin_redis_la_cuota_sigue_contando_en_memoria():
+    from interiores_ai.providers.vision import RedisDailyBudget
+
+    redis = FakeRedis()
+    redis.broken = True
+    budget = RedisDailyBudget(redis, 2)
+    assert [budget.take(), budget.take(), budget.take()] == [True, True, False]
+    assert budget.remaining == 0
+
+
+def test_la_cache_en_redis_evita_repetir_la_llamada_en_otra_replica():
+    from interiores_ai.providers.vision import RedisAnalysisCache
+
+    redis = FakeRedis()
+    first = FakeClient(json.dumps(OFFICE))
+    VisionRoomAnalyzer(first, budget=DailyBudget(5), cache=RedisAnalysisCache(redis)).analyze(photo(), "office")
+    assert first.calls == 1
+
+    # Otra réplica (otra caché en memoria, el mismo Redis): responde sin llamar al modelo.
+    second = FakeClient(json.dumps(OFFICE))
+    budget = DailyBudget(5)
+    again = VisionRoomAnalyzer(second, budget=budget, cache=RedisAnalysisCache(redis)).analyze(photo(), "office")
+    assert second.calls == 0
+    assert budget.remaining == 5
+    assert again.shell.widthM > 0
+    assert again.provider and again.provider.startswith("vision-")
+    assert any(key.startswith("vision:analysis:") for key in redis.data)
+
+
+def test_si_redis_falla_la_cache_cae_a_memoria_y_el_analisis_sigue():
+    from interiores_ai.providers.vision import RedisAnalysisCache
+
+    redis = FakeRedis()
+    redis.broken = True
+    client = FakeClient(json.dumps(OFFICE))
+    analyzer = VisionRoomAnalyzer(client, budget=DailyBudget(5), cache=RedisAnalysisCache(redis))
+    analyzer.analyze(photo(), "office")
+    analyzer.analyze(photo(), "office")
+    assert client.calls == 1  # la segunda salió de la memoria de este proceso
+    # Un valor ilegible en Redis (de otra versión) se ignora en vez de romper.
+    redis.broken = False
+    redis.data = {key: "no es json" for key in ["vision:analysis:x"]}
+    assert RedisAnalysisCache(redis).get("x") is None
+
+
+def test_sin_redis_configurado_todo_queda_en_memoria(settings):
+    from interiores_ai.container import vision_state
+
+    budget, cache = vision_state(settings)
+    assert isinstance(budget, DailyBudget)
+    assert cache is None

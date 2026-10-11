@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Tope de fotos analizadas por día con el modelo de visión; pasado el tope responde el análisis
     # local. Se cuenta por proceso: con dos workers de uvicorn el tope efectivo es el doble.
     vision_per_day: int = Field(default=20, ge=0, alias="VISION_PER_DAY")
+    # Con Redis, la cuota diaria y la caché de visión se comparten entre réplicas y sobreviven a
+    # reinicios. Sin él, cada proceso lleva las suyas en memoria.
+    redis_url: str | None = Field(default=None, alias="REDIS_URL")
 
     s3_endpoint: str | None = Field(default=None, alias="S3_ENDPOINT")
     s3_region: str = Field(default="us-east-1", alias="S3_REGION")
