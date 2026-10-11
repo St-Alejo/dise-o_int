@@ -14,7 +14,8 @@ Cada tarea cierra con pruebas en verde, commit y push.
 
 ## Estado y desviaciones (2026-10-11)
 
-Hechos los bloques A (salvo A4, A6 y A7), B (salvo B3), C y D (salvo D8).
+Hechos los bloques A (salvo A4, A7 y la cámara cenital de A6), B (salvo B3), C, D (salvo D8), F1 a F3, E7 y
+una primera versión de G (viviendas).
 
 - **A4:** el kit de muebles ya tenía cantos redondeados y materiales con brillo; las texturas PBR
   descargadas se descartaron (peso en el repositorio). Ver ADR-0018.
@@ -24,6 +25,9 @@ Hechos los bloques A (salvo A4, A6 y A7), B (salvo B3), C y D (salvo D8).
   servicio de IA. Ver ADR-0019.
 - **D4:** el antes y después compara el cuarto vacío con el amueblado, no una foto con su 3D.
 - **D:** sin fotos de terceros; la cabecera sigue sólida. Ver ADR-0020.
+- **F1:** el PDF lleva ficha, plano acotado y compras; no lleva render (el servidor no dibuja 3D).
+- **G:** viviendas como agrupación de cuartos, no como tabla `Room`; sin planta conjunta. Ver ADR-0021.
+- **Pendiente:** A7, B3, D8, E1 a E6, E8, F4, F5 y la planta conjunta de G3.
 - De paso: una prueba de propiedades de la cocina fallaba en `main` (un mueble quedaba 5 mm fuera
   por redondeo) y la franja de datos del proyecto tenía una lista de definiciones mal formada.
 
@@ -89,14 +93,14 @@ Hechos los bloques A (salvo A4, A6 y A7), B (salvo B3), C y D (salvo D8).
 - [ ] **E4 axe** en editor, asistente y proyectos.
 - [ ] **E5 Componentes base** en `shared/ui` y partir `editor.component.ts`.
 - [ ] **E6 IA con tiempo límite y cortacircuitos;** cuota y caché de visión en Redis.
-- [ ] **E7 Umbral de cobertura** y `resilience.mjs` en CI.
+- [x] **E7 Umbral de cobertura** y `resilience.mjs` en CI.
 - [ ] **E8 Primeros pasos** (recorrido guiado).
 
 ## F — Exportar y presentar
 
-- [ ] **F1 PDF del proyecto.**
-- [ ] **F2 Imagen en alta resolución.**
-- [ ] **F3 Modo presentación.**
+- [x] **F1 PDF del proyecto.**
+- [x] **F2 Imagen en alta resolución.**
+- [x] **F3 Modo presentación.**
 - [ ] **F4 Presupuesto con tope.**
 - [ ] **F5 Comparar versiones.**
 
