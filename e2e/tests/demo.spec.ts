@@ -123,3 +123,30 @@ test('primeros pasos: salen la primera vez que se abre el editor y no vuelven', 
   await expect(page.getByRole('tab', { name: 'Objetos' })).toBeVisible({ timeout: 30_000 });
   await expect(tour).toBeHidden();
 });
+
+test('en el móvil el panel del editor es una hoja inferior que sube y baja @mobile', async ({ page }) => {
+  const viewport = page.viewportSize()!;
+  test.skip(viewport.width > 960, 'La hoja inferior solo existe en pantallas angostas.');
+  await page.goto('/demo/sala-escandinava');
+  const canvas = page.locator('app-three-viewport canvas');
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  const handle = page.getByRole('button', { name: 'Añadir muebles y ajustes' });
+  await expect(handle).toHaveAttribute('aria-expanded', 'false');
+  // Recogida, la hoja deja ver el cuarto: solo asoma su asa al pie de la pantalla.
+  const closed = (await page.locator('aside.panel').boundingBox())!;
+  expect(closed.y).toBeGreaterThan(viewport.height - 80);
+  await canvas.scrollIntoViewIfNeeded();
+  expect((await canvas.boundingBox())!.y).toBeLessThan(closed.y - 150);
+  // La barra de herramientas va en una fila que se desliza, no en varias apiladas.
+  expect((await page.getByRole('toolbar', { name: 'Herramientas del editor' }).boundingBox())!.height).toBeLessThan(70);
+
+  await handle.click();
+  const open = page.getByRole('button', { name: 'Ocultar el panel' });
+  await expect(open).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('tab', { name: 'Objetos' })).toBeInViewport();
+  await expect.poll(async () => (await page.locator('aside.panel').boundingBox())!.y).toBeLessThan(viewport.height * 0.6);
+  await open.click();
+  await expect.poll(async () => (await page.locator('aside.panel').boundingBox())!.y).toBeGreaterThan(viewport.height - 80);
+  // Nada se sale de la pantalla por los lados.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});

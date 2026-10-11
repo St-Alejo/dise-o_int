@@ -12,6 +12,14 @@ const HANDLE_PER_METRE = 0.016;
  * ancho, fondo y alto (o su altura si está colgada). Solo dibuja y dice qué tirador hay bajo el
  * cursor; la matemática está en `mounts/gizmo-math.ts` y el gesto en `GizmoController`.
  */
+/** Cuánto crecen los tiradores en una pantalla táctil. */
+export const TOUCH_HANDLE_SCALE = 1.7;
+
+/** ¿El puntero principal es un dedo (o algo igual de impreciso)? */
+export function coarsePointer(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+}
+
 export class GizmoView {
   private readonly root = new THREE.Group();
   private readonly ring: THREE.Mesh;
@@ -57,12 +65,15 @@ export class GizmoView {
     this.ctx.invalidate();
   }
 
+  /** Con el dedo los tiradores son más grandes: una yema no atina a lo que acierta un cursor. */
+  private readonly touchScale = coarsePointer() ? TOUCH_HANDLE_SCALE : 1;
+
   /** Los tiradores mantienen su tamaño en pantalla al acercar o alejar la cámara. */
   rescale(): void {
     if (!this.layout) return;
     for (const mesh of this.handles.values()) {
       if (!mesh.visible) continue;
-      const size = Math.max(0.03, mesh.position.distanceTo(this.ctx.camera.position) * HANDLE_PER_METRE);
+      const size = Math.max(0.03, mesh.position.distanceTo(this.ctx.camera.position) * HANDLE_PER_METRE) * this.touchScale;
       mesh.scale.setScalar(size);
     }
   }

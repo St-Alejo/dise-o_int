@@ -24,6 +24,7 @@ import { SceneService } from './scene.service';
 import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
 import { BudgetPanelComponent } from '../budget/budget-panel.component';
 import { EditorTourComponent } from '../onboarding/editor-tour.component';
+import { SegmentedComponent } from '../../shared/ui/segmented.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
@@ -73,6 +74,7 @@ function initialView(): ViewMode {
     PresentationOverlayComponent,
     BudgetPanelComponent,
     EditorTourComponent,
+    SegmentedComponent,
     CurrencyPipe,
   ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
@@ -81,11 +83,7 @@ function initialView(): ViewMode {
       <button type="button" class="icon-btn" (click)="store.undo()" [disabled]="!store.canUndo()" [attr.aria-label]="'Deshacer ' + (store.undoLabel() ?? '')" title="Deshacer (Ctrl+Z)"><app-icon name="undo" /></button>
       <button type="button" class="icon-btn" (click)="store.redo()" [disabled]="!store.canRedo()" [attr.aria-label]="'Rehacer ' + (store.redoLabel() ?? '')" title="Rehacer (Ctrl+Y)"><app-icon name="redo" /></button>
       <span class="sep" aria-hidden="true"></span>
-      <div class="views" role="group" aria-label="Vista del editor">
-        @for (v of views; track v.id) {
-          <button type="button" class="view" [attr.aria-pressed]="viewMode() === v.id" [title]="v.title" (click)="setView(v.id)">{{ v.label }}</button>
-        }
-      </div>
+      <app-segmented label="Vista del editor" [options]="views" [value]="viewMode()" (valueChange)="setView($event)" />
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
       <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas"><app-icon name="ruler" /> Medidas del cuarto</button>
       @if (!demo()) {
@@ -184,7 +182,11 @@ function initialView(): ViewMode {
         <p class="help muted">En el 3D: arrastra un mueble, gira su aro o estira sus tiradores · Paredes (W), Pintar (B) y Medir (M) cambian de herramienta · clic derecho o dos dedos mueven la cámara</p>
       </div>
 
-      <aside class="panel card" aria-label="Panel del mueble">
+      <aside class="panel card" aria-label="Panel del mueble" [class.sheet-open]="sheetOpen()">
+        <button type="button" class="sheet-handle" (click)="sheetOpen.set(!sheetOpen())" [attr.aria-expanded]="sheetOpen()">
+          <span class="grip" aria-hidden="true"></span>
+          {{ sheetOpen() ? 'Ocultar el panel' : store.selected() ? 'Ver el mueble seleccionado' : 'Añadir muebles y ajustes' }}
+        </button>
         @if (swapMode() && selectedItem()) {
           <app-catalog-panel
             mode="swap"
@@ -263,28 +265,6 @@ function initialView(): ViewMode {
       width: 1px;
       height: 28px;
       background: var(--border);
-    }
-    .views {
-      display: inline-flex;
-      padding: 3px;
-      border-radius: 999px;
-      background: var(--surface-2);
-    }
-    .view {
-      border: none;
-      border-radius: 999px;
-      background: transparent;
-      padding: 6px 14px;
-      font: inherit;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-    .view[aria-pressed='true'] {
-      background: var(--surface);
-      color: var(--text);
-      box-shadow: var(--shadow-sm);
     }
     .review.pending {
       border-color: var(--warning);
@@ -415,6 +395,28 @@ function initialView(): ViewMode {
       max-height: min(72vh, 720px);
       overflow: auto;
     }
+    /* El asa de la hoja inferior solo existe en pantallas angostas. */
+    .sheet-handle {
+      display: none;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      width: 100%;
+      min-height: 52px;
+      padding: 8px 0;
+      border: 0;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .grip {
+      width: 40px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--border);
+    }
     .big-icon {
       font-size: 2rem;
     }
@@ -496,8 +498,53 @@ function initialView(): ViewMode {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
       }
+      /* La barra de herramientas no se apila en cinco filas: va en una sola, que se desliza. */
+      .toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-bottom: 4px;
+      }
+      .toolbar > * {
+        flex: none;
+      }
+      /* Dentro de una barra que se desliza, un menú desplegable quedaría recortado: sale fijo, */
+      /* sobre el asa de la hoja inferior. */
+      .menu-items {
+        position: fixed;
+        inset: auto 16px 64px 16px;
+        z-index: 40;
+      }
+      /* En pantallas angostas el panel es una hoja inferior: el cuarto queda siempre a la vista y */
+      /* el panel sube cuando hace falta, en vez de quedar debajo, al final de la página. */
+      .layout {
+        padding-bottom: 64px;
+      }
       .panel {
-        max-height: none;
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 30;
+        max-height: 70vh;
+        padding-top: 0;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        box-shadow: var(--shadow-lg);
+        transform: translateY(calc(100% - 52px));
+        transition: transform 0.25s var(--ease);
+        overflow: hidden;
+      }
+      .panel.sheet-open {
+        transform: none;
+        overflow: auto;
+      }
+      .sheet-handle {
+        display: grid;
+        justify-items: center;
+        gap: 6px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .panel {
+        transition: none;
       }
     }
   `,
@@ -517,6 +564,8 @@ export class EditorComponent {
   private readonly wrap = viewChild.required<ElementRef<HTMLElement>>('wrap');
   /** Se está enseñando el cuarto a pantalla completa: el editor no atiende atajos. */
   protected readonly presenting = signal(false);
+  /** En pantallas angostas el panel es una hoja inferior que se sube y se baja. */
+  protected readonly sheetOpen = signal(false);
   private viewBeforePresenting: ViewMode = '3d';
   protected readonly views = VIEWS;
   /** Vista elegida: solo 3D, plano y 3D lado a lado, o solo plano. Se recuerda entre visitas. */
