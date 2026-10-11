@@ -1,7 +1,7 @@
 import { createRectangularShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { LIGHTING_PRESETS, LightingRig, MAX_LAMPS } from './lighting-rig';
+import { FILL_HEIGHT, LIGHTING_PRESETS, LightingRig, MAX_LAMPS, sunHeading } from './lighting-rig';
 
 const lights = <T extends THREE.Light>(scene: THREE.Scene, type: new (...args: never[]) => T): T[] => {
   const found: T[] = [];
@@ -58,12 +58,48 @@ describe('LightingRig', () => {
     expect(lights(scene, THREE.PointLight)).toHaveLength(MAX_LAMPS + 1);
   });
 
+  it('el sol entra por la ventana más grande, y baja al mirar desde dentro', () => {
+    const shell = createRectangularShell(4, 3, 2.6);
+    const wall = shell.walls[1]!;
+    const room = {
+      ...shell,
+      openings: [
+        { id: 'chica', wallId: shell.walls[0]!.id, type: 'window' as const, offsetM: 1, widthM: 0.6, heightM: 0.6, sillHeightM: 1 },
+        { id: 'grande', wallId: wall.id, type: 'window' as const, offsetM: 1.5, widthM: 1.8, heightM: 1.3, sillHeightM: 0.9 },
+      ],
+    };
+    // Hacia dentro del cuarto desde esa pared: el rumbo del sol va con su normal interior.
+    const mid = { x: (wall.start.x + wall.end.x) / 2, z: (wall.start.z + wall.end.z) / 2 };
+    const inward = { x: 2 - mid.x, z: 1.5 - mid.z };
+    const heading = sunHeading(room);
+    expect(Math.hypot(heading.x, heading.z)).toBeCloseTo(1, 6);
+    expect(heading.x * inward.x + heading.z * inward.z).toBeGreaterThan(0);
+
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.fitToRoom(room);
+    const sun = scene.getObjectByName('sun') as THREE.DirectionalLight;
+    // El sol queda fuera, del lado de esa pared.
+    expect((sun.position.x - 2) * inward.x + (sun.position.z - 1.5) * inward.z).toBeLessThan(0);
+    const outside = sun.position.y;
+    rig.setInterior(true);
+    expect(sun.position.y).toBeLessThan(outside);
+    expect(sun.shadow.camera.far).toBeGreaterThan(sun.position.distanceTo(sun.target.position));
+  });
+
+  it('las pantallas brillan de noche', () => {
+    const rig = new LightingRig(new THREE.Scene());
+    const day = rig.glow;
+    rig.setTimeOfDay('night');
+    expect(rig.glow).toBeGreaterThan(day * 4);
+  });
+
   it('la luz del techo se centra en el cuarto', () => {
     const scene = new THREE.Scene();
     const rig = new LightingRig(scene);
     rig.fitToRoom(createRectangularShell(4, 3, 2.6));
     const ceiling = scene.getObjectByName('ceiling-light') as THREE.PointLight;
-    expect(ceiling.position.toArray()).toEqual([2, 2.35, 1.5]);
+    expect(ceiling.position.toArray()).toEqual([2, 2.6 * FILL_HEIGHT, 1.5]);
     expect(ceiling.intensity).toBe(LIGHTING_PRESETS.day.ceiling);
   });
 });

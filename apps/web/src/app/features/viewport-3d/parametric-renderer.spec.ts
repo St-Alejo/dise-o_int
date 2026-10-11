@@ -55,6 +55,23 @@ describe('ParametricRenderer (adapter three.js del kit)', () => {
     expect(r.stats).toEqual({ geometries: 0, materials: 0 });
   });
 
+  it('la pantalla de una lámpara se enciende; la misma tela en una cortina, no', () => {
+    const r = new ParametricRenderer();
+    const shade = r.material('fabric-linen-white', 'pantalla') as THREE.MeshStandardMaterial;
+    const curtain = r.material('fabric-linen-white', 'tejido') as THREE.MeshStandardMaterial;
+    expect(shade).not.toBe(curtain);
+    r.setGlow(1.5);
+    expect(shade.emissiveIntensity).toBe(1.5);
+    expect(curtain.emissive.getHex()).toBe(0);
+    // Una pantalla creada después nace ya encendida.
+    expect((r.material('fabric-velvet-green', 'pantalla') as THREE.MeshStandardMaterial).emissiveIntensity).toBe(1.5);
+  });
+
+  it('la tela lleva su brillo de pelusa', () => {
+    const r = new ParametricRenderer();
+    expect((r.material('fabric-velvet-green', 'tapizado') as THREE.MeshPhysicalMaterial).sheen).toBeGreaterThan(0);
+  });
+
   it('el vidrio es transparente y las pantallas de lámpara se ven por dentro', () => {
     const r = new ParametricRenderer();
     expect(r.material('glass-clear', 'vidrio').transparent).toBe(true);

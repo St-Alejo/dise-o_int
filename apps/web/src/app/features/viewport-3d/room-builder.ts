@@ -18,8 +18,11 @@ import {
   type RoomShell,
 } from '@interiores/shared-types';
 import * as THREE from 'three';
+import { cornerShade, edgeShade } from './scene/shade-textures';
 
 export const WALL_THICKNESS = 0.12;
+/** Ancho de la penumbra que el piso y el techo llevan junto a cada pared. */
+const EDGE_SHADE_M = 0.55;
 const BASEBOARD = { height: 0.08, depth: 0.012 };
 const FRAME = 0.06;
 
@@ -29,7 +32,8 @@ export interface WallInfo {
   normal: THREE.Vector2;
   /** Punto medio de la cara interior. */
   midpoint: THREE.Vector3;
-  materials: THREE.MeshStandardMaterial[];
+  /** El primero es el de la pared; los demás, sus marcos, vidrios, puertas y penumbra. */
+  materials: THREE.Material[];
 }
 
 export interface BuiltRoom {
@@ -103,6 +107,16 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
 
   const walls: WallInfo[] = [];
   const frames = wallFrames(shell);
+  // Penumbra de los rincones: donde dos superficies se juntan llega menos luz. Es lo que hace que
+  // un cuarto se vea "con volumen" y no como cajas de un solo color. Sin canvas (pruebas), no va.
+  const edgeMap = edgeShade();
+  const shadeOptions = { map: edgeMap, color: '#20160e', transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
+  /** Material de penumbra; `userData.shade` lo marca para que desaparezca con su pared al recortarla. */
+  const shadeMaterial = (map: THREE.Texture, opacity: number, side: THREE.Side = THREE.FrontSide) => {
+    const mat = new THREE.MeshBasicMaterial({ ...shadeOptions, map, opacity, side });
+    mat.userData['shade'] = true;
+    return mat;
+  };
 
   shell.walls.forEach((wall, index) => {
     const dx = wall.end.x - wall.start.x;
@@ -134,14 +148,44 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     const trimMaterial = new THREE.MeshStandardMaterial({ color: palette.trim, roughness: 0.6, transparent: true, opacity: 1 });
     const doorMaterial = new THREE.MeshStandardMaterial({ color: palette.door, roughness: 0.55, transparent: true, opacity: 1 });
     const glassMaterial = new THREE.MeshStandardMaterial({
-      color: '#bcd9ea',
+      color: '#cfe3ee',
       transparent: true,
-      opacity: 0.28,
-      roughness: 0.05,
-      metalness: 0.1,
+      opacity: 0.2,
+      roughness: 0.03,
+      metalness: 0,
+      envMapIntensity: 2.2,
       depthWrite: false,
     });
-    const materials = [material, trimMaterial, glassMaterial, doorMaterial];
+    const materials: THREE.Material[] = [material, trimMaterial, glassMaterial, doorMaterial];
+    const cornerMap = cornerShade();
+    if (cornerMap) {
+      // Una lámina pegada a la cara interior, oscura solo en los bordes de la pared.
+      const wallShade = shadeMaterial(cornerMap, 0.42);
+      materials.push(wallShade);
+      const shade = new THREE.Mesh(new THREE.PlaneGeometry(length, shell.heightM), wallShade);
+      shade.name = 'corner-shade';
+      shade.position.set(length / 2, shell.heightM / 2, inwardSign * 0.004);
+      if (inwardSign < 0) shade.rotation.y = Math.PI;
+      shade.raycast = () => undefined;
+      trimGroup.add(shade);
+    }
+    if (edgeMap) {
+      // Por pared, para que la penumbra del piso se vaya con ella cuando se recorta.
+      const floorShade = shadeMaterial(edgeMap, 0.5);
+      const ceilingShade = shadeMaterial(edgeMap, 0.4, THREE.BackSide);
+      materials.push(floorShade, ceilingShade);
+      for (const [mat, y] of [
+        [floorShade, 0.004],
+        [ceilingShade, shell.heightM - 0.004],
+      ] as const) {
+        const strip = new THREE.Mesh(new THREE.PlaneGeometry(length, EDGE_SHADE_M).rotateX(-Math.PI / 2), mat);
+        strip.name = 'edge-shade';
+        strip.position.set(length / 2, y, (inwardSign * EDGE_SHADE_M) / 2);
+        if (inwardSign < 0) strip.rotation.y = Math.PI;
+        strip.raycast = () => undefined;
+        trimGroup.add(strip);
+      }
+    }
     for (const m of materials) m.userData['baseOpacity'] = m.opacity;
     const box = (w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Group = wallGroup) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -218,14 +262,19 @@ export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?
     mat.color.set(def.color);
     mat.roughness = def.roughness;
     mat.metalness = def.metalness;
-    // La textura multiplica el color: da el relieve (vetas, juntas) sin cambiar el tono.
-    if (floor) mat.map = textures?.floor(def) ?? null;
+    // La textura multiplica el color: da el relieve (vetas, juntas) sin cambiar el tono. La misma
+    // sirve de relieve: las juntas quedan hundidas y el brillo del piso se rompe en ellas.
+    if (floor) {
+      mat.map = textures?.floor(def) ?? null;
+      mat.bumpMap = mat.map;
+      mat.bumpScale = 1.2;
+    }
     mat.needsUpdate = true;
   };
   paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor, true);
   paint(room.ceiling.material as THREE.MeshStandardMaterial, finishes.ceiling);
   for (const wall of room.walls) {
-    const wallMat = wall.materials[0];
+    const wallMat = wall.materials[0] as THREE.MeshStandardMaterial | undefined;
     if (wallMat) paint(wallMat, wallMaterialId(finishes, { id: wall.wallId }));
   }
 }

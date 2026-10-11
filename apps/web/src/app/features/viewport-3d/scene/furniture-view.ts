@@ -1,6 +1,7 @@
-import type { CatalogItem, FurniturePlacement, Vector3 } from '@interiores/shared-types';
+import { effectiveDimensions, type CatalogItem, type FurniturePlacement, type Vector3 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { FurnitureFactory } from '../furniture-factory';
+import { ContactShadows } from './contact-shadows';
 import type { SceneContext } from './render-loop';
 
 interface FurnitureNode {
@@ -18,6 +19,7 @@ export class FurnitureView {
   private readonly root = new THREE.Group();
   private readonly nodes = new Map<string, FurnitureNode>();
   private readonly factory = new FurnitureFactory();
+  private readonly contact = new ContactShadows();
   private disposed = false;
 
   /** `onLoaded` avisa cuando termina de construirse el modelo de una pieza. */
@@ -68,10 +70,17 @@ export class FurnitureView {
     return null;
   }
 
+  /** Brillo de las pantallas de lámpara (cambia con la hora del día). */
+  setGlow(intensity: number): void {
+    this.factory.setGlow(intensity);
+    this.ctx.invalidate();
+  }
+
   async dispose(): Promise<void> {
     this.disposed = true;
     for (const node of this.nodes.values()) this.root.remove(node.group);
     this.nodes.clear();
+    this.contact.dispose();
     await this.factory.dispose();
   }
 
@@ -81,6 +90,12 @@ export class FurnitureView {
     const node: FurnitureNode = { group, catalogItemId: p.catalogItemId, shapeKey: shapeKeyOf(p) };
     this.nodes.set(p.id, node);
     this.root.add(group);
+    // Lo que se apoya (en el piso o sobre otro mueble) oscurece un poco donde toca: sin esa
+    // sombra de contacto los muebles parecen flotar. Las alfombras son planas: no la llevan.
+    if ((item.mount === 'floor' || item.mount === 'surface') && item.subcategory !== 'rug') {
+      const shadow = this.contact.create(effectiveDimensions(item.dimensionsM, p));
+      if (shadow) group.add(shadow);
+    }
     void this.factory.create(item, p).then((object) => {
       if (this.disposed || this.nodes.get(p.id) !== node) return;
       group.add(object);

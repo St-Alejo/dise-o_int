@@ -41,6 +41,16 @@ export class RoomView {
     this.updateCutaway();
   }
 
+  /**
+   * Dentro del cuarto el techo da sombra, y el sol solo entra por las ventanas. Mirando desde fuera
+   * no: el cuarto se ve sin techo y quedaría a oscuras.
+   */
+  setCeilingShadow(enabled: boolean): void {
+    if (!this.room || this.room.ceiling.castShadow === enabled) return;
+    this.room.ceiling.castShadow = enabled;
+    this.ctx.invalidate();
+  }
+
   /** Recorte tipo "casa de muñecas": las paredes entre la cámara y el cuarto se vuelven translúcidas. */
   updateCutaway(): void {
     if (!this.room) return;
@@ -51,7 +61,8 @@ export class RoomView {
       const facingAway = this.cutaway && wall.normal.x * toCamX + wall.normal.y * toCamZ < 0;
       for (const m of wall.materials) {
         const base = (m.userData['baseOpacity'] as number | undefined) ?? 1;
-        const target = facingAway ? Math.min(base, 0.1) : base;
+        // La pared recortada queda como un velo; su penumbra, que es un adorno, desaparece.
+        const target = facingAway ? (m.userData['shade'] ? 0 : Math.min(base, 0.1)) : base;
         if (m.opacity !== target) {
           m.opacity = target;
           m.depthWrite = target === 1;

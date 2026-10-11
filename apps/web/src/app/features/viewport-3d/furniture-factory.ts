@@ -58,6 +58,11 @@ export class FurnitureFactory {
     return this.withShadows(item, object);
   }
 
+  /** Brillo de las pantallas de lámpara. */
+  setGlow(intensity: number): void {
+    this.parametric.setGlow(intensity);
+  }
+
   private withShadows(item: CatalogItem, object: THREE.Object3D): THREE.Object3D {
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
