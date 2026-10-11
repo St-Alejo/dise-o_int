@@ -40,8 +40,7 @@ export function factsOf(shell: RoomShell | null, pieces: number, total: number):
     <dl class="facts">
       @for (fact of facts(); track fact.label) {
         <div class="fact">
-          <app-icon [name]="fact.icon" />
-          <dt>{{ fact.label }}</dt>
+          <dt><app-icon [name]="fact.icon" /> {{ fact.label }}</dt>
           <dd>{{ fact.value }}</dd>
         </div>
       }
@@ -64,12 +63,14 @@ export function factsOf(shell: RoomShell | null, pieces: number, total: number):
       background: var(--surface);
       font-size: var(--text-sm);
     }
+    dt {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
     app-icon {
       color: var(--primary);
-      align-self: center;
-    }
-    dt {
-      color: var(--text-muted);
     }
     dd {
       margin: 0;
