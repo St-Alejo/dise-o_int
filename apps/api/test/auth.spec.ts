@@ -100,8 +100,11 @@ describe('AuthService + TokenService', () => {
     await auth.register(creds);
     const wrongPass = auth.login({ email: creds.email, password: 'otra-clave' });
     const noUser = auth.login({ email: 'nadie@example.com', password: 'otra-clave' });
-    await expect(wrongPass).rejects.toThrow('Email o contraseña incorrectos');
-    await expect(noUser).rejects.toThrow('Email o contraseña incorrectos');
+    // Las dos a la vez: si se espera una y la otra falla antes, queda como rechazo sin atender.
+    await Promise.all([
+      expect(wrongPass).rejects.toThrow('Email o contraseña incorrectos'),
+      expect(noUser).rejects.toThrow('Email o contraseña incorrectos'),
+    ]);
     await expect(auth.login({ email: creds.email, password: creds.password })).resolves.toHaveProperty('refreshToken');
   });
 
