@@ -124,7 +124,7 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       min-height: 320px;
       border-radius: var(--radius);
       overflow: hidden;
-      background: #e9e3da;
+      background: var(--surface-2);
       container: visor / inline-size;
     }
     canvas {
@@ -245,7 +245,7 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
     }
     .tool-note.warn {
       background: var(--danger);
-      color: #fff;
+      color: var(--surface);
     }
     .modes {
       position: absolute;
@@ -331,7 +331,7 @@ import { SceneService, VIEW_PRESETS } from './scene.service';
       bottom: 16px;
       transform: translateX(-50%);
       background: var(--danger);
-      color: #fff;
+      color: var(--surface);
       padding: 6px 14px;
       border-radius: 999px;
       font-size: 0.85rem;

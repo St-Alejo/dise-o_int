@@ -277,7 +277,7 @@ function initialView(): ViewMode {
       padding: 0 5px;
       border-radius: 999px;
       background: var(--warning);
-      color: #fff;
+      color: var(--surface);
       font-size: 0.72rem;
       font-weight: 700;
     }

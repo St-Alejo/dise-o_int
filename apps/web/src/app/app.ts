@@ -16,8 +16,8 @@ import { IconComponent } from './shared/ui/icon.component';
         <a routerLink="/" class="brand" aria-label="Interiores IA, inicio">
           <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
             <rect width="64" height="64" rx="14" fill="currentColor" />
-            <path d="M14 44V30l18-14 18 14v14" fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round" />
-            <rect x="22" y="34" width="20" height="10" rx="3" fill="#fff" />
+            <path d="M14 44V30l18-14 18 14v14" fill="none" stroke="var(--on-primary)" stroke-width="5" stroke-linejoin="round" />
+            <rect x="22" y="34" width="20" height="10" rx="3" fill="var(--on-primary)" />
           </svg>
           <span>Interiores <strong>IA</strong></span>
         </a>
