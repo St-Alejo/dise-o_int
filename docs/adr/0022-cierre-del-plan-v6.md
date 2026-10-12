@@ -64,14 +64,21 @@ buscaron con Openverse, filtrando por licencia CC0, y se sirven desde el propio 
 admite orígenes externos). Fuente y autor de cada una en
 `apps/web/public/landing/fotos/ATTRIBUTION.md`. El resto de la página sigue saliendo de la app.
 
-## De paso: dos esperas que solo se notaban en equipos lentos
-Al correr por fin Playwright en CI aparecieron dos fallos intermitentes que eran de la app, no de
-las pruebas:
+## De paso: cuatro fallos que destapó CI
+Al correr por fin Playwright en CI aparecieron fallos que eran de la app, no de las pruebas. Para
+verlos sin esperar a GitHub se levantó en local un segundo stack igual al de CI
+(`CATALOG_OFFLINE=true docker compose -p interiores-ci up`), y la suite entera pasa contra él.
 
-- **Guardar la demo en la cuenta** cargaba el editor 3D entero al volver del registro, solo para
-  subir el cuarto y salir. Ahora sube directamente lo guardado en el navegador.
+- **Guardar la demo en la cuenta** se rechazaba entera si un mueble no estaba en el catálogo. Con
+  el catálogo sin conexión de CI faltan modelos, así que fallaba siempre; a una persona le pasaría
+  lo mismo si se retira un mueble mientras su demo espera en el navegador. Ahora ese mueble se deja
+  fuera, se guarda el resto y el aviso lo dice.
+- La misma pantalla **cargaba el editor 3D entero** al volver del registro, solo para subir el
+  cuarto y salir. Ahora sube directamente lo guardado en el navegador.
 - **Los avisos** empezaban a contar sus 4,5 s al pedirse, no al pintarse: si la página estaba
   ocupada rehaciendo el 3D, podían agotarse sin llegar a verse. Ahora cuentan desde que se pintan.
+- **La planta de la vivienda** pedía un guardado por pulsación de flecha, todos a la vez: podían
+  llegar desordenados y quedar guardado un sitio anterior al último. Ahora van en fila.
 
 ## De paso: CI llevaba tiempo en rojo
 El trabajo e2e de GitHub Actions fallaba en su primer paso propio desde hacía decenas de commits:
