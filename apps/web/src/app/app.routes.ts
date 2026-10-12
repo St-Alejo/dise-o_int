@@ -37,6 +37,12 @@ export const routes: Routes = [
     title: 'Proyecto — Interiores IA',
   },
   {
+    path: 'viviendas/:id',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/homes/home-plan.page').then((m) => m.HomePlanPage),
+    title: 'Vivienda — Interiores IA',
+  },
+  {
     path: 'plantillas',
     loadComponent: () => import('./features/demo/templates.page').then((m) => m.TemplatesPage),
     title: 'Plantillas — Interiores IA',

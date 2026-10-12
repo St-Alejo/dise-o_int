@@ -24,3 +24,4 @@ export * from './furnished-templates.js';
 export * from './spatial-resolver.js';
 export * from './design-operations.js';
 export * from './design-toolbox.js';
+export * from './home-plan.js';

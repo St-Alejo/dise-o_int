@@ -80,6 +80,7 @@ type View = 'estilos' | '3d';
               <a class="chip" [href]="'/proyectos/' + room.id + '?vista=3d'" [attr.aria-current]="room.id === p.id ? 'page' : null">{{ room.name }}</a>
             }
             <a class="chip add" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: home.id }"><app-icon name="plus" /> Añadir cuarto</a>
+            <a class="chip add" [routerLink]="['/viviendas', home.id]"><app-icon name="plan" /> Planta de la vivienda</a>
           </nav>
         } @else if (p.status === 'ready') {
           <p class="home-start">

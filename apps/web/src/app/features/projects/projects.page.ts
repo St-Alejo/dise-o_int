@@ -107,6 +107,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
                       <a class="chip" [routerLink]="['/proyectos', r.id]">{{ r.name }}</a>
                     }
                     <a class="chip add" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: h.id }"><app-icon name="plus" /> Añadir cuarto</a>
+                    <a class="chip plan" [routerLink]="['/viviendas', h.id]" [attr.aria-label]="'Ver la planta de ' + h.name"><app-icon name="plan" /> Ver la planta</a>
                   </div>
                 </li>
               }
@@ -266,7 +267,8 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
     .home-rooms .chip {
       text-decoration: none;
     }
-    .home-rooms .add {
+    .home-rooms .add,
+    .home-rooms .plan {
       color: var(--primary);
     }
     .page {
