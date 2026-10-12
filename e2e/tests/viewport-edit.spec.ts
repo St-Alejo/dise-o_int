@@ -148,9 +148,17 @@ test('visor 3D: mover una pared, pintarla y medir', async ({ page }) => {
   await page.getByRole('button', { name: 'Desde arriba' }).click();
   await expect.poll(async () => (await camera()).y).toBeGreaterThan(9);
   expect((await camera()).x).toBeCloseTo(2.5, 1);
+  // La vista cenital es ortográfica (un plano a escala) y en ella se sigue pudiendo elegir un mueble.
+  const orthographic = () => page.evaluate(() => (window as unknown as { __scene: { orthographic: boolean } }).__scene.orthographic);
+  expect(await orthographic()).toBe(false);
+  await page.getByText('Vista', { exact: true }).click();
+  await page.getByRole('button', { name: 'Cenital, como un plano' }).click();
+  await expect.poll(orthographic).toBe(true);
+  if (process.env.SHOTS) await page.screenshot({ path: 'shots/visor-cenital.png' });
   await page.getByText('Vista', { exact: true }).click();
   await page.getByRole('button', { name: 'Esquina' }).click();
   await expect.poll(async () => (await camera()).y).toBeLessThan(8);
+  expect(await orthographic()).toBe(false);
 
   // La tecla ? abre la lista de atajos.
   await canvas.focus();

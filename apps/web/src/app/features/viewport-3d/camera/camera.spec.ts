@@ -37,14 +37,58 @@ function setup() {
   return { camera, orbit, walk, arrived, director };
 }
 
-describe('vista cenital', () => {
-  it('sube lo justo para que el cuarto quepa con un campo estrecho', async () => {
-    const { PLAN_FOV, planViewHeight } = await import('./orbit-mode');
-    const height = planViewHeight(5);
-    // Lo que abarca la cámara a esa altura es el lado del cuarto más su margen.
-    expect(2 * height * Math.tan((PLAN_FOV * Math.PI) / 360)).toBeCloseTo(5 * 1.3, 6);
-    expect(height).toBeGreaterThan(30);
-    expect(planViewHeight(10)).toBeCloseTo(height * 2, 6);
+describe('vista cenital (cámara ortográfica)', () => {
+  it('en ortográfica el tamaño no depende de la distancia y el rayo del cursor baja recto', async () => {
+    const { RoomCamera } = await import('./room-camera');
+    const camera = new RoomCamera(50, 2, 0.05, 120);
+    camera.position.set(2, 12, 1.5);
+    camera.lookAt(2, 0, 1.5);
+    camera.setOrthographic(6);
+    camera.updateMatrixWorld(true);
+    expect(camera.orthographic).toBe(true);
+    expect((camera as { isOrthographicCamera?: boolean }).isOrthographicCamera).toBe(true);
+    expect(camera.isPerspectiveCamera).toBe(false);
+    // 6 m de alto y el doble de ancho: el borde derecho de la pantalla cae a 6 m del centro.
+    const edge = new THREE.Vector3(1, 0, 0).unproject(camera);
+    expect(edge.x).toBeCloseTo(8, 3);
+    // Dos puntos a distinta altura, uno encima del otro, se proyectan en el mismo sitio.
+    const low = new THREE.Vector3(3, 0, 1).project(camera);
+    const high = new THREE.Vector3(3, 2.4, 1).project(camera);
+    expect(high.x).toBeCloseTo(low.x, 3);
+    expect(high.y).toBeCloseTo(low.y, 3);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(0.5, 0), camera);
+    expect(ray.ray.direction.y).toBeCloseTo(-1, 5);
+    expect(ray.ray.origin.x).toBeCloseTo(5, 3);
+  });
+
+  it('el zoom acerca sin mover la cámara y volver a perspectiva lo deshace', async () => {
+    const { RoomCamera, ORBIT_FOV } = await import('./room-camera');
+    const camera = new RoomCamera(ORBIT_FOV, 1, 0.05, 120);
+    camera.position.set(0, 10, 0);
+    camera.lookAt(0, 0, 0);
+    camera.setOrthographic(4);
+    const far = camera.apparentDistance(new THREE.Vector3());
+    camera.zoom = 2;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+    expect(new THREE.Vector3(1, 0, 0).unproject(camera).x).toBeCloseTo(1, 5);
+    expect(camera.apparentDistance(new THREE.Vector3())).toBeCloseTo(far / 2, 6);
+
+    camera.setOrthographic(null);
+    expect(camera.orthographic).toBe(false);
+    expect(camera.isPerspectiveCamera).toBe(true);
+    expect(camera.zoom).toBe(1);
+    expect(camera.apparentDistance(new THREE.Vector3())).toBeCloseTo(10, 6);
+  });
+
+  it('abarca lo justo para que el cuarto quepa, sea la pantalla ancha o alta', async () => {
+    const { planViewSpan } = await import('./room-camera');
+    // Pantalla ancha: manda el fondo del cuarto.
+    expect(planViewSpan(5, 4, 2, 1)).toBeCloseTo(4, 6);
+    // Pantalla alta (móvil): manda el ancho, que es lo que no cabría.
+    expect(planViewSpan(5, 4, 0.5, 1)).toBeCloseTo(10, 6);
+    expect(planViewSpan(5, 4, 2)).toBeCloseTo(5, 6);
   });
 });
 

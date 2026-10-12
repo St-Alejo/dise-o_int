@@ -445,6 +445,9 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     controls.dampingFactor = 0.08;
     controls.maxPolarAngle = Math.PI * 0.49; // no atravesar el piso
     controls.minDistance = 1;
+    // Solo cuentan en la vista cenital (ortográfica), donde acercar es hacer zoom.
+    controls.minZoom = 0.5;
+    controls.maxZoom = 8;
     controls.screenSpacePanning = true;
     controls.addEventListener('change', () => this.scene.invalidate());
     this.controls = controls;

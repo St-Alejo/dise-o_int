@@ -88,11 +88,12 @@ export class PostFx implements Highlighter {
   private readonly ao: RoomAoPass;
   private readonly selected: OutlinePass;
   private readonly hovered: OutlinePass;
+  private orthographic = false;
 
   constructor(
     renderer: THREE.WebGLRenderer,
     scene: THREE.Scene,
-    camera: THREE.Camera,
+    private readonly camera: THREE.Camera,
     settings: PostFxSettings,
   ) {
     const size = renderer.getSize(new THREE.Vector2());
@@ -141,7 +142,25 @@ export class PostFx implements Highlighter {
   }
 
   render(): void {
+    const orthographic = !!(this.camera as { isOrthographicCamera?: boolean }).isOrthographicCamera;
+    if (orthographic !== this.orthographic) this.setProjection(orthographic);
     this.composer.render();
+  }
+
+  /**
+   * Los pases reconstruyen la profundidad con una fórmula distinta para cada proyección y la
+   * eligen al crearse: si la cámara cambia (vista cenital), hay que recompilarlos.
+   */
+  private setProjection(orthographic: boolean): void {
+    this.orthographic = orthographic;
+    this.ao.gtaoMaterial.defines['PERSPECTIVE_CAMERA'] = orthographic ? 0 : 1;
+    this.ao.gtaoMaterial.needsUpdate = true;
+    const [from, to] = orthographic ? ['perspectiveDepthToViewZ', 'orthographicDepthToViewZ'] : ['orthographicDepthToViewZ', 'perspectiveDepthToViewZ'];
+    for (const pass of [this.hovered, this.selected]) {
+      const material = pass.prepareMaskMaterial;
+      material.fragmentShader = material.fragmentShader.split(from).join(to);
+      material.needsUpdate = true;
+    }
   }
 
   dispose(): void {

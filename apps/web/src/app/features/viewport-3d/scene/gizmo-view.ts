@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomCamera } from '../camera/room-camera';
 import type { GizmoHandleKind, GizmoLayout } from '../mounts/gizmo-math';
 import { disposeObject } from '../room-builder';
 import type { SceneContext } from './render-loop';
@@ -73,9 +74,15 @@ export class GizmoView {
     if (!this.layout) return;
     for (const mesh of this.handles.values()) {
       if (!mesh.visible) continue;
-      const size = Math.max(0.03, mesh.position.distanceTo(this.ctx.camera.position) * HANDLE_PER_METRE) * this.touchScale;
+      const size = Math.max(0.03, this.distanceTo(mesh.position) * HANDLE_PER_METRE) * this.touchScale;
       mesh.scale.setScalar(size);
     }
+  }
+
+  /** Distancia que cuenta para el tamaño: en la vista cenital no es la real (ver RoomCamera). */
+  private distanceTo(point: THREE.Vector3): number {
+    const camera = this.ctx.camera;
+    return camera instanceof RoomCamera ? camera.apparentDistance(point) : camera.position.distanceTo(point);
   }
 
   /** Tirador bajo el rayo (el más cercano), o null. */

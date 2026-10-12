@@ -20,7 +20,8 @@ import { clearancesOf, metres } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
 import { CameraDirector } from './camera/camera-director';
 import type { CameraModeId, CameraPose } from './camera/camera-mode';
-import { ORBIT_FOV, OrbitMode, PLAN_FOV, planViewHeight } from './camera/orbit-mode';
+import { ORBIT_FOV, OrbitMode } from './camera/orbit-mode';
+import { RoomCamera, planViewSpan } from './camera/room-camera';
 import { WalkMode } from './camera/walk-mode';
 import type { GizmoHandleKind } from './mounts/gizmo-math';
 import type { Ray } from './mounts/mount-strategies';
@@ -55,6 +56,8 @@ export interface SceneSnapshot {
   cameraMode: CameraModeId;
   /** Posición de la cámara, redondeada al centímetro. */
   camera: { x: number; y: number; z: number };
+  /** La vista cenital es ortográfica: las paredes no convergen. */
+  orthographic: boolean;
   timeOfDay: TimeOfDay;
   /** Lámparas del cuarto que están alumbrando. */
   lamps: number;
@@ -90,7 +93,7 @@ export class SceneService implements SceneContext {
   private readonly store = inject(DesignProjectStore);
 
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(ORBIT_FOV, 1, 0.05, 120);
+  readonly camera = new RoomCamera(ORBIT_FOV, 1, 0.05, 120);
   readonly sceneReady = signal(false);
   readonly readOnly = signal(false);
 
@@ -307,6 +310,7 @@ export class SceneService implements SceneContext {
       hasCeiling: this.room.hasCeiling,
       cameraMode: this.cameraMode(),
       camera: { x: r2(x), y: r2(y), z: r2(z) },
+      orthographic: this.camera.orthographic,
       timeOfDay: this.timeOfDay(),
       lamps: this.lighting.lampCount,
       placements: this.furniture.count,
@@ -375,6 +379,7 @@ export class SceneService implements SceneContext {
   frameRoom(shell = this.store.shell()): void {
     if (!shell || this.cameraMode() === 'walk') return;
     this.orbit.reset();
+    this.camera.setOrthographic(null);
     this.setFov(ORBIT_FOV);
     const home = this.homePose(shell);
     this.camera.position.copy(home.position);
@@ -395,18 +400,21 @@ export class SceneService implements SceneContext {
     if (preset === 'corner') return this.frameRoom(shell);
     const centre = roomCenter(shell);
     const span = Math.max(shell.widthM, shell.depthM);
-    if (preset === 'plan') {
-      // Muy arriba y con el campo muy cerrado: las paredes dejan de converger.
-      const height = planViewHeight(span);
-      if (this.controls) this.controls.maxDistance = height * 1.5;
-      return this.lookFromPose(new THREE.Vector3(centre.x, height, centre.z + 0.01), new THREE.Vector3(centre.x, 0, centre.z), PLAN_FOV);
-    }
     if (this.controls) this.controls.maxDistance = span * 3;
+    // Casi vertical: justo encima, los controles de órbita pierden la referencia del "arriba".
+    const above = new THREE.Vector3(centre.x, span * 1.9 + 2, centre.z + 0.01);
+    if (preset === 'plan') {
+      // Sin perspectiva: lo que se ve es el plano a escala, y se sigue pudiendo editar.
+      this.setFov(ORBIT_FOV);
+      this.camera.setOrthographic(planViewSpan(shell.widthM, shell.depthM, this.camera.aspect));
+      return this.lookFromPose(above, new THREE.Vector3(centre.x, 0, centre.z));
+    }
+    this.camera.setOrthographic(null);
+    this.setFov(ORBIT_FOV);
     const target = new THREE.Vector3(centre.x, 0.6, centre.z);
     const away = span * 1.5 + 1.5;
     const position: Record<Exclude<ViewPreset, 'corner' | 'plan'>, THREE.Vector3> = {
-      // Casi vertical: justo encima, los controles de órbita pierden la referencia del "arriba".
-      top: new THREE.Vector3(centre.x, span * 1.9 + 2, centre.z + 0.01),
+      top: above,
       front: new THREE.Vector3(centre.x, shell.heightM * 0.7, shell.depthM + away),
       left: new THREE.Vector3(-away, shell.heightM * 0.7, centre.z),
       right: new THREE.Vector3(shell.widthM + away, shell.heightM * 0.7, centre.z),
@@ -434,8 +442,7 @@ export class SceneService implements SceneContext {
     this.lookFromPose(target.clone().add(from.normalize().multiplyScalar(distance)), target);
   }
 
-  private lookFromPose(position: THREE.Vector3, target: THREE.Vector3, fov = ORBIT_FOV): void {
-    this.setFov(fov);
+  private lookFromPose(position: THREE.Vector3, target: THREE.Vector3): void {
     this.camera.position.copy(position);
     this.camera.lookAt(target);
     if (this.controls) {
@@ -683,6 +690,8 @@ export class SceneService implements SceneContext {
   setCameraMode(mode: CameraModeId): void {
     if (mode === this.cameraMode() || !this.store.shell()) return;
     if (mode === 'walk') {
+      // A pie se mira en perspectiva, aunque se viniera de la vista cenital.
+      this.camera.setOrthographic(null);
       // Se entra con lo que hubiera seleccionado y con la herramienta en uso: dentro también se edita.
       this.walkWorld = null;
     } else {

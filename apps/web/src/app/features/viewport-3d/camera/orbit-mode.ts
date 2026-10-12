@@ -1,19 +1,10 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CameraMode, CameraPose } from './camera-mode';
+import { ORBIT_FOV } from './room-camera';
 
-export const ORBIT_FOV = 50;
-/**
- * Campo de visión de la vista cenital: tan estrecho que las paredes casi no convergen y el cuarto
- * se lee como un plano. Es un teleobjetivo, no una cámara ortográfica: así todo lo demás (apuntar,
- * etiquetas, posprocesado) sigue trabajando con la misma cámara.
- */
-export const PLAN_FOV = 9;
+export { ORBIT_FOV };
 
-/** A qué altura hay que subir la cámara para que un cuarto de ese lado quepa entero con ese campo. */
-export function planViewHeight(spanM: number, fovDeg = PLAN_FOV, margin = 1.3): number {
-  return (spanM * margin) / 2 / Math.tan((fovDeg * Math.PI) / 360);
-}
 
 /** Vista de "casa de muñecas": se gira alrededor del cuarto con OrbitControls. */
 export class OrbitMode implements CameraMode {
