@@ -13,6 +13,17 @@ export interface ToastAction {
   run: () => void;
 }
 
+/**
+ * Llama a `run` cuando el navegador ya pintó lo que hay pendiente. Un aviso cuenta su tiempo desde
+ * que se ve, no desde que se pide: si justo entonces la página está ocupada (rehaciendo el 3D en
+ * un equipo lento), no se agota antes de aparecer; y en una pestaña en segundo plano espera a que
+ * se vuelva a ella.
+ */
+function afterPaint(run: () => void): void {
+  if (typeof requestAnimationFrame !== 'function') return run();
+  requestAnimationFrame(() => requestAnimationFrame(run));
+}
+
 /** Notificaciones efímeras (región aria-live en el shell de la app). */
 @Injectable({ providedIn: 'root' })
 export class ToastService {
@@ -22,7 +33,7 @@ export class ToastService {
   show(message: string, kind: Toast['kind'] = 'info', ms = 4500, action?: ToastAction): void {
     const id = ++this.seq;
     this.toasts.update((t) => [...t.slice(-3), { id, kind, message, ...(action ? { action } : {}) }]);
-    setTimeout(() => this.dismiss(id), ms);
+    afterPaint(() => setTimeout(() => this.dismiss(id), ms));
   }
 
   /** Ejecuta la acción de un aviso y lo cierra. */
