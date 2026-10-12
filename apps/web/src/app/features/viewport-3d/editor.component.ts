@@ -1,40 +1,23 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
-import { RoomPlan, clampToRoom, effectiveDimensions, footprint, shoppingCsv, shoppingRows, type CatalogItem } from '@interiores/shared-types';
-import { ToastService } from '../../core/ui/toast.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
 import { CalibrationDialogComponent } from '../calibration/calibration-dialog.component';
-import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
 import { PlanEditorComponent } from '../floor-plan/plan-editor.component';
-import { GroupPanelComponent } from '../inspector/group-panel.component';
-import { InspectorComponent } from '../inspector/inspector.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
-import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
-import { ChatPanelComponent } from '../chat/chat-panel.component';
 import { DesignChatService } from '../chat/design-chat.service';
-import { OutlinerComponent } from '../outliner/outliner.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { agoLabel } from '../project/save-resilience';
 import { SceneEditsService } from '../project/scene-edits.service';
-import { downloadBlob, fileSlug } from '../../core/ui/download';
-import { planSvg } from '../floor-plan/floor-plan-model';
-import { SwapCommand } from './commands';
 import { SceneService } from './scene.service';
+import { EditorPanelComponent } from './editor-panel.component';
+import { EditorToolbarComponent, type ViewMode } from './editor-toolbar.component';
 import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
-import { BudgetPanelComponent } from '../budget/budget-panel.component';
 import { EditorTourComponent } from '../onboarding/editor-tour.component';
-import { SegmentedComponent } from '../../shared/ui/segmented.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
-export type ViewMode = '3d' | 'split' | 'plan';
+export type { ViewMode };
 
-const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = [
-  { id: '3d', label: '3D', title: 'Solo la vista 3D' },
-  { id: 'split', label: 'Dividida', title: 'El plano y la vista 3D, lado a lado' },
-  { id: 'plan', label: 'Plano', title: 'Solo el plano' },
-];
 const VIEW_KEY = 'interiores.editor.vista';
 
 /** La última vista usada; la primera vez, dividida si la pantalla es ancha. */
@@ -60,87 +43,29 @@ function initialView(): ViewMode {
   imports: [
     ThreeViewportComponent,
     PlanEditorComponent,
-    OutlinerComponent,
     IconComponent,
-    CatalogPanelComponent,
     CalibrationDialogComponent,
     RoomDimensionsDialogComponent,
-    InspectorComponent,
-    GroupPanelComponent,
     ShortcutsDialogComponent,
-    FinishesPanelComponent,
-    ChatPanelComponent,
     ArViewerComponent,
     PresentationOverlayComponent,
-    BudgetPanelComponent,
     EditorTourComponent,
-    SegmentedComponent,
-    CurrencyPipe,
+    EditorToolbarComponent,
+    EditorPanelComponent,
   ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
   template: `
-    <div class="toolbar row" role="toolbar" aria-label="Herramientas del editor">
-      <button type="button" class="icon-btn" (click)="store.undo()" [disabled]="!store.canUndo()" [attr.aria-label]="'Deshacer ' + (store.undoLabel() ?? '')" title="Deshacer (Ctrl+Z)"><app-icon name="undo" /></button>
-      <button type="button" class="icon-btn" (click)="store.redo()" [disabled]="!store.canRedo()" [attr.aria-label]="'Rehacer ' + (store.redoLabel() ?? '')" title="Rehacer (Ctrl+Y)"><app-icon name="redo" /></button>
-      <span class="sep" aria-hidden="true"></span>
-      <app-segmented label="Vista del editor" [options]="views" [value]="viewMode()" (valueChange)="setView($event)" />
-      <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
-      <button type="button" class="btn btn-sm" (click)="roomDims.open()" title="Ancho, largo, alto, puertas y ventanas"><app-icon name="ruler" /> Medidas del cuarto</button>
-      @if (!demo()) {
-        <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" title="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están"><app-icon name="shuffle" /> Otra distribución</button>
-      }
-      <button
-        type="button"
-        class="btn btn-sm review"
-        [class.pending]="edits.issueCount() > 0"
-        (click)="showReview()"
-        [title]="edits.issueCount() ? 'Hay cosas que conviene corregir' : 'Revisa si se puede entrar, si se llega a cada mueble y si algo tapa las ventanas'"
-      >
-        Revisión
-        @if (edits.issueCount(); as n) {
-          <span class="count" [attr.aria-label]="n + ' avisos'">{{ n }}</span>
-        }
-      </button>
-      <details class="menu" #exportMenu>
-        <summary class="btn btn-sm"><app-icon name="download" /> Exportar</summary>
-        <div class="menu-items card">
-          <button type="button" class="menu-item" (click)="exportImage(); exportMenu.open = false" [disabled]="viewMode() === 'plan'">
-            <strong>Imagen del cuarto</strong>
-            <span class="muted">La vista 3D tal como se ve ahora (PNG)</span>
-          </button>
-          <button type="button" class="menu-item" (click)="exportImage(3); exportMenu.open = false" [disabled]="viewMode() === 'plan'">
-            <strong>Imagen en alta resolución</strong>
-            <span class="muted">Tres veces más grande y sin las ayudas de edición (PNG)</span>
-          </button>
-          <button type="button" class="menu-item" (click)="exportPlan(); exportMenu.open = false">
-            <strong>Plano con medidas</strong>
-            <span class="muted">Para imprimir o enviar (SVG)</span>
-          </button>
-          <button type="button" class="menu-item" (click)="exportShopping(); exportMenu.open = false" [disabled]="!store.placements().length">
-            <strong>Lista de compras</strong>
-            <span class="muted">Para abrir en una hoja de cálculo (CSV)</span>
-          </button>
-        </div>
-      </details>
-      <button type="button" class="btn btn-sm" (click)="presentation.start()" [disabled]="!shell()" title="Enseña el cuarto a pantalla completa, vista por vista (flechas para avanzar)">Presentar</button>
-      <button type="button" class="btn btn-sm btn-ghost" (click)="shortcuts.open()" title="Atajos de teclado (?)">Atajos</button>
-      <span class="spacer"></span>
-      <span class="save" [class]="'save save-' + store.saveState()" aria-live="polite">
-        @switch (store.saveState()) {
-          @case ('saved') { ✓ Guardado }
-          @case ('dirty') { Cambios sin guardar… }
-          @case ('saving') { Guardando… }
-          @case ('error') {
-            @if (store.offline()) {
-              Sin conexión: tus cambios se guardarán al volver
-            } @else {
-              No se pudo guardar; reintentando <button class="btn btn-sm" type="button" (click)="store.retrySave()">Reintentar ahora</button>
-            }
-          }
-          @case ('conflict') { }
-        }
-      </span>
-    </div>
+    <app-editor-toolbar
+      [viewMode]="viewMode()"
+      [busy]="busy()"
+      [demo]="demo()"
+      (viewChange)="setView($event)"
+      (autoLayout)="autoLayout.emit()"
+      (roomDims)="roomDims.open()"
+      (review)="panel.showReview()"
+      (present)="presentation.start()"
+      (shortcuts)="shortcuts.open()"
+    />
 
     @if (store.recoverable(); as draft) {
       <div class="alert alert-warning row" role="status">
@@ -176,77 +101,13 @@ function initialView(): ViewMode {
             <app-plan-editor class="pane" />
           }
           <!-- El visor 3D no se destruye al pasar al plano: solo se oculta (conserva la cámara y la GPU). -->
-          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" [class.bare]="presenting()" (swap)="swapMode.set(true)" />
+          <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" [class.bare]="presenting()" (swap)="panel.startSwap()" />
           <app-presentation-overlay #presentation (started)="onPresenting(true)" (stopped)="onPresenting(false)" />
         </div>
         <p class="help muted">En el 3D: arrastra un mueble, gira su aro o estira sus tiradores · Paredes (W), Pintar (B) y Medir (M) cambian de herramienta · clic derecho o dos dedos mueven la cámara</p>
       </div>
 
-      <aside class="panel card" aria-label="Panel del mueble" [class.sheet-open]="sheetOpen()">
-        <button type="button" class="sheet-handle" (click)="sheetOpen.set(!sheetOpen())" [attr.aria-expanded]="sheetOpen()">
-          <span class="grip" aria-hidden="true"></span>
-          {{ sheetOpen() ? 'Ocultar el panel' : store.selected() ? 'Ver el mueble seleccionado' : 'Añadir muebles y ajustes' }}
-        </button>
-        @if (swapMode() && selectedItem()) {
-          <app-catalog-panel
-            mode="swap"
-            [items]="catalogItems()"
-            [swapCategory]="selectedItem()!.category"
-            [currentItemId]="selectedItem()!.id"
-            [styleId]="styleId()"
-            [roomType]="roomType()"
-            (picked)="swap($event)"
-            (cancelled)="swapMode.set(false)"
-          />
-        } @else if (store.selection().length > 1) {
-          <app-group-panel />
-        } @else if (store.selected() && selectedItem()) {
-          <app-inspector (swap)="swapMode.set(true)" (ar)="ar.open($event)" />
-        } @else {
-          <div class="summary row">
-            <div>
-              <strong>{{ store.placements().length }}</strong> muebles
-            </div>
-            <span class="spacer"></span>
-            <div>Total aprox. <strong>{{ store.totalPrice() | currency: 'USD' : 'symbol' : '1.0-0' }}</strong></div>
-          </div>
-          <app-budget-panel />
-          <div class="tabs" role="tablist" aria-label="Panel del editor">
-            <button type="button" role="tab" id="tab-add" aria-controls="panel-add" [attr.aria-selected]="panelTab() === 'add'" (click)="panelTab.set('add')">Añadir muebles</button>
-            <button type="button" role="tab" id="tab-objects" aria-controls="panel-objects" [attr.aria-selected]="panelTab() === 'objects'" (click)="panelTab.set('objects')">Objetos</button>
-            <button type="button" role="tab" id="tab-room" aria-controls="panel-room" [attr.aria-selected]="panelTab() === 'room'" (click)="panelTab.set('room')">Cuarto y acabados</button>
-            @if (!demo()) {
-              <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
-            }
-          </div>
-          @if (panelTab() === 'chat') {
-            <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat">
-              <app-chat-panel />
-            </div>
-          } @else if (panelTab() === 'add') {
-            <div role="tabpanel" id="panel-add" aria-labelledby="tab-add">
-              <app-catalog-panel
-                mode="add"
-                [items]="catalogItems()"
-                [styleId]="styleId()"
-                [roomType]="roomType()"
-                (picked)="add($event)"
-                (dragStarted)="edits.dragged.set($event)"
-                (dragEnded)="edits.dragged.set(null)"
-              />
-            </div>
-          } @else if (panelTab() === 'objects') {
-            <div role="tabpanel" id="panel-objects" aria-labelledby="tab-objects">
-              <app-outliner />
-            </div>
-          } @else {
-            <div role="tabpanel" id="panel-room" aria-labelledby="tab-room" class="stack">
-              <button type="button" class="btn btn-sm" (click)="roomDims.open()"><app-icon name="ruler" /> Medidas, puertas y ventanas</button>
-              <app-finishes-panel />
-            </div>
-          }
-        }
-      </aside>
+      <app-editor-panel #panel [demo]="demo()" (roomDims)="roomDims.open()" (ar)="ar.open($event)" />
     </div>
 
     <app-room-dimensions-dialog #roomDims (calibrate)="calibration.open()" />
@@ -257,86 +118,6 @@ function initialView(): ViewMode {
   styles: `
     :host {
       display: block;
-    }
-    .toolbar {
-      margin-bottom: 12px;
-    }
-    .sep {
-      width: 1px;
-      height: 28px;
-      background: var(--border);
-    }
-    .review.pending {
-      border-color: var(--warning);
-    }
-    .count {
-      display: inline-grid;
-      place-items: center;
-      min-width: 18px;
-      height: 18px;
-      padding: 0 5px;
-      border-radius: 999px;
-      background: var(--warning);
-      color: var(--surface);
-      font-size: 0.72rem;
-      font-weight: 700;
-    }
-    .menu {
-      position: relative;
-    }
-    .menu summary {
-      list-style: none;
-      cursor: pointer;
-    }
-    .menu summary::-webkit-details-marker {
-      display: none;
-    }
-    .menu-items {
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 0;
-      z-index: 20;
-      display: grid;
-      gap: 2px;
-      width: 260px;
-      padding: 6px;
-      box-shadow: var(--shadow);
-    }
-    .menu-item {
-      display: grid;
-      gap: 2px;
-      padding: 8px 10px;
-      border: none;
-      border-radius: 8px;
-      background: none;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.88rem;
-      text-align: left;
-      cursor: pointer;
-    }
-    .menu-item .muted {
-      font-size: 0.78rem;
-    }
-    .menu-item:hover:not(:disabled) {
-      background: var(--surface-2);
-    }
-    .menu-item:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .save {
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .save-saved {
-      color: var(--success);
-    }
-    .save-error {
-      color: var(--danger);
     }
     .alert {
       margin-bottom: 12px;
@@ -388,104 +169,11 @@ function initialView(): ViewMode {
       font-size: 0.8rem;
       margin: 0;
     }
-    .panel {
-      padding: 16px;
-      overflow-x: hidden;
-      align-self: start;
-      max-height: min(72vh, 720px);
-      overflow: auto;
-    }
-    /* El asa de la hoja inferior solo existe en pantallas angostas. */
-    .sheet-handle {
-      display: none;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      width: 100%;
-      min-height: 52px;
-      padding: 8px 0;
-      border: 0;
-      background: var(--surface);
-      color: var(--text);
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .grip {
-      width: 40px;
-      height: 4px;
-      border-radius: 999px;
-      background: var(--border);
-    }
-    .big-icon {
-      font-size: 2rem;
-    }
-    .grow {
-      flex: 1;
-      min-width: 0;
-    }
-    .small {
-      font-size: 0.85rem;
-    }
-    .facts {
-      margin: 0;
-      display: grid;
-      gap: 6px;
-    }
-    .facts div {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 0.9rem;
-    }
-    .facts dt {
-      color: var(--text-muted);
-    }
-    .facts dd {
-      margin: 0;
-      font-weight: 600;
-      text-align: right;
-    }
-    .actions {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .actions .btn {
-      white-space: normal;
-      padding: 6px 10px;
-      min-width: 0;
-    }
-    .tabs {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-    .tabs button {
-      flex: 1;
-      background: none;
-      border: none;
-      border-bottom: 3px solid transparent;
-      padding: 8px 4px;
-      font: inherit;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-    .tabs button[aria-selected='true'] {
-      color: var(--text);
-      font-weight: 600;
-      border-bottom-color: var(--primary);
-    }
-    .summary {
-      padding-bottom: 12px;
-      margin-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-    }
     @media (max-width: 960px) {
       .layout {
         grid-template-columns: 1fr;
+        /* Hueco para el asa de la hoja inferior del panel. */
+        padding-bottom: 64px;
       }
       .viewport-wrap {
         height: 60vh;
@@ -498,54 +186,6 @@ function initialView(): ViewMode {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
       }
-      /* La barra de herramientas no se apila en cinco filas: va en una sola, que se desliza. */
-      .toolbar {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: none;
-        padding-bottom: 4px;
-      }
-      .toolbar > * {
-        flex: none;
-      }
-      /* Dentro de una barra que se desliza, un menú desplegable quedaría recortado: sale fijo, */
-      /* sobre el asa de la hoja inferior. */
-      .menu-items {
-        position: fixed;
-        inset: auto 16px 64px 16px;
-        z-index: 40;
-      }
-      /* En pantallas angostas el panel es una hoja inferior: el cuarto queda siempre a la vista y */
-      /* el panel sube cuando hace falta, en vez de quedar debajo, al final de la página. */
-      .layout {
-        padding-bottom: 64px;
-      }
-      .panel {
-        position: fixed;
-        inset: auto 0 0 0;
-        z-index: 30;
-        max-height: 70vh;
-        padding-top: 0;
-        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-        box-shadow: var(--shadow-lg);
-        transform: translateY(calc(100% - 52px));
-        transition: transform 0.25s var(--ease);
-        overflow: hidden;
-      }
-      .panel.sheet-open {
-        transform: none;
-        overflow: auto;
-      }
-      .sheet-handle {
-        display: grid;
-        justify-items: center;
-        gap: 6px;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .panel {
-        transition: none;
-      }
     }
   `,
 })
@@ -553,7 +193,6 @@ export class EditorComponent {
   protected readonly store = inject(DesignProjectStore);
   protected readonly scene = inject(SceneService);
   protected readonly edits = inject(SceneEditsService);
-  private readonly toast = inject(ToastService);
 
   readonly busy = input(false);
   /** Demostración sin cuenta: no hay servidor al que pedir otra distribución ni asistente. */
@@ -564,27 +203,11 @@ export class EditorComponent {
   private readonly wrap = viewChild.required<ElementRef<HTMLElement>>('wrap');
   /** Se está enseñando el cuarto a pantalla completa: el editor no atiende atajos. */
   protected readonly presenting = signal(false);
-  /** En pantallas angostas el panel es una hoja inferior que se sube y se baja. */
-  protected readonly sheetOpen = signal(false);
   private viewBeforePresenting: ViewMode = '3d';
-  protected readonly views = VIEWS;
   /** Vista elegida: solo 3D, plano y 3D lado a lado, o solo plano. Se recuerda entre visitas. */
   protected readonly viewMode = signal<ViewMode>(initialView());
-  protected readonly swapMode = signal(false);
-  protected readonly panelTab = signal<'add' | 'objects' | 'room' | 'chat'>('add');
   protected readonly shell = this.store.shell;
-  protected readonly selectedItem = this.store.selectedItem;
-  protected readonly catalogItems = computed(() => [...this.store.catalog().values()]);
-  protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);
-  protected readonly roomType = computed(() => this.store.project()?.roomType ?? null);
   protected readonly confidence = computed(() => Math.round((this.shell()?.scaleConfidence ?? 0) * 100));
-
-  /** Abre la revisión del diseño (está en la pestaña de objetos). */
-  protected showReview(): void {
-    this.swapMode.set(false);
-    this.store.select(null);
-    this.panelTab.set('objects');
-  }
 
   protected ago(savedAt: number): string {
     return agoLabel(savedAt, Date.now());
@@ -612,61 +235,6 @@ export class EditorComponent {
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
       this.scene.frameRoom();
     }
-  }
-
-  add(item: CatalogItem): void {
-    this.edits.add(item);
-  }
-
-  /** La vista 3D tal como se ve ahora, como imagen. */
-  protected async exportImage(scale = 1): Promise<void> {
-    const blob = await this.scene.capturePng(scale);
-    if (!blob) {
-      this.toast.error('No se pudo capturar la vista 3D.');
-      return;
-    }
-    downloadBlob(blob, `${fileSlug(this.store.project()?.name ?? '')}${scale > 1 ? '-grande' : ''}.png`);
-  }
-
-  /** Lo que hay en el cuarto, agrupado y con precios, para una hoja de cálculo. */
-  protected exportShopping(): void {
-    const csv = shoppingCsv(shoppingRows(this.store.placements(), this.store.catalog()));
-    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `compras-${fileSlug(this.store.project()?.name ?? '')}.csv`);
-  }
-
-  /** El plano con cotas y los muebles, listo para imprimir. */
-  protected exportPlan(): void {
-    const shell = this.store.shell();
-    if (!shell) return;
-    const catalog = this.store.catalog();
-    const footprints = this.store.placements().flatMap((p) => {
-      const item = catalog.get(p.catalogItemId);
-      if (!item || p.supportId || item.subcategory === 'rug') return [];
-      return [{ id: p.id, name: item.name, corners: footprint(p.position, effectiveDimensions(item.dimensionsM, p), p.rotationY).corners }];
-    });
-    const name = this.store.project()?.name ?? 'Cuarto';
-    const metres = (v: number) => v.toFixed(2).replace('.', ',');
-    const area = RoomPlan.from(shell).area().toFixed(1).replace('.', ',');
-    const title = `${name} · ${metres(shell.widthM)} × ${metres(shell.depthM)} m · ${area} m²`;
-    downloadBlob(new Blob([planSvg(shell, footprints, title)], { type: 'image/svg+xml' }), `plano-${fileSlug(name)}.svg`);
-  }
-
-  swap(item: CatalogItem): void {
-    const current = this.store.selected();
-    const shell = this.store.shell();
-    if (!current || !shell) return;
-    let to = clampToRoom(current.position, item.dimensionsM, current.rotationY, shell);
-    to = { ...to, y: this.scene.roomCenterFor(item).y };
-    if (!this.store.isPoseValid(current.id, item.id, to, current.rotationY)) {
-      const free = this.store.findFreeSpot(current.id, item, to, current.rotationY);
-      if (!free) {
-        this.toast.error('El mueble nuevo no cabe en este lugar. Mueve algo para hacerle espacio.');
-        return;
-      }
-      to = free;
-    }
-    this.store.execute(new SwapCommand(current.id, current.catalogItemId, item.id, current.position, to));
-    this.swapMode.set(false);
   }
 
   onGlobalKey(e: KeyboardEvent): void {
