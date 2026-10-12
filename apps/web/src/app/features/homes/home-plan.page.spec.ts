@@ -103,4 +103,33 @@ describe('HomePlanPage', () => {
     const { el } = await setup([]);
     expect(el.textContent).toContain('Esta vivienda no existe');
   });
+
+  it('los guardados van en fila: una respuesta lenta no deja guardado un sitio anterior al último', async () => {
+    const calls: { at: PlanPoint; done: () => void }[] = [];
+    const api = {
+      list: async () => [room('sala', 'Sala', 5, 4, { homePosition: { x: 0, z: 0 } }), room('cocina', 'Cocina', 3, 3, { homePosition: { x: 6, z: 0 } })],
+      setHomePosition: (_id: string, at: PlanPoint) => new Promise<object>((resolve) => calls.push({ at, done: () => resolve({}) })),
+    };
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ProjectsApi, useValue: api }] });
+    const fixture = TestBed.createComponent(HomePlanPage);
+    fixture.componentRef.setInput('id', HOME);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const cocina = (fixture.nativeElement as HTMLElement).querySelectorAll<SVGGElement>('svg .room')[1]!;
+    const press = () => {
+      cocina.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+      cocina.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+    };
+    press();
+    // El primer guardado ya salió cuando llega la segunda pulsación.
+    await new Promise((resolve) => setTimeout(resolve));
+    press();
+    await new Promise((resolve) => setTimeout(resolve));
+    // El segundo guardado no sale hasta que vuelve el primero.
+    expect(calls.map((c) => c.at.x)).toEqual([5.9]);
+    calls[0]!.done();
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(calls.map((c) => c.at.x)).toEqual([5.9, 5.8]);
+    calls[1]!.done();
+  });
 });

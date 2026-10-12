@@ -530,11 +530,22 @@ export class HomePlanPage {
     await this.save();
   }
 
+  /** Guardados en curso, en fila: ver `save`. */
+  private queue: Promise<void> = Promise.resolve();
+
   /**
    * Guarda el sitio de cada cuarto que no coincide con lo guardado. La primera vez son todos: así
    * la planta queda fija y no depende de cómo se ordenen solos.
+   *
+   * Los guardados van uno detrás de otro. Con las flechas se pide uno por pulsación, y si salieran
+   * a la vez podrían llegar al servidor desordenados y quedar guardado un sitio anterior al último.
    */
-  private async save(): Promise<void> {
+  private save(): Promise<void> {
+    this.queue = this.queue.then(() => this.savePending());
+    return this.queue;
+  }
+
+  private async savePending(): Promise<void> {
     const pending = [...this.positions()].filter(([id, at]) => {
       const saved = this.savedAt.get(id);
       return !saved || saved.x !== at.x || saved.z !== at.z;
