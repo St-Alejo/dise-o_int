@@ -92,6 +92,10 @@ test('vivienda: planta conjunta con los cuartos colocados y el presupuesto que s
   const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 
+  // La vivienda entera se descarga en un PDF.
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Vivienda en PDF' }).click()]);
+  expect(download.suggestedFilename()).toBe('casa-con-planta.pdf');
+
   // Recién creados van en fila, separados. Con el teclado se pega uno al otro y comparten pared.
   const room = plan.getByRole('button', { name: /^Cuarto de la planta/ });
   await room.focus();

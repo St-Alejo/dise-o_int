@@ -50,7 +50,7 @@ import {
   QUOTA,
 } from '../../ports/index.js';
 import { projectKeys, toListItem } from './project.mapper.js';
-import type { ProjectDossier } from './shopping-list.pdf.js';
+import type { ProjectDossier, HomeDossier } from './shopping-list.pdf.js';
 import { newRoomFor } from './room-factory.js';
 import { HomesService } from './homes.service.js';
 import { ProjectAccess, revisionGuard, type Actor } from './project-access.js';
@@ -99,7 +99,7 @@ export class ProjectsService {
     this.rules = new SceneRules(catalog);
     this.versions = new VersionsService(projects, this.access);
     this.sharing = new SharingService(projects, this.access);
-    this.reports = new ProjectReports(catalog, this.access);
+    this.reports = new ProjectReports(catalog, this.access, projects);
     this.homes = new HomesService(projects, this.access);
   }
 
@@ -156,6 +156,10 @@ export class ProjectsService {
 
   dossier(actor: Actor, id: string): Promise<ProjectDossier> {
     return this.reports.dossier(actor, id);
+  }
+
+  homeDossier(actor: Actor, id: string): Promise<HomeDossier> {
+    return this.reports.homeDossier(actor, id);
   }
 
   // ------------------------------------------------------------------ lectura

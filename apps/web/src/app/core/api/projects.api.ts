@@ -187,6 +187,11 @@ export class ProjectsApi {
     return firstValueFrom(this.http.get(`${this.base}/${id}/dossier.pdf`, { responseType: 'blob' }));
   }
 
+  /** La vivienda del cuarto `id` en un PDF: planta conjunta, totales y las páginas de cada cuarto. */
+  homeDossierPdf(id: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(`${this.base}/${id}/home/dossier.pdf`, { responseType: 'blob' }));
+  }
+
   shoppingListPdf(id: string): Promise<Blob> {
     return firstValueFrom(this.http.get(`${this.base}/${id}/shopping-list.pdf`, { responseType: 'blob' }));
   }

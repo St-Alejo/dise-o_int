@@ -1,4 +1,4 @@
-import { renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
+import { renderHomeDossierPdf, renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { createRectangularShell, moveWall } from '@interiores/shared-types';
@@ -302,6 +302,30 @@ describe('ProjectsService', () => {
       // Al salir de la vivienda, el sitio se olvida.
       await service.setHome(alice, sala.id, { homeId: null });
       expect((await service.list(alice))[0]!.homePosition).toBeUndefined();
+    });
+
+    it('la vivienda entera sale en un PDF: portada con la planta conjunta y las páginas de cada cuarto', async () => {
+      const sala = await readyProject();
+      await expect(service.homeDossier(alice, sala.id)).rejects.toBeInstanceOf(ValidationError);
+      const home = (await service.setHome(alice, sala.id, { homeName: 'Piso' })).home!;
+      const cocina = await service.create(alice, { name: 'Cocina', roomType: 'kitchen', roomSpec: room, homeId: home.id }, undefined);
+      await service.setHomePosition(alice, cocina.id, { x: 10, z: 2 });
+      await service.setBudget(alice, sala.id, 500);
+
+      const dossier = await service.homeDossier(alice, cocina.id);
+      expect(dossier.name).toBe('Piso');
+      expect(dossier.rooms.map((r) => r.dossier.name)).toEqual(['Sala', 'Cocina']);
+      expect(dossier.rooms.map((r) => r.budgetCap)).toEqual([500, null]);
+      // La cocina se dibuja donde se colocó; la sala, que no tiene sitio guardado, debajo de ella.
+      expect(Math.min(...dossier.rooms[1]!.outline.map((p) => p.x))).toBe(10);
+      expect(Math.min(...dossier.rooms[1]!.outline.map((p) => p.z))).toBe(2);
+      expect(Math.min(...dossier.rooms[0]!.outline.map((p) => p.z))).toBeGreaterThan(4.9);
+
+      const pdf = await renderHomeDossierPdf(dossier);
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      // Portada + dos páginas (ficha y compras) por cuarto.
+      expect(pdf.toString('latin1').match(/\/Type \/Page[^s]/g)).toHaveLength(5);
+      await expect(service.homeDossier(bob, sala.id)).rejects.toBeInstanceOf(NotFoundError);
     });
 
     it('nadie entra en la vivienda de otra persona, ni creando ni moviendo un cuarto', async () => {

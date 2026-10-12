@@ -152,16 +152,11 @@ function drawPlan(doc: Doc, dossier: ProjectDossier, box: { x: number; y: number
   doc.fillColor('#000').strokeColor('#000').lineWidth(1);
 }
 
-/**
- * Dossier del proyecto en PDF: la ficha del cuarto, su plano acotado con los muebles y, en otra
- * página, la lista de compras. Es lo que se imprime o se envía para enseñar el diseño.
- */
-export function renderProjectDossierPdf(dossier: ProjectDossier): Promise<Buffer> {
-  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `${dossier.name} — Interiores IA` } });
-  const done = collect(doc);
+/** Las páginas de un cuarto: su ficha con el plano acotado y, en otra página, su lista de compras. */
+function drawRoomPages(doc: Doc, dossier: ProjectDossier): void {
   const { shell, list } = dossier;
 
-  doc.fontSize(9).font('Helvetica').fillColor('#bb4a20').text('INTERIORES IA', { characterSpacing: 1.2 });
+  doc.fontSize(9).font('Helvetica').fillColor('#bb4a20').text('INTERIORES IA', 48, 48, { characterSpacing: 1.2 });
   doc.moveDown(0.4).fontSize(24).font('Helvetica-Bold').fillColor('#17201f').text(dossier.name);
   doc.moveDown(0.2).fontSize(11).font('Helvetica').fillColor('#555').text(dossier.subtitle);
   doc.moveDown(0.9);
@@ -195,6 +190,125 @@ export function renderProjectDossierPdf(dossier: ProjectDossier): Promise<Buffer
   doc.moveDown(0.6).fillColor('#000').font('Helvetica');
   drawShoppingList(doc, list);
   doc.fontSize(8).fillColor('#888').text(`Generado el ${new Date().toLocaleDateString('es')} con Interiores IA.`, 48, doc.y + 10);
+}
+
+/**
+ * Dossier del proyecto en PDF: la ficha del cuarto, su plano acotado con los muebles y, en otra
+ * página, la lista de compras. Es lo que se imprime o se envía para enseñar el diseño.
+ */
+export function renderProjectDossierPdf(dossier: ProjectDossier): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `${dossier.name} — Interiores IA` } });
+  const done = collect(doc);
+  drawRoomPages(doc, dossier);
+  doc.end();
+  return done;
+}
+
+/** Un cuarto en la portada de la vivienda: dónde va en la planta conjunta y lo que suma. */
+export interface HomeDossierRoom {
+  dossier: ProjectDossier;
+  /** Contorno del cuarto ya colocado en la planta conjunta (metros). */
+  outline: { x: number; z: number }[];
+  /** Tope de gasto del cuarto, si tiene. */
+  budgetCap: number | null;
+}
+
+export interface HomeDossier {
+  name: string;
+  rooms: HomeDossierRoom[];
+}
+
+/** La planta conjunta dentro de la caja dada: cada cuarto en su sitio, con su nombre y su superficie. */
+function drawHomePlan(doc: Doc, rooms: readonly HomeDossierRoom[], box: { x: number; y: number; width: number; height: number }): void {
+  const points = rooms.flatMap((r) => r.outline);
+  if (!points.length) return;
+  const min = { x: Math.min(...points.map((p) => p.x)), z: Math.min(...points.map((p) => p.z)) };
+  const span = { x: Math.max(...points.map((p) => p.x)) - min.x || 1, z: Math.max(...points.map((p) => p.z)) - min.z || 1 };
+  const scale = Math.min(box.width / span.x, box.height / span.z);
+  const origin = { x: box.x + (box.width - span.x * scale) / 2, y: box.y + (box.height - span.z * scale) / 2 };
+  const at = (p: { x: number; z: number }): [number, number] => [origin.x + (p.x - min.x) * scale, origin.y + (p.z - min.z) * scale];
+
+  for (const room of rooms) {
+    const [first, ...rest] = room.outline.map(at);
+    if (!first) continue;
+    doc.lineWidth(1.6).strokeColor('#0f5e5a').fillColor('#dcefec').moveTo(...first);
+    for (const point of rest) doc.lineTo(...point);
+    doc.closePath().fillAndStroke();
+    const corners = room.outline.map(at);
+    const left = Math.min(...corners.map((c) => c[0]));
+    const right = Math.max(...corners.map((c) => c[0]));
+    const cy = (Math.min(...corners.map((c) => c[1])) + Math.max(...corners.map((c) => c[1]))) / 2;
+    const width = Math.max(right - left - 6, 20);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#17201f').text(room.dossier.name, left + 3, cy - 9, { width, align: 'center', lineBreak: false, ellipsis: true });
+    doc.font('Helvetica').fontSize(8).fillColor('#555').text(`${room.dossier.areaM2.toFixed(1).replace('.', ',')} m²`, left + 3, cy + 2, { width, align: 'center', lineBreak: false });
+  }
+  doc.fillColor('#000').strokeColor('#000').lineWidth(1);
+}
+
+/**
+ * La vivienda entera en un PDF: una portada con la planta conjunta y lo que suma cada cuarto, y
+ * después las páginas de cada uno (ficha con plano y lista de compras).
+ */
+export function renderHomeDossierPdf(home: HomeDossier): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `${home.name} — Interiores IA` } });
+  const done = collect(doc);
+  const currency = home.rooms[0]?.dossier.list.currency ?? 'USD';
+  const total = home.rooms.reduce((sum, r) => sum + r.dossier.list.total, 0);
+  const area = home.rooms.reduce((sum, r) => sum + r.dossier.areaM2, 0);
+  const caps = home.rooms.reduce((sum, r) => sum + (r.budgetCap ?? 0), 0);
+
+  doc.fontSize(9).font('Helvetica').fillColor('#bb4a20').text('INTERIORES IA · VIVIENDA', { characterSpacing: 1.2 });
+  doc.moveDown(0.4).fontSize(24).font('Helvetica-Bold').fillColor('#17201f').text(home.name);
+  doc.moveDown(0.9);
+
+  const facts: [string, string][] = [
+    ['Cuartos', String(home.rooms.length)],
+    ['Superficie', `${area.toFixed(1).replace('.', ',')} m²`],
+    ['Muebles', String(home.rooms.reduce((sum, r) => sum + r.dossier.pieceCount, 0))],
+    ['Total estimado', money(total, currency)],
+    ...(caps ? ([['Presupuesto', money(caps, currency)]] as [string, string][]) : []),
+  ];
+  const top = doc.y;
+  const column = 499 / facts.length;
+  facts.forEach(([label, value], i) => {
+    const x = 48 + column * i;
+    doc.fontSize(8).font('Helvetica').fillColor('#666').text(label.toUpperCase(), x, top, { width: column - 8, characterSpacing: 0.6 });
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#17201f').text(value, x, top + 12, { width: column - 8 });
+  });
+  doc.moveTo(48, top + 36).lineTo(547, top + 36).strokeColor('#ccc').lineWidth(0.6).stroke();
+
+  drawHomePlan(doc, home.rooms, { x: 64, y: top + 56, width: 467, height: 330 });
+
+  // Lo que suma cada cuarto.
+  const cols = { name: 48, area: 250, pieces: 320, total: 380, cap: 470 };
+  let y = top + 410;
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#17201f');
+  doc.text('Cuarto', cols.name, y).text('Superficie', cols.area, y).text('Muebles', cols.pieces, y).text('Total', cols.total, y).text('Tope', cols.cap, y);
+  doc.moveTo(48, y + 13).lineTo(547, y + 13).strokeColor('#ccc').stroke();
+  y += 19;
+  doc.font('Helvetica').fontSize(9.5);
+  for (const room of home.rooms) {
+    const d = room.dossier;
+    const over = room.budgetCap !== null && d.list.total > room.budgetCap;
+    doc.fillColor('#17201f').text(d.name, cols.name, y, { width: 195, lineBreak: false, ellipsis: true });
+    doc.text(`${d.areaM2.toFixed(1).replace('.', ',')} m²`, cols.area, y);
+    doc.text(String(d.pieceCount), cols.pieces, y);
+    doc.text(money(d.list.total, d.list.currency), cols.total, y);
+    doc.fillColor(over ? '#b3261e' : '#17201f').text(room.budgetCap === null ? '—' : money(room.budgetCap, d.list.currency), cols.cap, y);
+    y += 16;
+    if (y > 760) break; // una vivienda con decenas de cuartos: el resto está en sus propias páginas
+  }
+  doc.fontSize(8).fillColor('#666').text(
+    'Planta conjunta a escala, con cada cuarto donde se colocó. Un tope en rojo es un cuarto que ya lo supera. A continuación, la ficha y la lista de compras de cada cuarto.',
+    48,
+    Math.min(y + 8, 780),
+    { width: 499 },
+  );
+
+  for (const room of home.rooms) {
+    doc.addPage();
+    drawRoomPages(doc, room.dossier);
+  }
   doc.end();
   return done;
 }

@@ -16,6 +16,7 @@ import {
 } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
+import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { ToastService } from '../../core/ui/toast.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { oneDecimal } from '../projects/projects-filter';
@@ -170,6 +171,7 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
           </p>
           <span class="spacer"></span>
           <button type="button" class="btn btn-sm" (click)="tidy()" [disabled]="saving()">Ordenar en fila</button>
+          <button type="button" class="btn btn-sm" (click)="downloadPdf()" [disabled]="exporting() || !plan().length"><app-icon name="download" /> {{ exporting() ? 'Preparando…' : 'Vivienda en PDF' }}</button>
         </div>
         @if (anyOverlap()) {
           <p class="alert alert-warning" role="status">Hay cuartos que se pisan. Sepáralos para que la planta tenga sentido.</p>
@@ -313,7 +315,8 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
     }
     .under {
       align-items: start;
-      gap: var(--space-4);
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-3);
       margin-top: var(--space-3);
     }
     .hint {
@@ -376,6 +379,7 @@ export class HomePlanPage {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly saving = signal(false);
+  protected readonly exporting = signal(false);
   protected readonly rooms = signal<ProjectListItem[]>([]);
   private readonly positions = signal<ReadonlyMap<string, PlanPoint>>(new Map());
   /** Cuartos cuyo sitio ya está guardado en el servidor tal como se ve. */
@@ -544,6 +548,21 @@ export class HomePlanPage {
       this.toast.error(`No se pudo guardar la planta. ${ApiError.from(err).userMessage}`);
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  /** La vivienda entera en un PDF: la planta como está ahora, lo que suma y cada cuarto. */
+  protected async downloadPdf(): Promise<void> {
+    const room = this.plan()[0];
+    if (!room || this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      await this.save();
+      downloadBlob(await this.api.homeDossierPdf(room.id), `${fileSlug(this.name())}.pdf`);
+    } catch (err) {
+      this.toast.error(`No se pudo preparar el PDF. ${ApiError.from(err).userMessage}`);
+    } finally {
+      this.exporting.set(false);
     }
   }
 

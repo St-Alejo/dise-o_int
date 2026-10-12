@@ -1,6 +1,7 @@
-import { describeVariant, effectiveDimensions, footprint, ROOM_TYPE_LABELS, RoomPlan, type ShoppingList, STYLES } from '@interiores/shared-types';
-import type { ICatalogRepository, ProjectRecord } from '../../ports/index.js';
-import type { ProjectDossier } from './shopping-list.pdf.js';
+import { arrangeHome, describeVariant, effectiveDimensions, footprint, ROOM_TYPE_LABELS, RoomPlan, type ShoppingList, STYLES } from '@interiores/shared-types';
+import { ValidationError } from '../../common/errors.js';
+import type { ICatalogRepository, IProjectRepository, ProjectRecord } from '../../ports/index.js';
+import type { HomeDossier, ProjectDossier } from './shopping-list.pdf.js';
 import type { Actor, ProjectAccess } from './project-access.js';
 
 /** Lo que se saca de un cuarto para llevárselo: la lista de compras y el dossier en PDF. */
@@ -8,6 +9,7 @@ export class ProjectReports {
   constructor(
     private readonly catalog: ICatalogRepository,
     private readonly access: ProjectAccess,
+    private readonly projects: IProjectRepository,
   ) {}
 
   async shoppingList(actor: Actor, id: string): Promise<ShoppingList> {
@@ -16,7 +18,37 @@ export class ProjectReports {
 
   /** Lo que lleva el dossier en PDF: la ficha del cuarto, su planta con muebles y la lista de compras. */
   async dossier(actor: Actor, id: string): Promise<ProjectDossier> {
+    return this.dossierOf(await this.access.own(actor, id));
+  }
+
+  /**
+   * La vivienda del cuarto `id`, entera: cada cuarto ya listo, con su dossier y su sitio en la
+   * planta conjunta (el guardado, o en fila si aún no se colocó: igual que la ve la web).
+   */
+  async homeDossier(actor: Actor, id: string): Promise<HomeDossier> {
     const project = await this.access.own(actor, id);
+    if (!project.homeId) throw new ValidationError('Este cuarto no está en ninguna vivienda');
+    const rooms = (await this.projects.listByOwner(actor.userId))
+      .filter((p) => p.homeId === project.homeId && p.roomShell)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const outlines = new Map(rooms.map((room) => [room.id, RoomPlan.from(room.roomShell!).polygon.map((p) => ({ x: p.x, z: p.z }))]));
+    const positions = arrangeHome(rooms.map((room) => ({ id: room.id, outline: outlines.get(room.id)!, position: room.homePosition ?? null })));
+    return {
+      name: project.homeName ?? 'Vivienda',
+      rooms: await Promise.all(
+        rooms.map(async (room) => {
+          const at = positions.get(room.id) ?? { x: 0, z: 0 };
+          return {
+            dossier: await this.dossierOf(room),
+            outline: outlines.get(room.id)!.map((p) => ({ x: p.x + at.x, z: p.z + at.z })),
+            budgetCap: room.budgetCap ?? null,
+          };
+        }),
+      ),
+    };
+  }
+
+  private async dossierOf(project: ProjectRecord): Promise<ProjectDossier> {
     const shell = this.access.requireShell(project);
     const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
     const pieces = project.placements.flatMap((p) => {
