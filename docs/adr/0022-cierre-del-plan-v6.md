@@ -42,8 +42,11 @@ sin pedir cada proyecto entero.
   sitio, pegar los bordes al arrastrar, decir quién comparte pared y quién se pisa.
 - El pegado trabaja con la caja que encierra cada cuarto. Un cuarto en L se pega por su caja, no
   por su contorno real: suficiente para ordenar una vivienda, no para comprobar que encaja.
+- **PDF de la vivienda:** `GET /projects/:id/home/dossier.pdf` reúne una portada (la planta
+  conjunta, lo que suma cada cuarto y su tope) y después las páginas de cada cuarto, las mismas del
+  PDF de un proyecto. La planta se coloca con la misma función que usa la web, así que coinciden.
 - **Sigue sin hacerse:** puertas compartidas entre cuartos, caminar de uno a otro en 3D, los
-  muebles dentro de la planta conjunta, y un PDF o una presentación de la vivienda entera.
+  muebles dentro de la planta conjunta y una presentación de la vivienda entera.
 
 ### Diálogo y ayuda como piezas base
 - `app-dialog` envuelve el `<dialog>` nativo (que ya atrapa el foco y cierra con Escape) y pone lo
@@ -60,6 +63,15 @@ Seis fotografías CC0 de interiores reales, una por estilo, junto al cuarto que 
 buscaron con Openverse, filtrando por licencia CC0, y se sirven desde el propio sitio (la CSP no
 admite orígenes externos). Fuente y autor de cada una en
 `apps/web/public/landing/fotos/ATTRIBUTION.md`. El resto de la página sigue saliendo de la app.
+
+## De paso: dos esperas que solo se notaban en equipos lentos
+Al correr por fin Playwright en CI aparecieron dos fallos intermitentes que eran de la app, no de
+las pruebas:
+
+- **Guardar la demo en la cuenta** cargaba el editor 3D entero al volver del registro, solo para
+  subir el cuarto y salir. Ahora sube directamente lo guardado en el navegador.
+- **Los avisos** empezaban a contar sus 4,5 s al pedirse, no al pintarse: si la página estaba
+  ocupada rehaciendo el 3D, podían agotarse sin llegar a verse. Ahora cuentan desde que se pintan.
 
 ## De paso: CI llevaba tiempo en rojo
 El trabajo e2e de GitHub Actions fallaba en su primer paso propio desde hacía decenas de commits:

@@ -34,11 +34,12 @@ una primera versión de G (viviendas).
   - Diálogo y ayuda como piezas base (`app-dialog`, `appTooltip`); la ayuda se aplicó a la barra
     del editor y al visor, el resto de la app conserva `title`.
   - `editor.component.ts` partido en barra, panel y escenario.
-  - Planta conjunta de la vivienda (G3): cuartos a escala que se arrastran y se pegan.
+  - Planta conjunta de la vivienda (G3): cuartos a escala que se arrastran y se pegan, y la
+    vivienda entera en un PDF.
   - Fotos CC0 en la sección de estilos, con su atribución.
 - **Sigue fuera:** tabla `Room` y pestañas de cuartos dentro de un mismo editor (G1 y G2 se
-  resolvieron como viviendas, ADR-0021); puertas compartidas y caminar entre cuartos; PDF y
-  presentación de la vivienda entera; texturas PBR (A4).
+  resolvieron como viviendas, ADR-0021); puertas compartidas y caminar entre cuartos; presentación
+  de la vivienda entera; texturas PBR (A4).
 - **CI:** el trabajo e2e llevaba decenas de commits fallando en su primer paso (un script sin
   permiso de ejecución). Corregido; desde entonces Playwright corre también en GitHub.
 - De paso: una prueba de propiedades de la cocina fallaba en `main` (un mueble quedaba 5 mm fuera

@@ -23,7 +23,7 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Imagen del visor.** Oclusión ambiental y contorno de lo seleccionado, paredes en corte en vez de translúcidas, luz de día, de tarde y de noche, y calidad que baja sola si el equipo va justo. La vista cenital es ortográfica: un plano a escala sobre el que se sigue editando ([ADR-0018](docs/adr/0018-imagen-del-visor.md), [ADR-0022](docs/adr/0022-cierre-del-plan-v6.md)).
 - **Presentar y exportar.** Modo presentación a pantalla completa, imagen en alta resolución y un PDF del proyecto con ficha, plano acotado y lista de compras.
 - **Presupuesto.** Un tope por cuarto, guardado con el proyecto, con aviso al acercarse o pasarse y el total por categoría.
-- **Viviendas.** Varios cuartos agrupados, con lo que suman, y una planta conjunta donde se colocan a escala y se pegan unos a otros ([ADR-0021](docs/adr/0021-viviendas.md)).
+- **Viviendas.** Varios cuartos agrupados, con lo que suman, una planta conjunta donde se colocan a escala y se pegan unos a otros, y la vivienda entera en un PDF ([ADR-0021](docs/adr/0021-viviendas.md)).
 - **Comparar versiones.** Las dos plantas lado a lado con lo que cambia resaltado, antes de restaurar.
 
 ## Diseño de la interfaz

@@ -30,7 +30,7 @@ versiones, compartir, exportar).
 ## Qué no hace (y era parte de lo pedido)
 - La planta conjunta llegó después (ADR-0022): los cuartos se colocan unos junto a otros y se
   guarda dónde va cada uno. Siguen sin puertas compartidas y no se camina de uno a otro.
-- El PDF y la presentación siguen siendo por cuarto; no hay un dossier de la vivienda entera.
+- La presentación sigue siendo por cuarto. El PDF de la vivienda entera llegó después (ADR-0022).
 - Las versiones y los enlaces compartidos son de cada cuarto.
 
 ## Consecuencias
