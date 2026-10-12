@@ -3,6 +3,8 @@ import {
   FurniturePlacementSchema,
   InventoryItemSchema,
   type InventoryItem,
+  PlanPositionSchema,
+  type PlanPosition,
   RoomDimensionsSchema,
   RoomFinishesSchema,
   RoomShellSchema,
@@ -49,6 +51,9 @@ function parseRoomDims(value: unknown): RoomDimensions | null {
 function parseInventory(value: unknown): InventoryItem[] | null {
   return value === null || value === undefined ? null : z.array(InventoryItemSchema).parse(value);
 }
+function parsePosition(value: unknown): PlanPosition | null {
+  return value === null || value === undefined ? null : PlanPositionSchema.parse(value);
+}
 /** null de dominio → NULL de SQL (Prisma distingue DbNull de JsonNull). */
 function nullableJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
   return value === null || value === undefined ? Prisma.DbNull : (value as Prisma.InputJsonValue);
@@ -75,6 +80,8 @@ function toProject(row: ProjectRow): ProjectRecord {
     photoInventory: parseInventory(row.photoInventory),
     homeId: row.homeId,
     homeName: row.homeName,
+    homePosition: parsePosition(row.homePosition),
+    budgetCap: row.budgetCap,
     selectedStyleId: row.selectedStyleId as StyleId | null,
     requestedStyles: row.requestedStyles as StyleId[],
     saved: row.saved,
@@ -128,6 +135,8 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.photoInventory !== undefined) data.photoInventory = nullableJson(patch.photoInventory);
   if (patch.homeId !== undefined) data.homeId = patch.homeId;
   if (patch.homeName !== undefined) data.homeName = patch.homeName;
+  if (patch.homePosition !== undefined) data.homePosition = nullableJson(patch.homePosition);
+  if (patch.budgetCap !== undefined) data.budgetCap = patch.budgetCap;
   if (patch.selectedStyleId !== undefined) data.selectedStyleId = patch.selectedStyleId;
   if (patch.requestedStyles !== undefined) data.requestedStyles = patch.requestedStyles;
   if (patch.saved !== undefined) data.saved = patch.saved;
@@ -156,6 +165,8 @@ export class PrismaProjectRepository implements IProjectRepository {
         photoInventory: nullableJson(data.photoInventory),
         homeId: data.homeId ?? null,
         homeName: data.homeName ?? null,
+        homePosition: nullableJson(data.homePosition),
+        budgetCap: data.budgetCap ?? null,
         selectedStyleId: data.selectedStyleId,
         requestedStyles: data.requestedStyles,
         saved: data.saved,

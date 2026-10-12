@@ -243,6 +243,21 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('presupuesto', () => {
+    it('el tope se guarda con el cuarto, no cambia su revisión y solo lo toca su dueño', async () => {
+      const p = await readyProject();
+      expect(p.budgetCap).toBeNull();
+      const capped = await service.setBudget(alice, p.id, 1500);
+      expect(capped.budgetCap).toBe(1500);
+      expect(capped.revision).toBe(p.revision);
+      expect((await service.list(alice))[0]!.budgetCap).toBe(1500);
+      await expect(service.setBudget(bob, p.id, 10)).rejects.toBeInstanceOf(NotFoundError);
+      // La copia hereda el tope; quitarlo lo deja sin él.
+      expect((await service.duplicate(alice, p.id)).budgetCap).toBe(1500);
+      expect((await service.setBudget(alice, p.id, null)).budgetCap).toBeNull();
+    });
+  });
+
   describe('viviendas (varios cuartos juntos)', () => {
     const room = { shape: 'rect' as const, widthM: 4, depthM: 3, heightM: 2.6 };
 
@@ -275,6 +290,18 @@ describe('ProjectsService', () => {
       const fuera = await service.setHome(alice, suelto.id, { homeId: null });
       expect(fuera.home).toBeNull();
       expect((await service.get(alice, sala.id)).home!.rooms).toHaveLength(1);
+    });
+
+    it('cada cuarto guarda su sitio en la planta conjunta; fuera de una vivienda no lo tiene', async () => {
+      const sala = await readyProject();
+      await expect(service.setHomePosition(alice, sala.id, { x: 1, z: 2 })).rejects.toBeInstanceOf(ValidationError);
+      const home = (await service.setHome(alice, sala.id, { homeName: 'Piso' })).home!;
+      await service.setHomePosition(alice, sala.id, { x: 5.2, z: -1 });
+      expect((await service.list(alice))[0]).toMatchObject({ homeId: home.id, homePosition: { x: 5.2, z: -1 } });
+      await expect(service.setHomePosition(bob, sala.id, { x: 0, z: 0 })).rejects.toBeInstanceOf(NotFoundError);
+      // Al salir de la vivienda, el sitio se olvida.
+      await service.setHome(alice, sala.id, { homeId: null });
+      expect((await service.list(alice))[0]!.homePosition).toBeUndefined();
     });
 
     it('nadie entra en la vivienda de otra persona, ni creando ni moviendo un cuarto', async () => {

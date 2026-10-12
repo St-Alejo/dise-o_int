@@ -80,6 +80,10 @@ model Project {
   /// Vivienda: los cuartos de una misma persona con el mismo homeId se enseñan juntos.
   homeId          String?        @db.Uuid
   homeName        String?
+  /// Dónde se dibuja el cuarto en la planta conjunta de su vivienda ({x, z} en metros).
+  homePosition    Json?
+  /// Tope de gasto que se puso la persona para este cuarto; null = sin tope.
+  budgetCap       Float?
   selectedStyleId String?
   /// Estilos pedidos al subir la foto (el worker los genera en el pipeline inicial).
   requestedStyles String[]       @default([])

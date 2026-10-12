@@ -19,7 +19,8 @@ import {
   RoomGeometryError,
   type RoomShell,
   scalePlacements,
-  type SetHomeRequest,
+  type PlanPosition,
+  SetHomeRequest,
   type ShareLink,
   type ShoppingList,
   STAGE_MESSAGES,
@@ -113,6 +114,16 @@ export class ProjectsService {
 
   setHome(actor: Actor, id: string, req: SetHomeRequest): Promise<DesignProject> {
     return this.homes.setHome(actor, id, req);
+  }
+
+  setHomePosition(actor: Actor, id: string, position: PlanPosition): Promise<DesignProject> {
+    return this.homes.setPosition(actor, id, position);
+  }
+
+  /** Tope de gasto del cuarto: una nota de quien lo diseña, no cambia la escena ni su revisión. */
+  async setBudget(actor: Actor, id: string, cap: number | null): Promise<DesignProject> {
+    await this.access.own(actor, id);
+    return this.toDto(await this.projects.update(id, { budgetCap: cap }));
   }
 
   saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
@@ -270,6 +281,7 @@ export class ProjectsService {
       photoInventory: source.photoInventory ?? null,
       homeId: source.homeId ?? null,
       homeName: source.homeName ?? null,
+      budgetCap: source.budgetCap ?? null,
       selectedStyleId: source.selectedStyleId,
       requestedStyles: source.requestedStyles,
       saved: false,
@@ -298,6 +310,7 @@ export class ProjectsService {
       thumbKey: null,
       roomShell: shell,
       placements,
+      budgetCap: req.budgetCap ?? null,
       finishes: req.finishes ?? null,
       requestedRoom: null,
       selectedStyleId: req.selectedStyleId ?? null,

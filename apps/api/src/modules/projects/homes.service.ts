@@ -1,4 +1,4 @@
-import type { DesignProject, SetHomeRequest } from '@interiores/shared-types';
+import type { DesignProject, PlanPosition, SetHomeRequest } from '@interiores/shared-types';
 import { randomUUID } from 'node:crypto';
 import { ValidationError } from '../../common/errors.js';
 import type { IProjectRepository } from '../../ports/index.js';
@@ -18,11 +18,13 @@ export class HomesService {
   async setHome(actor: Actor, id: string, req: SetHomeRequest): Promise<DesignProject> {
     const project = await this.access.own(actor, id);
     if (req.homeId === null) {
-      return this.access.toDto(await this.projects.update(id, { homeId: null, homeName: null }));
+      return this.access.toDto(await this.projects.update(id, { homeId: null, homeName: null, homePosition: null }));
     }
     if (req.homeId) {
       const home = await this.homeOf(actor, req.homeId);
-      return this.access.toDto(await this.projects.update(id, { homeId: home.id, homeName: req.homeName ?? home.name }));
+      // En otra vivienda su sitio de antes no significa nada: se coloca de nuevo.
+      const moved = project.homeId !== home.id;
+      return this.access.toDto(await this.projects.update(id, { homeId: home.id, homeName: req.homeName ?? home.name, ...(moved ? { homePosition: null } : {}) }));
     }
     const name = req.homeName!;
     if (!project.homeId) {
@@ -32,6 +34,13 @@ export class HomesService {
     const rooms = (await this.projects.listByOwner(actor.userId)).filter((p) => p.homeId === project.homeId);
     await Promise.all(rooms.map((room) => this.projects.update(room.id, { homeName: name })));
     return this.access.toDto((await this.projects.findById(id))!);
+  }
+
+  /** Dónde se dibuja el cuarto en la planta conjunta. Solo tiene sentido dentro de una vivienda. */
+  async setPosition(actor: Actor, id: string, position: PlanPosition): Promise<DesignProject> {
+    const project = await this.access.own(actor, id);
+    if (!project.homeId) throw new ValidationError('Este cuarto no está en ninguna vivienda');
+    return this.access.toDto(await this.projects.update(id, { homePosition: { x: position.x, z: position.z } }));
   }
 
   /** La vivienda `homeId` de esta persona; si no tiene ningún cuarto en ella, no existe para ella. */

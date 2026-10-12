@@ -22,6 +22,7 @@ import type {
   ProjectStatus,
   RoomDimensions,
   RoomFinishes,
+  PlanPosition,
   RoomShell,
   RoomType,
   StyleId,
@@ -50,6 +51,10 @@ export interface ProjectRecord {
   /** Vivienda a la que pertenece el cuarto (null o ausente = suelto). */
   homeId?: string | null;
   homeName?: string | null;
+  /** Sitio del cuarto en la planta conjunta de su vivienda. */
+  homePosition?: PlanPosition | null;
+  /** Tope de gasto del cuarto (null o ausente = sin tope). */
+  budgetCap?: number | null;
   selectedStyleId: StyleId | null;
   requestedStyles: StyleId[];
   saved: boolean;
@@ -126,6 +131,8 @@ export type ProjectPatch = Partial<
     | 'photoInventory'
     | 'homeId'
     | 'homeName'
+    | 'homePosition'
+    | 'budgetCap'
     | 'selectedStyleId'
     | 'requestedStyles'
     | 'saved'

@@ -282,6 +282,8 @@ export const DesignProjectSchema = z.object({
     })
     .nullable()
     .optional(),
+  /** Tope de gasto que se puso la persona para este cuarto (null o ausente = sin tope). */
+  budgetCap: z.number().positive().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

@@ -26,6 +26,8 @@ import {
   SaveVersionRequestSchema,
   SelectStyleRequestSchema,
   ImportProjectRequestSchema,
+  SetBudgetRequestSchema,
+  SetHomePositionRequestSchema,
   SetHomeRequestSchema,
   UpdateProjectRequestSchema,
   UpdateRoomRequestSchema,
@@ -47,6 +49,8 @@ import {
   type UpdateRoomRequest,
   type DesignProjectVersion,
   type ImportProjectRequest,
+  type SetBudgetRequest,
+  type SetHomePositionRequest,
   type SetHomeRequest,
   type UpdateSceneRequest,
 } from '@interiores/shared-types';
@@ -123,6 +127,26 @@ export class ProjectsController {
     @Body(new ZodPipe(SetHomeRequestSchema)) body: SetHomeRequest,
   ): Promise<DesignProject> {
     return this.service.setHome(this.actor(user), id, body);
+  }
+
+  @Put(':id/home/position')
+  @ApiBody({ schema: openApiSchema(SetHomePositionRequestSchema) })
+  setHomePosition(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(SetHomePositionRequestSchema)) body: SetHomePositionRequest,
+  ): Promise<DesignProject> {
+    return this.service.setHomePosition(this.actor(user), id, body);
+  }
+
+  @Put(':id/budget')
+  @ApiBody({ schema: openApiSchema(SetBudgetRequestSchema) })
+  setBudget(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(SetBudgetRequestSchema)) body: SetBudgetRequest,
+  ): Promise<DesignProject> {
+    return this.service.setBudget(this.actor(user), id, body.cap);
   }
 
   @Post(':id/duplicate')

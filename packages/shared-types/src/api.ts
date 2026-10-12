@@ -108,6 +108,10 @@ export const CreateProjectFieldsSchema = z.object({
 );
 export type CreateProjectFields = z.input<typeof CreateProjectFieldsSchema>;
 
+/** Desplazamiento de un cuarto en la planta conjunta de su vivienda. */
+export const PlanPositionSchema = z.object({ x: z.number().min(-500).max(500), z: z.number().min(-500).max(500) });
+export type PlanPosition = z.infer<typeof PlanPositionSchema>;
+
 export const ProjectListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -128,6 +132,10 @@ export const ProjectListItemSchema = z.object({
   /** Vivienda a la que pertenece el cuarto (los que comparten id se enseñan juntos). */
   homeId: z.string().optional(),
   homeName: z.string().optional(),
+  /** Dónde se colocó el cuarto en la planta conjunta de su vivienda (metros). */
+  homePosition: PlanPositionSchema.optional(),
+  /** Tope de gasto del cuarto, si la persona puso uno. */
+  budgetCap: z.number().positive().optional(),
 });
 export type ProjectListItem = z.infer<typeof ProjectListItemSchema>;
 
@@ -161,6 +169,16 @@ export type UpdateProjectRequest = z.infer<typeof UpdateProjectRequestSchema>;
  * `POST /projects/import`: un cuarto ya hecho (la demo que se usa sin cuenta) pasa a ser un
  * proyecto. Se valida igual que una escena guardada: nada de lo que llega se da por bueno.
  */
+/** `PUT /projects/:id/home/position`: dónde va el cuarto en la planta conjunta de su vivienda. */
+export const SetHomePositionRequestSchema = PlanPositionSchema;
+export type SetHomePositionRequest = z.infer<typeof SetHomePositionRequestSchema>;
+
+/** Lo más que se acepta como tope: por encima es un error de dedo, no un presupuesto. */
+export const BUDGET_CAP_MAX = 10_000_000;
+/** `PUT /projects/:id/budget`: tope de gasto del cuarto; null lo quita. */
+export const SetBudgetRequestSchema = z.object({ cap: z.number().positive().max(BUDGET_CAP_MAX).nullable() });
+export type SetBudgetRequest = z.infer<typeof SetBudgetRequestSchema>;
+
 export const ImportProjectRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   roomType: RoomTypeSchema,
@@ -168,6 +186,7 @@ export const ImportProjectRequestSchema = z.object({
   furniturePlacements: z.array(FurniturePlacementSchema).max(200),
   finishes: RoomFinishesSchema.nullable().optional(),
   selectedStyleId: StyleIdSchema.nullable().optional(),
+  budgetCap: z.number().positive().max(BUDGET_CAP_MAX).nullable().optional(),
 });
 export type ImportProjectRequest = z.infer<typeof ImportProjectRequestSchema>;
 

@@ -96,6 +96,7 @@ export function toDesignProject(
             .map((room) => ({ id: room.id, name: room.name, roomType: room.roomType })),
         }
       : null,
+    budgetCap: project.budgetCap ?? null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   };
@@ -149,5 +150,7 @@ export function toListItem(project: ProjectRecord, signer: MediaUrlSigner, price
     updatedAt: project.updatedAt.toISOString(),
     ...listSummary(project, prices),
     ...(project.homeId ? { homeId: project.homeId, homeName: project.homeName ?? 'Vivienda' } : {}),
+    ...(project.homeId && project.homePosition ? { homePosition: project.homePosition } : {}),
+    ...(project.budgetCap ? { budgetCap: project.budgetCap } : {}),
   };
 }
