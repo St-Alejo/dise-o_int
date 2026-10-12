@@ -62,6 +62,9 @@ describe('StyleShowcaseComponent', () => {
     expect(tabs[1]!.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement === tabs[1] || tabs[1]!.getAttribute('tabindex') === '0').toBe(true);
     expect(el.querySelector('img')!.getAttribute('src')).toBe(`landing/estilo-${STYLE_IDS[1]}.webp`);
+    // Y la foto de una casa real del mismo estilo cambia con él.
+    expect(el.querySelector('.real img')!.getAttribute('src')).toBe(`landing/fotos/${STYLE_IDS[1]}.webp`);
+    expect(el.querySelector('.real img')!.getAttribute('alt')).toContain('interior real');
   });
 
   it('con catálogo lista piezas con precio; si el catálogo falla, la sección sigue sin ellas', async () => {

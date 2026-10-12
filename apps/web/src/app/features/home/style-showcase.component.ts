@@ -76,15 +76,29 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
     </div>
 
     <div class="panel" role="tabpanel" [id]="'style-panel-' + current().id" [attr.aria-labelledby]="'style-tab-' + current().id" tabindex="0">
-      <img
-        class="room"
-        [src]="'landing/estilo-' + current().id + '.webp'"
-        [alt]="'Una sala de 5 por 4,2 metros amueblada por la app en estilo ' + current().label + '.'"
-        width="960"
-        height="640"
-        loading="lazy"
-        decoding="async"
-      />
+      <figure class="look">
+        <img
+          class="room"
+          [src]="'landing/estilo-' + current().id + '.webp'"
+          [alt]="'Una sala de 5 por 4,2 metros amueblada por la app en estilo ' + current().label + '.'"
+          width="960"
+          height="640"
+          loading="lazy"
+          decoding="async"
+        />
+        <!-- Una casa real del mismo estilo junto a lo que dibuja la app (fotos CC0, ver landing/fotos/ATTRIBUTION.md). -->
+        <figcaption class="real">
+          <img
+            [src]="'landing/fotos/' + current().id + '.webp'"
+            [alt]="'Fotografía de un interior real de estilo ' + current().label + '.'"
+            width="720"
+            height="480"
+            loading="lazy"
+            decoding="async"
+          />
+          <span>El estilo, en una casa real</span>
+        </figcaption>
+      </figure>
       <div class="copy">
         <div class="swatches" aria-hidden="true">
           @for (c of current().palette; track c) {
@@ -152,6 +166,36 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
       grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
       gap: var(--space-6) var(--space-7);
       align-items: center;
+    }
+    .look {
+      position: relative;
+      margin: 0;
+      /* Hueco para la foto, que sobresale por debajo del cuarto. */
+      padding-bottom: var(--space-6);
+    }
+    .real {
+      position: absolute;
+      left: var(--space-4);
+      bottom: 0;
+      width: min(34%, 240px);
+      display: grid;
+      gap: 6px;
+      padding: 6px 6px 8px;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      color: var(--text-muted);
+      font-size: var(--text-xs);
+    }
+    .real img {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 3 / 2;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+    .real span {
+      padding-inline: 2px;
     }
     .room {
       width: 100%;
