@@ -56,7 +56,7 @@ import { DEMO_PREFIX, LocalPersistence } from './local-persistence';
         <app-editor [demo]="true" />
       } @else {
         <div class="skeleton frame" aria-hidden="true"></div>
-        <p class="visually-hidden" role="status">Abriendo la plantilla…</p>
+        <p [class.visually-hidden]="!saving()" class="muted" role="status">{{ saving() ? 'Guardando el cuarto en tu cuenta…' : 'Abriendo la plantilla…' }}</p>
       }
     </section>
   `,
@@ -147,8 +147,15 @@ export class DemoPage implements OnInit {
   private readonly projectId = computed(() => `${DEMO_PREFIX}${this.plantilla()}`);
 
   async ngOnInit(): Promise<void> {
+    // De vuelta del registro con la intención de guardar: se guarda lo que quedó en este navegador
+    // sin abrir antes el editor (cargar el 3D solo para salir de él hacía esperar el doble).
+    if (this.guardar() && this.auth.isAuthenticated()) {
+      this.saving.set(true);
+      const saved = await this.importStored();
+      this.saving.set(false);
+      if (saved) return;
+    }
     await this.store.load(this.projectId());
-    if (this.guardar() && this.auth.isAuthenticated() && this.store.project()) await this.keep();
   }
 
   /** Olvida los cambios y vuelve a abrir la plantilla tal como viene. */
@@ -160,32 +167,38 @@ export class DemoPage implements OnInit {
   /** Convierte la demo en un proyecto propio; sin sesión, primero se crea la cuenta y se vuelve aquí. */
   protected async keep(): Promise<void> {
     const project = this.store.project();
-    const shell = this.store.shell();
-    if (!project || !shell || this.saving()) return;
+    if (!project || !this.store.shell() || this.saving()) return;
     if (!this.auth.isAuthenticated()) {
       await this.store.flush();
       await this.router.navigate(['/registro'], { queryParams: { volver: `/demo/${this.plantilla()}?guardar=1` } });
       return;
     }
     this.saving.set(true);
+    await this.store.flush();
+    await this.importStored();
+    this.saving.set(false);
+  }
+
+  /** Sube a la cuenta lo guardado en este navegador y abre el proyecto creado; false si no se pudo. */
+  private async importStored(): Promise<boolean> {
     try {
-      await this.store.flush();
+      const project = await this.local.get(this.projectId());
+      if (!project.roomShell) return false;
       const created = await this.api.importScene({
         name: project.name,
         roomType: project.roomType,
-        roomShell: shell,
-        furniturePlacements: [...this.store.placements()],
-        finishes: this.store.finishes(),
+        roomShell: project.roomShell,
+        furniturePlacements: project.furniturePlacements,
+        finishes: project.finishes,
         selectedStyleId: project.selectedStyleId,
-        budgetCap: this.store.budgetCap(),
+        budgetCap: project.budgetCap ?? null,
       });
       this.local.reset(this.projectId());
       this.toast.success('Guardado en tu cuenta.');
-      await this.router.navigate(['/proyectos', created.id], { queryParams: { vista: '3d' } });
+      return await this.router.navigate(['/proyectos', created.id], { queryParams: { vista: '3d' } });
     } catch (err) {
       this.toast.error(ApiError.from(err).userMessage);
-    } finally {
-      this.saving.set(false);
+      return false;
     }
   }
 }
