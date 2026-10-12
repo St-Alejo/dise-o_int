@@ -88,4 +88,14 @@ describe('LocalPersistence', () => {
   it('demoProject conserva la escena de la plantilla', () => {
     expect(demoProject(scene, '2026-01-01T00:00:00.000Z')).toMatchObject({ name: scene.name, roomShell: scene.roomShell, createdAt: '2026-01-01T00:00:00.000Z' });
   });
+
+  it('el tope de gasto se guarda con la demo y no cambia la revisión de la escena', async () => {
+    const local = create();
+    const before = await local.get(ID);
+    const capped = await local.setBudget(ID, 900);
+    expect(capped.budgetCap).toBe(900);
+    expect(capped.revision).toBe(before.revision);
+    expect((await create().get(ID)).budgetCap).toBe(900);
+    expect((await local.setBudget(ID, null)).budgetCap).toBeNull();
+  });
 });

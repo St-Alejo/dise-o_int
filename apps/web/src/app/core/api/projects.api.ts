@@ -22,6 +22,7 @@ import type {
   UpdateRoomRequest,
   DesignProjectVersion,
   ImportProjectRequest,
+  PlanPosition,
   SetHomeRequest,
   UpdateSceneRequest,
 } from '@interiores/shared-types';
@@ -107,6 +108,16 @@ export class ProjectsApi {
   /** Mete el cuarto en una vivienda (nueva o existente), la renombra o lo saca de ella. */
   setHome(id: string, body: SetHomeRequest): Promise<DesignProject> {
     return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/home`, body));
+  }
+
+  /** Dónde se dibuja el cuarto en la planta conjunta de su vivienda. */
+  setHomePosition(id: string, position: PlanPosition): Promise<DesignProject> {
+    return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/home/position`, position));
+  }
+
+  /** Tope de gasto del cuarto (null lo quita). */
+  setBudget(id: string, cap: number | null): Promise<DesignProject> {
+    return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/budget`, { cap }));
   }
 
   /** Convierte un cuarto hecho sin cuenta (la demo) en un proyecto propio. */

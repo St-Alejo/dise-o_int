@@ -12,6 +12,8 @@ export abstract class ProjectPersistence {
   abstract saveScene(id: string, body: UpdateSceneRequest): Promise<DesignProject>;
   abstract updateRoom(id: string, body: UpdateRoomRequest): Promise<DesignProject>;
   abstract selectStyle(id: string, styleId: StyleId | null): Promise<DesignProject>;
+  /** Tope de gasto del cuarto: no es parte de la escena y no cambia su revisión. */
+  abstract setBudget(id: string, cap: number | null): Promise<DesignProject>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -29,5 +31,8 @@ export class ApiPersistence extends ProjectPersistence {
   }
   selectStyle(id: string, styleId: StyleId | null): Promise<DesignProject> {
     return this.api.selectStyle(id, styleId);
+  }
+  setBudget(id: string, cap: number | null): Promise<DesignProject> {
+    return this.api.setBudget(id, cap);
   }
 }

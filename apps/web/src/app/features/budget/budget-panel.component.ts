@@ -1,12 +1,17 @@
 import { CurrencyPipe, PercentPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { budgetStatus, totalsByCategory } from '@interiores/shared-types';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
+import { BUDGET_CAP_MAX, budgetStatus, totalsByCategory } from '@interiores/shared-types';
+import { ApiError } from '../../core/api/api-error';
+import { ToastService } from '../../core/ui/toast.service';
 import { DesignProjectStore } from '../project/design-project.store';
 
 const STORAGE_PREFIX = 'interiores.presupuesto.';
 
-/** El tope guardado para un proyecto en este navegador (null si no hay). */
-export function readBudget(projectId: string): number | null {
+/**
+ * El tope que una versión anterior guardó en este navegador (null si no hay). Ahora vive con el
+ * proyecto: esto solo sirve para llevarlo al servidor la primera vez.
+ */
+export function readLegacyBudget(projectId: string): number | null {
   try {
     const value = Number(localStorage.getItem(STORAGE_PREFIX + projectId));
     return Number.isFinite(value) && value > 0 ? value : null;
@@ -15,18 +20,23 @@ export function readBudget(projectId: string): number | null {
   }
 }
 
-export function writeBudget(projectId: string, cap: number | null): void {
+export function forgetLegacyBudget(projectId: string): void {
   try {
-    if (cap === null) localStorage.removeItem(STORAGE_PREFIX + projectId);
-    else localStorage.setItem(STORAGE_PREFIX + projectId, String(cap));
+    localStorage.removeItem(STORAGE_PREFIX + projectId);
   } catch {
-    // Sin almacenamiento, el tope vale solo para esta visita.
+    // Sin almacenamiento no hay nada que olvidar.
   }
+}
+
+/** Lo que se escribió en el campo, como tope: vacío, cero o algo que no es un número lo quitan. */
+export function parseCap(raw: string): number | null {
+  const value = Number(raw);
+  return raw.trim() !== '' && Number.isFinite(value) && value > 0 ? Math.min(value, BUDGET_CAP_MAX) : null;
 }
 
 /**
  * Presupuesto del cuarto: un tope que pone la persona, cuánto lleva gastado y en qué se va. El
- * tope es una nota personal: se guarda en este navegador, no en el proyecto.
+ * tope se guarda con el proyecto, así que se ve igual desde cualquier dispositivo.
  */
 @Component({
   selector: 'app-budget-panel',
@@ -78,7 +88,7 @@ export function writeBudget(projectId: string, cap: number | null): void {
         } @else {
           <p class="muted fine">Aún no hay muebles con precio.</p>
         }
-        <p class="muted fine">El tope se guarda en este navegador. Los precios son estimados del catálogo.</p>
+        <p class="muted fine">El tope se guarda con el proyecto. Los precios son estimados del catálogo.</p>
       </div>
     </details>
   `,
@@ -152,24 +162,32 @@ export function writeBudget(projectId: string, cap: number | null): void {
 export class BudgetPanelComponent {
   private readonly store = inject(DesignProjectStore);
 
-  protected readonly cap = signal<number | null>(null);
+  private readonly toast = inject(ToastService);
+
+  protected readonly cap = this.store.budgetCap;
   protected readonly totals = computed(() => totalsByCategory(this.store.placements(), this.store.catalog()));
   protected readonly status = computed(() => budgetStatus(this.store.totalPrice(), this.cap()));
   protected readonly fill = computed(() => Math.min(100, Math.round(this.status().used * 100)));
 
   constructor() {
-    // Cada proyecto tiene su tope: al abrir otro se lee el suyo.
+    // Un tope puesto antes de que se guardara con el proyecto sigue en este navegador: se sube una vez.
     effect(() => {
-      const id = this.store.project()?.id;
-      untracked(() => this.cap.set(id ? readBudget(id) : null));
+      const project = this.store.project();
+      if (!project) return;
+      untracked(() => {
+        const legacy = readLegacyBudget(project.id);
+        if (legacy === null) return;
+        forgetLegacyBudget(project.id);
+        if ((project.budgetCap ?? null) === null) void this.store.setBudget(legacy).catch(() => undefined);
+      });
     });
   }
 
-  protected setCap(raw: string): void {
-    const value = Number(raw);
-    const cap = raw.trim() !== '' && Number.isFinite(value) && value > 0 ? value : null;
-    this.cap.set(cap);
-    const id = this.store.project()?.id;
-    if (id) writeBudget(id, cap);
+  protected async setCap(raw: string): Promise<void> {
+    try {
+      await this.store.setBudget(parseCap(raw));
+    } catch (err) {
+      this.toast.error(`No se pudo guardar el tope. ${ApiError.from(err).userMessage}`);
+    }
   }
 }

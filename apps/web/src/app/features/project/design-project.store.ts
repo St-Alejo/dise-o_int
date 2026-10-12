@@ -230,6 +230,28 @@ export class DesignProjectStore {
   }
 
   /** Actualiza los metadatos del proyecto sin tocar la escena local (p. ej. tras elegir estilo). */
+  /** Tope de gasto del cuarto (null = sin tope). */
+  readonly budgetCap = computed(() => this.project()?.budgetCap ?? null);
+
+  /**
+   * Pone o quita el tope. Va aparte de la escena: no se deshace con Ctrl+Z ni cambia la revisión.
+   * Se ve al momento y, si no se puede guardar, vuelve a como estaba.
+   */
+  async setBudget(cap: number | null): Promise<void> {
+    const project = this.project();
+    if (!project) return;
+    const previous = project.budgetCap ?? null;
+    if (previous === cap) return;
+    const apply = (value: number | null) => this.project.update((p) => (p && p.id === project.id ? { ...p, budgetCap: value } : p));
+    apply(cap);
+    try {
+      await this.api.setBudget(project.id, cap);
+    } catch (err) {
+      apply(previous);
+      throw err;
+    }
+  }
+
   patchProject(project: DesignProject): void {
     this.project.update((p) => (p ? { ...project, furniturePlacements: p.furniturePlacements } : project));
   }

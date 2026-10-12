@@ -177,6 +177,7 @@ export class DemoPage implements OnInit {
         furniturePlacements: [...this.store.placements()],
         finishes: this.store.finishes(),
         selectedStyleId: project.selectedStyleId,
+        budgetCap: this.store.budgetCap(),
       });
       this.local.reset(this.projectId());
       this.toast.success('Guardado en tu cuenta.');

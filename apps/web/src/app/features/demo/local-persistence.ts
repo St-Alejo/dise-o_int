@@ -89,6 +89,10 @@ export class LocalPersistence extends ProjectPersistence {
     return this.write({ ...(await this.get(id)), selectedStyleId: styleId });
   }
 
+  async setBudget(id: string, cap: number | null): Promise<DesignProject> {
+    return this.write({ ...(await this.get(id)), budgetCap: cap }, false);
+  }
+
   /** Olvida lo guardado: la próxima vez se abre la plantilla tal como viene. */
   reset(id: string): void {
     try {
@@ -116,8 +120,9 @@ export class LocalPersistence extends ProjectPersistence {
     }
   }
 
-  private write(project: DesignProject): DesignProject {
-    const next = { ...project, revision: project.revision + 1, updatedAt: new Date().toISOString() };
+  /** `bump: false` para lo que no es la escena (el tope de gasto): la revisión es la de lo dibujado. */
+  private write(project: DesignProject, bump = true): DesignProject {
+    const next = { ...project, revision: project.revision + (bump ? 1 : 0), updatedAt: new Date().toISOString() };
     try {
       localStorage.setItem(STORAGE_PREFIX + next.id, JSON.stringify(next));
     } catch {
