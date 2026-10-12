@@ -202,8 +202,14 @@ describe('ProjectsService', () => {
       await expect(service.get(bob, created.id)).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it('no se fía de lo que llega: muebles inexistentes, plantas imposibles y acabados inventados se rechazan', async () => {
-      await expect(service.importScene(alice, { ...body, furniturePlacements: [{ ...sofa, catalogItemId: 'no-existe' }] })).rejects.toBeInstanceOf(ValidationError);
+    it('un mueble que ya no está en el catálogo se deja fuera, sin perder el resto del cuarto', async () => {
+      const gone = { ...sofa, id: 'p2', catalogItemId: 'ya-no-existe' };
+      const created = await service.importScene(alice, { ...body, furniturePlacements: [sofa, gone] });
+      expect(created.furniturePlacements.map((p) => p.id)).toEqual(['p1']);
+    });
+
+    it('no se fía de lo que llega: ids repetidos, plantas imposibles y acabados inventados se rechazan', async () => {
+      await expect(service.importScene(alice, { ...body, furniturePlacements: [sofa, sofa] })).rejects.toBeInstanceOf(ValidationError);
       await expect(service.importScene(alice, { ...body, roomShell: { ...shell, widthM: 200 } })).rejects.toBeInstanceOf(ValidationError);
       await expect(
         service.importScene(alice, { ...body, finishes: { floor: 'paint-white', walls: { all: 'paint-white' }, ceiling: 'paint-white' } }),

@@ -194,7 +194,12 @@ export class DemoPage implements OnInit {
         budgetCap: project.budgetCap ?? null,
       });
       this.local.reset(this.projectId());
-      this.toast.success('Guardado en tu cuenta.');
+      const missing = project.furniturePlacements.length - created.furniturePlacements.length;
+      this.toast.success(
+        missing > 0
+          ? `Guardado en tu cuenta. ${missing === 1 ? 'Un mueble ya no está' : `${missing} muebles ya no están`} en el catálogo y no se ${missing === 1 ? 'guardó' : 'guardaron'}.`
+          : 'Guardado en tu cuenta.',
+      );
       return await this.router.navigate(['/proyectos', created.id], { queryParams: { vista: '3d' } });
     } catch (err) {
       this.toast.error(ApiError.from(err).userMessage);

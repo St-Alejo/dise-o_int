@@ -301,7 +301,13 @@ export class ProjectsService {
    */
   async importScene(actor: Actor, req: ImportProjectRequest): Promise<DesignProject> {
     const shell = this.rules.editedShell({ ...req.roomShell, id: randomUUID() }, req.roomShell);
-    const placements = await this.rules.sanitizePlacements(shell, req.furniturePlacements);
+    // Lo que se trae puede llevar días en un navegador: si un mueble ya no está en el catálogo, se
+    // deja fuera en vez de rechazar el cuarto entero. Lo apoyado en él cae al piso.
+    const known = new Set((await this.catalog.findByIds(req.furniturePlacements.map((p) => p.catalogItemId))).map((item) => item.id));
+    const placements = await this.rules.sanitizePlacements(
+      shell,
+      req.furniturePlacements.filter((p) => known.has(p.catalogItemId)),
+    );
     if (req.finishes) this.rules.validateFinishes(req.finishes);
     const created = await this.projects.create({
       id: randomUUID(),
