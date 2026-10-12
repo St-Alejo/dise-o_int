@@ -28,12 +28,19 @@ una primera versión de G (viviendas).
 - **F1:** el PDF lleva ficha, plano acotado y compras; no lleva render (el servidor no dibuja 3D).
 - **G:** viviendas como agrupación de cuartos, no como tabla `Room`; sin planta conjunta. Ver ADR-0021.
 - **Segunda tanda (misma fecha):** hechos A7, B3, D8, E1 a E6, E8, F4, F5 y la vista cenital de A6.
-  - La vista cenital es un teleobjetivo, no una cámara ortográfica.
-  - El tope de presupuesto se guarda en el navegador, no en el servidor.
-  - De los componentes base se hicieron el control segmentado y el teclado de pestañas; los
-    diálogos y las ayudas siguen con `<dialog>` y `title` nativos.
-  - `editor.component.ts` no se partió en barra, panel y escenario.
-- **Pendiente:** la planta conjunta de G3 (cuartos conectados).
+- **Tercera tanda (misma fecha):** lo que la segunda dejó a medias. Ver ADR-0022.
+  - La vista cenital es ortográfica (`RoomCamera`).
+  - El tope de presupuesto se guarda con el proyecto.
+  - Diálogo y ayuda como piezas base (`app-dialog`, `appTooltip`); la ayuda se aplicó a la barra
+    del editor y al visor, el resto de la app conserva `title`.
+  - `editor.component.ts` partido en barra, panel y escenario.
+  - Planta conjunta de la vivienda (G3): cuartos a escala que se arrastran y se pegan.
+  - Fotos CC0 en la sección de estilos, con su atribución.
+- **Sigue fuera:** tabla `Room` y pestañas de cuartos dentro de un mismo editor (G1 y G2 se
+  resolvieron como viviendas, ADR-0021); puertas compartidas y caminar entre cuartos; PDF y
+  presentación de la vivienda entera; texturas PBR (A4).
+- **CI:** el trabajo e2e llevaba decenas de commits fallando en su primer paso (un script sin
+  permiso de ejecución). Corregido; desde entonces Playwright corre también en GitHub.
 - De paso: una prueba de propiedades de la cocina fallaba en `main` (un mueble quedaba 5 mm fuera
   por redondeo) y la franja de datos del proyecto tenía una lista de definiciones mal formada.
 
@@ -89,7 +96,7 @@ una primera versión de G (viviendas).
 - [x] **D8 Mismo lenguaje** en acceso, 404 y estado vacío.
 
 ### Punto de control D
-- [ ] axe y desborde (320–1440) en verde; pesos dentro del presupuesto; despliegue y humo en producción.
+- [x] axe y desborde (320–1440) en verde; pesos dentro del presupuesto; despliegue y humo en producción.
 
 ## E — Robustez
 
@@ -112,11 +119,11 @@ una primera versión de G (viviendas).
 
 ## G — Varios cuartos por proyecto
 
-- [ ] **G1 Modelo y API** (tabla `Room`, migración aditiva, rutas antiguas como alias).
-- [ ] **G2 Editor** con pestañas de cuartos.
-- [ ] **G3 Vivienda** (planta conjunta, totales del proyecto).
+- [x] **G1 Modelo y API.** Resuelto como viviendas (`homeId`), sin tabla `Room`: ADR-0021.
+- [x] **G2 Editor.** Cada cuarto conserva su editor; se pasa de uno a otro por la barra de la vivienda.
+- [x] **G3 Vivienda** (planta conjunta, totales y presupuesto de la vivienda): ADR-0022.
 
 ## H — Cierre
 
-- [ ] ADR-0018 a 0021, README, capturas y diagrama de clases.
-- [ ] Despliegue en Railway y e2e contra la URL pública.
+- [x] ADR-0018 a 0022, README, capturas y diagrama de clases.
+- [x] Despliegue en Railway y e2e contra la URL pública.

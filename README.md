@@ -19,13 +19,20 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Catálogo de 147 muebles con búsqueda.** Sofás, mesas, camas, armarios, cocina, baño, lámparas de mesa, de pie y colgantes, cuadros, espejos, TV, cortinas y más. La búsqueda entiende acentos, plurales, sinónimos ("closet", "velador") y errores de tipeo. Los cuadros se cuelgan solos en la pared y las lámparas se apoyan sobre la mesa de noche.
 - **Cada pieza a tu gusto.** Selecciona un mueble y cambia su ancho, alto y fondo (se reconstruye, no se estira), su tapizado, madera o metal, o su altura en la pared. Los cuadros se deslizan por las paredes, las lámparas se pasan de un mueble a otro y lo que está encima de una mesa se mueve con ella. Piso, paredes y techo se pintan con un clic o con la paleta del estilo. Todo se deshace con Ctrl+Z.
 - **Cuarto a tu medida.** Escribe ancho, largo y alto exactos (al subir la foto o después, en "Medidas del cuarto") y ubica puertas y ventanas; los muebles se reacomodan sin borrarse. Si no tienes metro, calibra con una sola medida conocida.
+- **Probar sin cuenta.** [`/plantillas`](apps/web/src/app/features/demo) abre cuartos ya amueblados en el editor completo, sin registrarse; lo que se cambie queda en el navegador y, al crear la cuenta, se guarda en ella ([ADR-0019](docs/adr/0019-decoracion-demo-y-plantillas.md)).
+- **Imagen del visor.** Oclusión ambiental y contorno de lo seleccionado, paredes en corte en vez de translúcidas, luz de día, de tarde y de noche, y calidad que baja sola si el equipo va justo. La vista cenital es ortográfica: un plano a escala sobre el que se sigue editando ([ADR-0018](docs/adr/0018-imagen-del-visor.md), [ADR-0022](docs/adr/0022-cierre-del-plan-v6.md)).
+- **Presentar y exportar.** Modo presentación a pantalla completa, imagen en alta resolución y un PDF del proyecto con ficha, plano acotado y lista de compras.
+- **Presupuesto.** Un tope por cuarto, guardado con el proyecto, con aviso al acercarse o pasarse y el total por categoría.
+- **Viviendas.** Varios cuartos agrupados, con lo que suman, y una planta conjunta donde se colocan a escala y se pegan unos a otros ([ADR-0021](docs/adr/0021-viviendas.md)).
+- **Comparar versiones.** Las dos plantas lado a lado con lo que cambia resaltado, antes de restaurar.
 
 ## Diseño de la interfaz
 
 - **Paleta "petróleo y arcilla"** en claro y oscuro, definida solo con tokens CSS en [`apps/web/src/styles.scss`](apps/web/src/styles.scss). Una prueba ([`design-tokens.spec.ts`](apps/web/src/design-tokens.spec.ts)) lee ese archivo y exige contraste AA en cada pareja de texto y fondo.
 - **Tipografía autoalojada:** Fraunces para títulos e Inter para texto, en [`apps/web/public/fonts`](apps/web/public/fonts) (la CSP no admite fuentes externas).
-- **Página de inicio con datos reales:** plano interactivo junto a un cuarto ya amueblado, cifras leídas del catálogo, galería de capturas de la propia app, comparativa con foto / sin foto y preguntas frecuentes.
+- **Página de inicio editorial:** primero el cuarto y después la explicación. Capturas reales del editor (se rehacen con un comando), la misma sala con tres luces, antes y después, los seis estilos con una foto de referencia y plantillas que abren la demo ([ADR-0020](docs/adr/0020-landing-editorial.md)).
 - **Mis proyectos:** resumen, filtros por tipo de cuarto y tarjetas con área, total estimado y la planta dibujada a escala.
+- **Piezas base** en [`apps/web/src/app/shared/ui`](apps/web/src/app/shared/ui): diálogo, ayuda (tooltip), control segmentado y teclado de pestañas.
 - Cómo añadir un color o una sección: [ADR-0017](docs/adr/0017-sistema-visual.md). Capturas en [`docs/capturas/landing`](docs/capturas/landing).
 
 La arquitectura y las decisiones de producto están en [`docs/README-interiores-ia.md`](docs/README-interiores-ia.md). Las decisiones técnicas tomadas al implementarlo están en [`docs/adr/`](docs/adr).
@@ -199,4 +206,4 @@ Consulta [`docs/deploy.md`](docs/deploy.md). En resumen:
 
 ## Licencias de contenido
 
-Los muebles 3D vienen de [Poly Haven](https://polyhaven.com) (CC0) o se generan proceduralmente. Los enlaces de compra son búsquedas de productos similares (Fase 4 del roadmap: afiliados).
+Los muebles 3D vienen de [Poly Haven](https://polyhaven.com) (CC0) o se generan proceduralmente. Las seis fotos de ambiente de la página de inicio son CC0; fuente y autor en [`apps/web/public/landing/fotos/ATTRIBUTION.md`](apps/web/public/landing/fotos/ATTRIBUTION.md). Los enlaces de compra son búsquedas de productos similares (Fase 4 del roadmap: afiliados).

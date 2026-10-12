@@ -28,8 +28,8 @@ versiones, compartir, exportar).
   "Añadir cuarto", que abre el asistente con la vivienda ya elegida.
 
 ## Qué no hace (y era parte de lo pedido)
-- Los cuartos **no están conectados**: no hay una planta conjunta donde se coloquen unos junto a
-  otros, ni puertas compartidas, ni se camina de uno a otro.
+- La planta conjunta llegó después (ADR-0022): los cuartos se colocan unos junto a otros y se
+  guarda dónde va cada uno. Siguen sin puertas compartidas y no se camina de uno a otro.
 - El PDF y la presentación siguen siendo por cuarto; no hay un dossier de la vivienda entera.
 - Las versiones y los enlaces compartidos son de cada cuarto.
 

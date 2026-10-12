@@ -71,6 +71,10 @@ classDiagram
   class PostFx
   class QualityGovernor
   class CameraDirector
+  class RoomCamera {
+    +setOrthographic(spanM)
+    +apparentDistance(point)
+  }
   class CameraMode {
     <<interface>>
   }
@@ -101,6 +105,8 @@ classDiagram
   SceneService --> FurnitureView
   SceneService --> LightingRig
   SceneService --> CameraDirector
+  SceneService --> RoomCamera
+  CameraDirector --> RoomCamera
   SceneService --> ToolManager
   SceneService ..> PostFx : contorno
   CameraDirector o-- CameraMode
@@ -124,6 +130,8 @@ classDiagram
   otro mueble; `LightingPreset` (día, tarde, noche) decide cómo se ilumina.
 - **Flyweight** — `ParametricRenderer` comparte geometrías y materiales entre muebles iguales.
 - `QualityGovernor` baja la calidad cuando el equipo no da; `PostFx` se carga aparte.
+- `RoomCamera` es una sola cámara con dos proyecciones (perspectiva y, en la vista cenital,
+  ortográfica): quien la usa no necesita saber cuál está activa (ADR-0022).
 
 ## 3. Servidor: puertos y adaptadores
 
@@ -145,7 +153,10 @@ classDiagram
   class VersionsService
   class SharingService
   class ProjectReports
-  class HomesService
+  class HomesService {
+    +setHome()
+    +setPosition()
+  }
   class IProjectRepository {
     <<interface>>
   }
@@ -247,5 +258,58 @@ classDiagram
 
 Funciones sin estado que usan la web, la API y las pruebas, sin navegador ni base de datos:
 `decorate` (decoración), `checkDesign` (revisión), `diffScenes` (comparar versiones),
-`budgetStatus` y `totalsByCategory` (presupuesto), `snapMove` y `arrange` (alinear), las
+`budgetStatus` y `totalsByCategory` (presupuesto), `arrangeHome`, `snapRoom` y `shareWall` (planta
+conjunta de una vivienda), `snapMove` y `arrange` (alinear), las
 operaciones de `room-edit` y los esquemas zod que definen el contrato entre los tres servicios.
+
+## 6. Interfaz: piezas base y el editor por partes
+
+```mermaid
+classDiagram
+  class EditorComponent {
+    +viewMode
+    +onGlobalKey(e)
+  }
+  class EditorToolbarComponent {
+    +viewChange
+    +review
+    +present
+  }
+  class EditorPanelComponent {
+    +showReview()
+    +startSwap()
+  }
+  class ThreeViewportComponent
+  class PlanEditorComponent
+  class DialogComponent {
+    +heading
+    +open()
+    +close()
+  }
+  class TooltipDirective
+  class SegmentedComponent
+  class RoomDimensionsDialogComponent
+  class CalibrationDialogComponent
+  class ShortcutsDialogComponent
+
+  EditorComponent *-- EditorToolbarComponent
+  EditorComponent *-- EditorPanelComponent
+  EditorComponent *-- ThreeViewportComponent
+  EditorComponent *-- PlanEditorComponent
+  EditorComponent *-- RoomDimensionsDialogComponent
+  EditorComponent *-- CalibrationDialogComponent
+  EditorComponent *-- ShortcutsDialogComponent
+  RoomDimensionsDialogComponent *-- DialogComponent
+  CalibrationDialogComponent *-- DialogComponent
+  ShortcutsDialogComponent *-- DialogComponent
+  EditorToolbarComponent ..> SegmentedComponent
+  EditorToolbarComponent ..> TooltipDirective
+  ThreeViewportComponent ..> TooltipDirective
+```
+
+- **Composición** — el editor es el escenario y compone la barra y el panel. Estos no se conocen:
+  lo que uno necesita del otro (abrir la revisión, cambiar un mueble) pasa por el editor.
+- **Mediator** — por eso el editor hace de mediador entre la barra, el panel, el visor y los
+  diálogos: cada pieza emite lo que quiere y el editor decide quién lo atiende.
+- `DialogComponent`, `TooltipDirective` y `SegmentedComponent` son las piezas base de
+  `shared/ui`: una sola implementación del título, el cierre, el foco y el teclado.

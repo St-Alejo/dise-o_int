@@ -32,8 +32,9 @@ de probar sin registrarse.
 ## Desviaciones respecto del plan
 - **El antes y después compara el cuarto vacío con el amueblado**, no una foto con su 3D: con el
   analizador de prueba no hay una pareja foto/resultado que enseñar con honestidad.
-- **Sin fotos de terceros.** Se prefirió que cada imagen salga de la app; añadir fotos de ambiente
-  queda como mejora opcional, con su atribución.
+- **Fotos de terceros, solo en los estilos.** Todo lo demás sale de la app. En la sección de
+  estilos, cada cuarto dibujado lleva al lado una foto CC0 de una casa real de ese estilo
+  (añadidas después: ver ADR-0022 y `apps/web/public/landing/fotos/ATTRIBUTION.md`).
 - **La cabecera no se vuelve transparente** sobre el encabezado: se mantiene sólida.
 
 ## Consecuencias
