@@ -9,7 +9,8 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  // En CI, 'github' deja cada fallo como anotación del commit: se ve qué prueba falló sin bajar los logs.
+  reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,
     // Los primeros pasos del editor ya vistos: salen una sola vez y aquí estorbarían a cada prueba.
