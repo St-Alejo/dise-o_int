@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ROOM_LIMITS, footprint } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ToastService } from '../../core/ui/toast.service';
+import { DialogComponent } from '../../shared/ui/dialog.component';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { FloorPlanComponent } from '../floor-plan/floor-plan.component';
 import type { PlanFootprint } from '../floor-plan/floor-plan-model';
@@ -28,12 +29,11 @@ import {
 @Component({
   selector: 'app-room-dimensions-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, FloorPlanComponent, IconComponent],
+  imports: [DecimalPipe, FloorPlanComponent, IconComponent, DialogComponent],
   template: `
-    <dialog #dialog class="modal wide" aria-labelledby="room-title" (close)="closed.emit()">
+    <app-dialog #dialog heading="Medidas del cuarto" [wide]="true" (closed)="closed.emit()">
       @if (draft(); as d) {
         <form class="modal-body stack" (submit)="$event.preventDefault(); apply()">
-          <h2 id="room-title">Medidas del cuarto</h2>
           <p class="muted">Escribe las medidas reales en metros. Los muebles que queden fuera se acomodan dentro; ninguno se borra.</p>
 
           <div class="dims">
@@ -122,12 +122,9 @@ import {
           </button>
         </div>
       }
-    </dialog>
+    </app-dialog>
   `,
   styles: `
-    .wide {
-      width: min(760px, calc(100vw - 32px));
-    }
     .dims {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -200,7 +197,7 @@ import {
 export class RoomDimensionsDialogComponent {
   private readonly store = inject(DesignProjectStore);
   private readonly toast = inject(ToastService);
-  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
+  private readonly dialog = viewChild.required<DialogComponent>('dialog');
 
   readonly closed = output<void>();
   /** El usuario prefiere calibrar con una sola medida conocida. */
@@ -234,11 +231,11 @@ export class RoomDimensionsDialogComponent {
     const shell = this.store.shell();
     if (!shell) return;
     this.draft.set(draftFromShell(shell));
-    this.dialog().nativeElement.showModal();
+    this.dialog().open();
   }
 
   close(): void {
-    this.dialog().nativeElement.close();
+    this.dialog().close();
   }
 
   protected num(event: Event): number {

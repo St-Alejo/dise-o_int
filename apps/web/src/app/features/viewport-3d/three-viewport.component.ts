@@ -25,6 +25,7 @@ import { QUALITY, QUALITY_CHOICES, QualityGovernor, loadQualityChoice, saveQuali
 import { PaintPaletteComponent } from './tools/paint-palette.component';
 import { VIEWPORT_TOOLS } from './tools/tools';
 import { SceneService, VIEW_PRESETS } from './scene.service';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 /**
  * Viewport 3D como "caja negra" aislada (§5 del documento):
@@ -40,7 +41,7 @@ const MAX_CAPTURE_PX = 4096;
 @Component({
   selector: 'app-three-viewport',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, PaintPaletteComponent, RoomActionsComponent],
+  imports: [IconComponent, PaintPaletteComponent, RoomActionsComponent, TooltipDirective],
   host: { '(dragover)': 'onDragOver($event)', '(dragleave)': 'scene.showGhost(null)', '(drop)': 'onDrop($event)' },
   template: `
     <canvas
@@ -60,20 +61,20 @@ const MAX_CAPTURE_PX = 4096;
     <div class="labels" #labels aria-hidden="true"></div>
     <div class="context" #context [class.off]="!showContext()" role="toolbar" aria-label="Acciones del mueble seleccionado">
       @if (showContext()) {
-        <button type="button" class="ctx" aria-label="Rotar a la izquierda" title="Rotar a la izquierda" (click)="scene.rotateSelected(-step)"><app-icon name="rotateLeft" /></button>
-        <button type="button" class="ctx" aria-label="Rotar a la derecha" title="Rotar a la derecha" (click)="scene.rotateSelected(step)"><app-icon name="rotateRight" /></button>
-        <button type="button" class="ctx" aria-label="Duplicar" title="Duplicar (Ctrl+D)" (click)="edits?.duplicate()"><app-icon name="copy" /></button>
-        <button type="button" class="ctx" aria-label="Cambiar por otro" title="Cambiar por otro mueble del mismo tipo" (click)="swap.emit()"><app-icon name="swap" /></button>
-        <button type="button" class="ctx" [attr.aria-pressed]="locked()" [attr.aria-label]="locked() ? 'Soltar' : 'Fijar'" [title]="locked() ? 'Fijo: Otra distribución no lo mueve' : 'Fijar en su sitio'" (click)="toggleLock()">
+        <button type="button" class="ctx" aria-label="Rotar a la izquierda" appTooltip="Rotar a la izquierda" (click)="scene.rotateSelected(-step)"><app-icon name="rotateLeft" /></button>
+        <button type="button" class="ctx" aria-label="Rotar a la derecha" appTooltip="Rotar a la derecha" (click)="scene.rotateSelected(step)"><app-icon name="rotateRight" /></button>
+        <button type="button" class="ctx" aria-label="Duplicar" appTooltip="Duplicar (Ctrl+D)" (click)="edits?.duplicate()"><app-icon name="copy" /></button>
+        <button type="button" class="ctx" aria-label="Cambiar por otro" appTooltip="Cambiar por otro mueble del mismo tipo" (click)="swap.emit()"><app-icon name="swap" /></button>
+        <button type="button" class="ctx" [attr.aria-pressed]="locked()" [attr.aria-label]="locked() ? 'Soltar' : 'Fijar'" [appTooltip]="locked() ? 'Fijo: Otra distribución no lo mueve' : 'Fijar en su sitio'" (click)="toggleLock()">
           <app-icon [name]="locked() ? 'lock' : 'unlock'" />
         </button>
-        <button type="button" class="ctx danger" aria-label="Quitar" title="Quitar (Supr)" (click)="scene.removeSelected()"><app-icon name="trash" /></button>
+        <button type="button" class="ctx danger" aria-label="Quitar" appTooltip="Quitar (Supr)" (click)="scene.removeSelected()"><app-icon name="trash" /></button>
       }
     </div>
     @if (editable()) {
       <div class="tools" role="toolbar" aria-label="Herramientas del visor">
         @for (t of tools; track t.id) {
-          <button type="button" class="tool" [attr.aria-pressed]="scene.tool() === t.id" [title]="t.hint + ' (' + t.key.toUpperCase() + ')'" (click)="useTool(t.id)">{{ t.label }}</button>
+          <button type="button" class="tool" [attr.aria-pressed]="scene.tool() === t.id" [appTooltip]="t.hint + ' (' + t.key.toUpperCase() + ')'" (click)="useTool(t.id)">{{ t.label }}</button>
         }
       </div>
       @if (scene.paintTarget(); as paint) {
@@ -90,7 +91,7 @@ const MAX_CAPTURE_PX = 4096;
       <div class="modes">
         @if (!walking()) {
           <details class="views" #viewsMenu>
-            <summary class="btn btn-sm mode" title="Mirar el cuarto desde otro lado">Vista</summary>
+            <summary class="btn btn-sm mode" appTooltip="Mirar el cuarto desde otro lado">Vista</summary>
             <div class="views-list">
               @for (v of presets; track v.id) {
                 <button type="button" class="view-item" (click)="scene.viewFrom(v.id); viewsMenu.open = false">{{ v.label }}</button>
@@ -99,7 +100,7 @@ const MAX_CAPTURE_PX = 4096;
           </details>
         }
         <details class="views" #qualityMenu>
-          <summary class="btn btn-sm mode" aria-label="Calidad de la imagen" title="Calidad de la imagen: baja si el equipo va justo"><app-icon name="layers" /></summary>
+          <summary class="btn btn-sm mode" aria-label="Calidad de la imagen" appTooltip="Calidad de la imagen: baja si el equipo va justo"><app-icon name="layers" /></summary>
           <div class="views-list">
             @for (q of qualityChoices; track q.id) {
               <button type="button" class="view-item" [attr.aria-pressed]="qualityChoice() === q.id" (click)="chooseQuality(q.id); qualityMenu.open = false">{{ q.label }}</button>
@@ -107,7 +108,7 @@ const MAX_CAPTURE_PX = 4096;
           </div>
         </details>
         <details class="views" #lightMenu>
-          <summary class="btn btn-sm mode" title="De día alumbra el sol; por la tarde entra bajo y cálido; de noche, las lámparas del cuarto">Luz: {{ timeLabel() }}</summary>
+          <summary class="btn btn-sm mode" appTooltip="De día alumbra el sol; por la tarde entra bajo y cálido; de noche, las lámparas del cuarto">Luz: {{ timeLabel() }}</summary>
           <div class="views-list">
             @for (t of times; track t.id) {
               <button type="button" class="view-item" [attr.aria-pressed]="scene.timeOfDay() === t.id" (click)="scene.setTimeOfDay(t.id); lightMenu.open = false">{{ t.label }}</button>

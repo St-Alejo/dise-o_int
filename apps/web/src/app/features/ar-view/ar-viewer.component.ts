@@ -2,12 +2,12 @@ import {
   CUSTOM_ELEMENTS_SCHEMA,
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   computed,
   signal,
   viewChild,
 } from '@angular/core';
 import type { CatalogItem } from '@interiores/shared-types';
+import { DialogComponent } from '../../shared/ui/dialog.component';
 
 /**
  * "Ver en mi cuarto" (Fase 3, AR): <model-viewer> con WebXR hit-test y respaldo a
@@ -18,14 +18,10 @@ import type { CatalogItem } from '@interiores/shared-types';
   selector: 'app-ar-viewer',
   changeDetection: ChangeDetectionStrategy.OnPush,
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [DialogComponent],
   template: `
-    <dialog #dialog class="modal wide" aria-labelledby="ar-title" (close)="item.set(null)">
+    <app-dialog #dialog [heading]="item()?.name ?? 'Vista en tu espacio'" [wide]="true" (closed)="item.set(null)">
       <div class="modal-body stack">
-        <div class="row">
-          <h2 id="ar-title" style="margin: 0">{{ item()?.name }}</h2>
-          <span class="spacer"></span>
-          <button type="button" class="icon-btn" aria-label="Cerrar" (click)="close()">×</button>
-        </div>
         @if (loadError()) {
           <p class="alert alert-danger">No se pudo cargar el visor AR: {{ loadError() }}</p>
         } @else if (ready() && item(); as it) {
@@ -53,12 +49,9 @@ import type { CatalogItem } from '@interiores/shared-types';
           <div class="skeleton" style="height: 380px"></div>
         }
       </div>
-    </dialog>
+    </app-dialog>
   `,
   styles: `
-    .wide {
-      width: min(760px, 100vw - 32px);
-    }
     model-viewer {
       width: 100%;
       height: min(60vh, 460px);
@@ -77,7 +70,7 @@ import type { CatalogItem } from '@interiores/shared-types';
   `,
 })
 export class ArViewerComponent {
-  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
+  private readonly dialog = viewChild.required<DialogComponent>('dialog');
   protected readonly item = signal<CatalogItem | null>(null);
   protected readonly ready = signal(false);
   protected readonly loadError = signal<string | null>(null);
@@ -89,7 +82,7 @@ export class ArViewerComponent {
 
   async open(item: CatalogItem): Promise<void> {
     this.item.set(item);
-    this.dialog().nativeElement.showModal();
+    this.dialog().open();
     if (this.ready()) return;
     try {
       await import('@google/model-viewer');
@@ -100,6 +93,6 @@ export class ArViewerComponent {
   }
 
   close(): void {
-    this.dialog().nativeElement.close();
+    this.dialog().close();
   }
 }

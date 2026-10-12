@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, ElementRef, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, viewChild } from '@angular/core';
+import { DialogComponent } from '../../shared/ui/dialog.component';
 
 interface ShortcutGroup {
   title: string;
@@ -61,10 +62,10 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
 @Component({
   selector: 'app-shortcuts-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DialogComponent],
   template: `
-    <dialog #dialog class="modal" aria-labelledby="keys-title">
+    <app-dialog #dialog heading="Atajos de teclado" [wide]="true">
       <div class="modal-body">
-        <h2 id="keys-title">Atajos de teclado</h2>
         <div class="groups">
           @for (group of groups; track group.title) {
             <section>
@@ -86,15 +87,9 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
         </div>
       </div>
       <div class="modal-actions"><button type="button" class="btn btn-primary" (click)="dialog.close()">Entendido</button></div>
-    </dialog>
+    </app-dialog>
   `,
   styles: `
-    dialog.modal {
-      width: min(760px, 100vw - 32px);
-    }
-    h2 {
-      margin: 0 0 16px;
-    }
     h3 {
       margin: 0 0 6px;
       font-family: var(--font);
@@ -143,10 +138,9 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
 })
 export class ShortcutsDialogComponent {
   protected readonly groups = SHORTCUTS;
-  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
+  private readonly dialog = viewChild.required<DialogComponent>('dialog');
 
   open(): void {
-    const dialog = this.dialog().nativeElement;
-    if (!dialog.open) dialog.showModal();
+    this.dialog().open();
   }
 }

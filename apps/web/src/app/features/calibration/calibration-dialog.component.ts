@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import {
   CalibrationError,
@@ -9,6 +9,7 @@ import {
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
+import { DialogComponent } from '../../shared/ui/dialog.component';
 import { DesignProjectStore } from '../project/design-project.store';
 
 const REFERENCES: { id: CalibrationReference; label: string; hint: string; def: number }[] = [
@@ -26,11 +27,10 @@ const REFERENCES: { id: CalibrationReference; label: string; hint: string; def: 
 @Component({
   selector: 'app-calibration-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, DialogComponent],
   template: `
-    <dialog #dialog class="modal" aria-labelledby="cal-title" (close)="closed.emit()">
+    <app-dialog #dialog heading="Ajustar medidas reales" (closed)="closed.emit()">
       <form method="dialog" class="modal-body stack" (submit)="$event.preventDefault(); apply()">
-        <h2 id="cal-title">Ajustar medidas reales</h2>
         <p class="muted">
           Estimamos las medidas desde una sola foto, así que son aproximadas. Confirma una medida que conozcas y
           reescalamos todo el cuarto.
@@ -74,7 +74,7 @@ const REFERENCES: { id: CalibrationReference; label: string; hint: string; def: 
           {{ saving() ? 'Aplicando…' : 'Aplicar medidas' }}
         </button>
       </div>
-    </dialog>
+    </app-dialog>
   `,
   styles: `
     .refs {
@@ -113,7 +113,7 @@ export class CalibrationDialogComponent {
   private readonly store = inject(DesignProjectStore);
   private readonly api = inject(ProjectsApi);
   private readonly toast = inject(ToastService);
-  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
+  private readonly dialog = viewChild.required<DialogComponent>('dialog');
 
   readonly closed = output<void>();
 
@@ -141,7 +141,7 @@ export class CalibrationDialogComponent {
   open(): void {
     const hasDoor = this.current('door-height') !== null;
     this.pick(hasDoor ? 'door-height' : 'ceiling-height');
-    this.dialog().nativeElement.showModal();
+    this.dialog().open();
   }
 
   pick(ref: CalibrationReference): void {
@@ -152,7 +152,7 @@ export class CalibrationDialogComponent {
   }
 
   close(): void {
-    this.dialog().nativeElement.close();
+    this.dialog().close();
   }
 
   async apply(): Promise<void> {

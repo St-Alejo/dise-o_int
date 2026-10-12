@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ElementRef,
   OnInit,
   computed,
   inject,
@@ -19,6 +18,7 @@ import { ProjectsApi } from '../../core/api/projects.api';
 import { ProgressService } from '../../core/realtime/progress.service';
 import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { ToastService } from '../../core/ui/toast.service';
+import { DialogComponent } from '../../shared/ui/dialog.component';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { StyleGalleryComponent } from '../style-gallery/style-gallery.component';
 import { EditorComponent } from '../viewport-3d/editor.component';
@@ -33,7 +33,7 @@ type View = 'estilos' | '3d';
   selector: 'app-project-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DesignProjectStore],
-  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, VersionCompareComponent, StyleGalleryComponent, EditorComponent, IconComponent],
+  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, VersionCompareComponent, StyleGalleryComponent, EditorComponent, IconComponent, DialogComponent],
   template: `
     <section class="container page">
       @if (store.loadError(); as err) {
@@ -126,9 +126,8 @@ type View = 'estilos' | '3d';
           }
         }
 
-        <dialog #versionsDialog class="modal" aria-labelledby="ver-title">
+        <app-dialog #versionsDialog heading="Versiones guardadas">
           <div class="modal-body stack">
-            <h2 id="ver-title">Versiones guardadas</h2>
             <p class="muted">Cada versión es una copia fija: restaurar no borra las demás.</p>
             @for (v of p.versions; track v.id) {
               <div class="row version">
@@ -150,12 +149,10 @@ type View = 'estilos' | '3d';
               <p class="muted">Todavía no guardaste ninguna versión.</p>
             }
           </div>
-          <div class="modal-actions"><button type="button" class="btn" (click)="versionsDialog.close()">Cerrar</button></div>
-        </dialog>
+        </app-dialog>
 
-        <dialog #shareDialog class="modal" aria-labelledby="share-title">
+        <app-dialog #shareDialog heading="Compartir proyecto">
           <div class="modal-body stack">
-            <h2 id="share-title">Compartir proyecto</h2>
             <p class="muted">Cualquiera con este enlace puede ver el diseño (solo lectura). Puedes revocarlo cuando quieras.</p>
             <div class="row">
               <input class="input grow" readonly [value]="shareUrl()" aria-label="Enlace para compartir" (focus)="$any($event.target).select()" />
@@ -164,9 +161,8 @@ type View = 'estilos' | '3d';
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-danger" (click)="unshare()">Dejar de compartir</button>
-            <button type="button" class="btn" (click)="shareDialog.close()">Cerrar</button>
           </div>
-        </dialog>
+        </app-dialog>
       } @else {
         <div class="skeleton" style="height: 60vh; margin-top: 24px" aria-busy="true" aria-label="Cargando proyecto"></div>
       }
@@ -322,8 +318,8 @@ export class ProjectPage implements OnInit {
     return this.localView() ?? this.vista() ?? 'estilos';
   });
 
-  private readonly versionsDialog = viewChild<ElementRef<HTMLDialogElement>>('versionsDialog');
-  private readonly shareDialog = viewChild<ElementRef<HTMLDialogElement>>('shareDialog');
+  private readonly versionsDialog = viewChild<DialogComponent>('versionsDialog');
+  private readonly shareDialog = viewChild<DialogComponent>('shareDialog');
   private sub: Subscription | null = null;
 
   ngOnInit(): void {
@@ -401,14 +397,14 @@ export class ProjectPage implements OnInit {
   }
 
   openVersions(): void {
-    this.versionsDialog()?.nativeElement.showModal();
+    this.versionsDialog()?.open();
   }
 
   async restore(versionId: string): Promise<void> {
     await this.run(async (id) => {
       this.store.saveState.set('saved');
       this.store.replaceFromServer(await this.api.restoreVersion(id, versionId, this.store.project()?.revision));
-      this.versionsDialog()?.nativeElement.close();
+      this.versionsDialog()?.close();
       this.toast.success('Versión restaurada');
     });
   }
@@ -418,7 +414,7 @@ export class ProjectPage implements OnInit {
       const link = await this.api.share(id);
       this.shareUrl.set(new URL(link.path, location.origin).href);
       await this.store.reload();
-      this.shareDialog()?.nativeElement.showModal();
+      this.shareDialog()?.open();
     });
   }
 
@@ -435,7 +431,7 @@ export class ProjectPage implements OnInit {
     await this.run(async (id) => {
       await this.api.unshare(id);
       await this.store.reload();
-      this.shareDialog()?.nativeElement.close();
+      this.shareDialog()?.close();
       this.toast.success('El enlace dejó de funcionar');
     });
   }
