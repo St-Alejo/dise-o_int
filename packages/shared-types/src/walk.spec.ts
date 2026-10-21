@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRectangularShell, footprint } from './geometry.js';
 import { pointInPolygon } from './polygon.js';
 import { buildRoomShape } from './room-templates.js';
+import { cornerZone, partitions } from './zones.js';
 import { WALKER, buildWalkWorld, canStand, clearAhead, stepToward, stepWalker, walkStart, type WalkBody, type WalkerState } from './walk.js';
 
 const room = createRectangularShell(4, 3, 2.6);
@@ -159,5 +160,37 @@ describe('dónde empieza el recorrido', () => {
     const shell = buildRoomShape('U', { widthM: 6, depthM: 4.5, heightM: 2.6 });
     const world = buildWalkWorld(shell);
     expect(canStand(walkStart(shell, world), world)).toBe(true);
+  });
+});
+
+describe('caminar con un baño privado (tabiques con puerta)', () => {
+  const base = createRectangularShell(4.5, 4, 2.6);
+  const bathZone = cornerZone(base, { id: 'b', kind: 'bathroom', widthM: 2, depthM: 1.6 })!;
+  const shell = { ...base, zones: [bathZone] };
+  const world = buildWalkWorld(shell);
+  const door = partitions(shell).find((p) => p.door)!;
+  const along = (t: number) => ({ x: door.a.x + ((door.b.x - door.a.x) * t) / door.lengthM, z: door.a.z + ((door.b.z - door.a.z) * t) / door.lengthM });
+
+  it('los tabiques frenan el paso, pero por el hueco de la puerta se entra', () => {
+    const doorAt = along(door.door!.offsetM);
+    const inside = { x: bathZone.outline.reduce((s, p) => s + p.x, 0) / 4, z: bathZone.outline.reduce((s, p) => s + p.z, 0) / 4 };
+    // Un punto del cuarto, del otro lado de la puerta.
+    const out = { x: 2 * doorAt.x - inside.x, z: 2 * doorAt.z - inside.z };
+    // Frente a un tramo macizo del tabique no se pasa.
+    const solidAt = along(0.15);
+    const wallOut = { x: solidAt.x + (out.x - doorAt.x), z: solidAt.z + (out.z - doorAt.z) };
+    const towardWall = { x: 2 * solidAt.x - wallOut.x, z: 2 * solidAt.z - wallOut.z };
+    let s: WalkerState = { ...wallOut, yaw: 0 };
+    for (let i = 0; i < 200; i++) s = stepToward(s, towardWall, 1 / 60, world).state;
+    expect(pointInPolygon(s, bathZone.outline)).toBe(false);
+    // Por la puerta, sí.
+    s = { ...out, yaw: 0 };
+    for (let i = 0; i < 200; i++) s = stepToward(s, inside, 1 / 60, world).state;
+    expect(pointInPolygon(s, bathZone.outline)).toBe(true);
+  });
+
+  it('el recorrido empieza en el espacio común, no dentro del baño', () => {
+    expect(world.zones).toHaveLength(1);
+    expect(pointInPolygon(walkStart(shell, world), bathZone.outline)).toBe(false);
   });
 });

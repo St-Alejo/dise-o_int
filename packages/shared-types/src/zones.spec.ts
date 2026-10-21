@@ -9,7 +9,7 @@ import {
 import { customFinishId, FinishSpecSchema } from './finish-spec.js';
 import { createRectangularShell, RoomGeometryError, validateRoomShell } from './geometry.js';
 import { assertValidFinishes, DEFAULT_FINISHES, resolveFinishMaterial, UnknownMaterialError } from './materials.js';
-import { validateZones, zoneArea, zoneAt, zoneEdges } from './zones.js';
+import { cornerZone, partitions, partitionSolids, validateZones, zoneArea, zoneAt, zoneEdges } from './zones.js';
 
 /** Baño privado de 2 × 1.8 m en la esquina del fondo a la derecha de un cuarto de 4.5 × 4. */
 const bath = (patch: Partial<Zone> = {}): Zone => ({
@@ -125,5 +125,36 @@ describe('brief de diseño', () => {
     expect(() =>
       DesignBriefSchema.parse({ surfaces: { floor: { material: 'wood-oak', spec: { name: 'x', kind: 'wood', colors: ['#000000'] } } } }),
     ).toThrow();
+  });
+});
+
+describe('tabiques y plantilla de baño en esquina', () => {
+  it('cada tabique sabe dónde va su puerta y los tramos macizos dejan el hueco', () => {
+    const shell = shellWith(bath());
+    const walls = partitions(shell);
+    expect(walls.map((p) => p.edge)).toEqual([0, 3]);
+    expect(walls.find((p) => p.edge === 3)!.door).toEqual({ offsetM: 0.9, widthM: 0.75 });
+    const solids = partitionSolids(shell);
+    // El tabique 0 entero y el 3 en dos tramos, a cada lado de la puerta.
+    expect(solids).toHaveLength(3);
+    const gap = solids.slice(1).map((s) => Math.hypot(s.b.x - s.a.x, s.b.z - s.a.z));
+    expect(gap.reduce((a, b) => a + b, 0)).toBeCloseTo(1.8 - 0.75);
+    expect(partitions(shellWith(bath({ open: true })))).toEqual([]);
+  });
+
+  it('la plantilla pone el baño en la esquina más lejos de la puerta del cuarto, y es válida', () => {
+    const shell = createRectangularShell(4.5, 4, 2.6);
+    const zone = cornerZone(shell, { id: 'z', kind: 'bathroom', widthM: 2, depthM: 1.6 })!;
+    expect(zone).not.toBeNull();
+    expect(() => validateZones({ ...shell, zones: [zone] })).not.toThrow();
+    expect(zoneArea(zone)).toBeCloseTo(3.2);
+    const door = shell.openings.find((o) => o.type === 'door')!;
+    const wall = shell.walls.find((w) => w.id === door.wallId)!;
+    const len = Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z);
+    const doorAt = { x: wall.start.x + ((wall.end.x - wall.start.x) * door.offsetM) / len, z: wall.start.z + ((wall.end.z - wall.start.z) * door.offsetM) / len };
+    expect(zoneAt({ zones: [zone] }, { x: doorAt.x + 0.01, z: doorAt.z + 0.01 })).toBeNull();
+    expect(zone.door!.widthM).toBeCloseTo(0.7);
+    // No cabe: más grande que el cuarto.
+    expect(cornerZone(shell, { id: 'z', kind: 'bathroom', widthM: 5, depthM: 5 })).toBeNull();
   });
 });

@@ -96,7 +96,7 @@ export class RoomView {
     if (!this.room) return;
     const cam = this.ctx.camera.position;
     let changed = false;
-    for (const wall of this.room.walls) {
+    for (const wall of [...this.room.walls, ...this.room.partitions]) {
       const cut = this.cutaway && hidesRoom(wall, cam);
       if (wall.cut === cut) continue;
       wall.cut = cut;

@@ -20,6 +20,7 @@ import {
 import * as THREE from 'three';
 import { cornerShade, edgeShade } from './scene/shade-textures';
 import { dressMaterial, type SurfaceKind, type SurfaceMaps } from './scene/texture-library';
+import { buildZones, type ZoneSurfaces } from './zone-builder';
 
 export const WALL_THICKNESS = 0.12;
 /** Ancho de la penumbra que el piso y el techo llevan junto a cada pared. */
@@ -59,6 +60,10 @@ export interface BuiltRoom {
   floor: THREE.Mesh;
   /** Mira hacia abajo: desde fuera (vista de órbita) no se ve; desde dentro, sí. */
   ceiling: THREE.Mesh;
+  /** Tabiques de las zonas interiores: se recortan como las paredes, mirando hacia su zona. */
+  partitions: WallInfo[];
+  /** Piso, pintura y revestimiento propios de cada zona. */
+  zones: ZoneSurfaces[];
 }
 
 export interface RoomPalette {
@@ -325,7 +330,8 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     });
   });
 
-  return { group, walls, floor, ceiling };
+  const { partitions, zones } = buildZones(shell, group, walls, palette);
+  return { group, walls, floor, ceiling, partitions, zones };
 }
 
 /** Quien da las texturas de cada acabado (la biblioteca de texturas; en las pruebas, nadie). */
@@ -363,6 +369,26 @@ export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?
   for (const wall of room.walls) {
     const on = tiles && tilesMat && (!tiles.walls || tiles.walls.includes(wall.wallId));
     wall.setTiles(on ? { heightM: tiles.heightM, material: tilesMat! } : null);
+  }
+  // Los tabiques por fuera van con la pintura general del cuarto.
+  for (const part of room.partitions) {
+    paint(part.materials[0] as THREE.MeshStandardMaterial, wallMaterialId(finishes, { id: 'all' }), 'wall');
+    paint(part.stubMaterial, wallMaterialId(finishes, { id: 'all' }), 'wall');
+  }
+  for (const zone of room.zones) {
+    const own = finishes.zones?.[zone.zoneId];
+    zone.floor.visible = !!own;
+    if (own) paint(zone.floor.material as THREE.MeshStandardMaterial, own.floor, 'floor');
+    const walls = own?.walls ?? wallMaterialId(finishes, { id: 'all' });
+    for (const mat of zone.innerMaterials) paint(mat, walls, 'wall');
+    for (const lining of zone.linings) {
+      lining.mesh.visible = !!own?.walls;
+      if (own?.walls) paint(lining.material, own.walls, 'wall');
+    }
+    for (const face of zone.tiles) {
+      if (own?.wallTiles) paint(face.material, own.wallTiles.material, 'wall');
+      face.set(own?.wallTiles?.heightM ?? null);
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { buildRoomShape, createRectangularShell, DEFAULT_FINISHES, getMaterial } from '@interiores/shared-types';
+import { buildRoomShape, cornerZone, createRectangularShell, DEFAULT_FINISHES, getMaterial, PARTITION_THICKNESS_M } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { applyFinishes, buildRoom, disposeObject, metricBoxUVs, wallPieces } from './room-builder';
 import { floorTextureSpec, tintFor } from './scene/texture-library';
@@ -190,5 +190,69 @@ describe('texturas del piso', () => {
     const us = Array.from({ length: uv.count }, (_, i) => uv.getX(i));
     expect(Math.min(...us)).toBeCloseTo(-0.05);
     expect(Math.max(...us)).toBeCloseTo(4);
+  });
+});
+
+describe('zonas interiores (baño privado)', () => {
+  const base = createRectangularShell(4.5, 4, 2.6);
+  const zone = cornerZone(base, { id: 'bano', kind: 'bathroom', widthM: 2, depthM: 1.6 })!;
+  const shell = { ...base, zones: [zone] };
+  const meshes = (o: THREE.Object3D, name?: string) => {
+    const out: THREE.Mesh[] = [];
+    o.traverse((c) => {
+      if ((c as THREE.Mesh).isMesh && (!name || c.name === name)) out.push(c as THREE.Mesh);
+    });
+    return out;
+  };
+
+  it('dos tabiques, con el hueco de la puerta abierto y su marco', () => {
+    const room = buildRoom(shell);
+    expect(room.partitions).toHaveLength(2);
+    const withDoor = room.partitions.find((p) => meshes(p.groups[0]!, 'zone-door-frame').length > 0)!;
+    expect(meshes(withDoor.groups[0]!, 'zone-door-frame')).toHaveLength(3);
+    // Ningún macizo tapa el vano: a la altura de 1 m, en el centro de la puerta, no hay pared.
+    const door = zone.door!;
+    const solid = meshes(withDoor.groups[0]!).filter((m) => m.name === '');
+    const blocks = solid.some((m) => {
+      const box = new THREE.Box3().setFromBufferAttribute(m.geometry.getAttribute('position') as THREE.BufferAttribute).translate(m.position);
+      return box.containsPoint(new THREE.Vector3(door.offsetM, 1, 0));
+    });
+    expect(blocks).toBe(false);
+    // Grosor de tabique, no de muro.
+    const size = new THREE.Box3().setFromObject(solid[0]!).getSize(new THREE.Vector3());
+    expect(Math.min(size.x, size.z)).toBeCloseTo(PARTITION_THICKNESS_M, 3);
+  });
+
+  it('la normal de cada tabique mira hacia dentro de la zona (se recorta visto desde el cuarto)', () => {
+    const room = buildRoom(shell);
+    const cx = zone.outline.reduce((s, p) => s + p.x, 0) / zone.outline.length;
+    const cz = zone.outline.reduce((s, p) => s + p.z, 0) / zone.outline.length;
+    for (const p of room.partitions) {
+      expect(p.normal.x * (cx - p.midpoint.x) + p.normal.y * (cz - p.midpoint.z)).toBeGreaterThan(0);
+    }
+  });
+
+  it('la zona lleva su piso, su pintura y su baldosa; sin acabados propios, la del cuarto', () => {
+    const room = buildRoom(shell);
+    const [surf] = room.zones;
+    applyFinishes(room, DEFAULT_FINISHES);
+    expect(surf!.floor.visible).toBe(false);
+    expect(surf!.tiles.every((t) => t.group.children.length === 0)).toBe(true);
+    applyFinishes(room, {
+      ...DEFAULT_FINISHES,
+      zones: { bano: { floor: 'ceramic-subway-white', walls: 'paint-sage', wallTiles: { material: 'ceramic-subway-white', heightM: 1.2 } } },
+    });
+    expect(surf!.floor.visible).toBe(true);
+    // Dos paredes del cuarto con lámina propia y las caras de dentro de los tabiques.
+    expect(surf!.linings).toHaveLength(2);
+    expect(surf!.linings.every((l) => l.mesh.visible)).toBe(true);
+    expect(surf!.innerMaterials[0]!.color.getHexString()).toBe(getMaterial('paint-sage')!.color.replace('#', '').toLowerCase());
+    // Baldosa en las 4 caras; la del tabique con puerta, en dos tramos a los lados del vano.
+    expect(surf!.tiles.every((t) => t.group.children.length > 0)).toBe(true);
+    const doorWall = room.partitions.find((p) => p.groups[0]!.getObjectByName('zone-door-frame'))!;
+    expect(surf!.tiles.find((t) => t.group.parent === doorWall.groups[0])!.group.children).toHaveLength(2);
+    applyFinishes(room, DEFAULT_FINISHES);
+    expect(surf!.linings.every((l) => !l.mesh.visible)).toBe(true);
+    expect(surf!.tiles.every((t) => t.group.children.length === 0)).toBe(true);
   });
 });

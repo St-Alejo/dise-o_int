@@ -9,6 +9,7 @@
 import type { RoomShell } from './domain.js';
 import { roomCenter, roomPolygon } from './geometry.js';
 import { closestOnBoundary, closestOnSegment, distanceToBoundary, pointInPolygon, type Point2 } from './polygon.js';
+import { partitionSolids } from './zones.js';
 
 export const WALKER = {
   /** Medio ancho de hombros: lo que la persona se separa de paredes y muebles. */
@@ -29,6 +30,8 @@ export interface WalkWorld {
   walls: [Point2, Point2][];
   /** Huellas de lo que estorba el paso (muebles). */
   obstacles: Point2[][];
+  /** Contornos de las zonas cerradas (baño privado…): se entra por su puerta, no se empieza dentro. */
+  zones?: Point2[][];
 }
 
 export interface WalkerState {
@@ -56,15 +59,23 @@ export interface WalkBody {
 
 /**
  * El mundo por el que se camina. Estorba lo que queda a la altura del cuerpo: una alfombra se
- * pisa y una lámpara de techo o un cuadro alto no molestan. Las puertas están cerradas: el
- * recorrido es dentro del cuarto.
+ * pisa y una lámpara de techo o un cuadro alto no molestan. Las puertas del cuarto están cerradas;
+ * los tabiques de las zonas interiores son paredes con el hueco de su puerta abierto.
  */
-export function buildWalkWorld(shell: Pick<RoomShell, 'walls' | 'widthM' | 'depthM'>, bodies: readonly WalkBody[] = []): WalkWorld {
+export function buildWalkWorld(
+  shell: Pick<RoomShell, 'walls' | 'widthM' | 'depthM' | 'zones'>,
+  bodies: readonly WalkBody[] = [],
+): WalkWorld {
   const flat = (v: { x: number; z: number }): Point2 => ({ x: v.x, z: v.z });
+  const closed = (shell.zones ?? []).filter((z) => !z.open);
   return {
     room: roomPolygon(shell),
-    walls: shell.walls.map((w) => [flat(w.start), flat(w.end)]),
+    walls: [
+      ...shell.walls.map((w): [Point2, Point2] => [flat(w.start), flat(w.end)]),
+      ...partitionSolids(shell).map((s): [Point2, Point2] => [s.a, s.b]),
+    ],
     obstacles: bodies.filter((b) => b.baseY < WALKER.eyeHeightM && b.baseY + b.heightM > 0.2).map((b) => b.corners.map(flat)),
+    ...(closed.length ? { zones: closed.map((z) => z.outline.map(flat)) } : {}),
   };
 }
 
@@ -196,7 +207,7 @@ export function walkStart(shell: Pick<RoomShell, 'walls' | 'widthM' | 'depthM'>,
   for (let x = step; x < shell.widthM; x += step) {
     for (let z = step; z < shell.depthM; z += step) {
       const p = { x, z };
-      if (!canStand(p, world)) continue;
+      if (!canStand(p, world) || world.zones?.some((zone) => pointInPolygon(p, zone))) continue;
       let view = { yaw: 0, run: -1 };
       // Ocho direcciones; a igual vista gana mirar hacia el fondo (yaw 0), que va primero.
       for (let k = 0; k < 8; k++) {
