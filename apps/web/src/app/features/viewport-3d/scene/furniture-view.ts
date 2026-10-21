@@ -1,6 +1,7 @@
 import { effectiveDimensions, type CatalogItem, type FurniturePlacement, type Vector3 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { FurnitureFactory } from '../furniture-factory';
+import type { FurnitureTextures } from '../parametric-renderer';
 import { ContactShadows } from './contact-shadows';
 import type { SceneContext } from './render-loop';
 
@@ -18,7 +19,7 @@ const shapeKeyOf = (p: FurniturePlacement) => JSON.stringify([p.dimensionsM ?? n
 export class FurnitureView {
   private readonly root = new THREE.Group();
   private readonly nodes = new Map<string, FurnitureNode>();
-  private readonly factory = new FurnitureFactory();
+  private readonly factory: FurnitureFactory;
   private readonly contact = new ContactShadows();
   private disposed = false;
 
@@ -26,7 +27,9 @@ export class FurnitureView {
   constructor(
     private readonly ctx: SceneContext,
     private readonly onLoaded: () => void,
+    textures: FurnitureTextures | null = null,
   ) {
+    this.factory = new FurnitureFactory(textures);
     this.root.name = 'furniture';
     ctx.scene.add(this.root);
   }
@@ -73,6 +76,11 @@ export class FurnitureView {
   /** Lo que se ve de esas piezas (sin su sombra de contacto), para dibujarles un contorno. */
   objectsOf(ids: readonly string[]): THREE.Object3D[] {
     return ids.flatMap((id) => this.nodes.get(id)?.group.children.filter((o) => o.name !== 'contact-shadow') ?? []);
+  }
+
+  refreshTextures(): void {
+    this.factory.refreshTextures();
+    this.ctx.invalidate();
   }
 
   /** Brillo de las pantallas de lámpara (cambia con la hora del día). */

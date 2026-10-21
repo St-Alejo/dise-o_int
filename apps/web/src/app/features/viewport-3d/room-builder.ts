@@ -19,7 +19,7 @@ import {
 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { cornerShade, edgeShade } from './scene/shade-textures';
-import type { SurfaceKind, SurfaceMaps } from './scene/texture-library';
+import { dressMaterial, type SurfaceKind, type SurfaceMaps } from './scene/texture-library';
 
 export const WALL_THICKNESS = 0.12;
 /** Ancho de la penumbra que el piso y el techo llevan junto a cada pared. */
@@ -344,23 +344,7 @@ export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?
   const paint = (mat: THREE.MeshStandardMaterial, id: string, where: SurfaceKind) => {
     const def = resolveFinishMaterial(finishes, id);
     if (!def) return;
-    const maps = textures?.surface(def, where);
-    if (maps?.tint) mat.color.copy(maps.tint);
-    else mat.color.set(def.color);
-    mat.metalness = def.metalness;
-    mat.map = maps?.map ?? null;
-    mat.normalMap = maps?.normalMap ?? null;
-    mat.normalScale.setScalar(maps?.normalScale ?? 1);
-    mat.aoMap = maps?.armMap ?? null;
-    mat.aoMapIntensity = 0.8;
-    mat.roughnessMap = maps?.armMap ?? null;
-    // La rugosidad del mapa se multiplica por la del material: se compensa para que el brillo
-    // medio siga siendo el del material (el canal G de estas texturas ronda 0.7).
-    mat.roughness = maps?.armMap ? Math.min(1, def.roughness / 0.7) : def.roughness;
-    // Lo de canvas no trae normal: la propia textura sirve de relieve (juntas hundidas).
-    mat.bumpMap = maps?.bumpMap ?? null;
-    mat.bumpScale = 1.2;
-    mat.needsUpdate = true;
+    dressMaterial(mat, def, textures?.surface(def, where) ?? null);
   };
   paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor, 'floor');
   paint(room.ceiling.material as THREE.MeshStandardMaterial, finishes.ceiling, 'ceiling');

@@ -1,4 +1,4 @@
-import { surfaceTextureSet, TextureManifestSchema, type MaterialDefinition, type TextureManifest, type TextureSet } from '@interiores/shared-types';
+import { furnitureTextureSet, getMaterial, surfaceTextureSet, TextureManifestSchema, type MaterialDefinition, type TextureManifest, type TextureSet } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { drawPattern } from './pattern-textures';
 
@@ -153,6 +153,26 @@ export function tintFor(target: string, avg: string): THREE.Color {
   return new THREE.Color(ratio(t.r, a.r), ratio(t.g, a.g), ratio(t.b, a.b));
 }
 
+/** Viste un material con sus mapas (o lo deja liso si no hay): color, relieve, oclusión y rugosidad. */
+export function dressMaterial(mat: THREE.MeshStandardMaterial, def: MaterialDefinition, maps: SurfaceMaps | null): void {
+  if (maps?.tint) mat.color.copy(maps.tint);
+  else mat.color.set(def.color);
+  mat.metalness = def.metalness;
+  mat.map = maps?.map ?? null;
+  mat.normalMap = maps?.normalMap ?? null;
+  mat.normalScale.setScalar(maps?.normalScale ?? 1);
+  mat.aoMap = maps?.armMap ?? null;
+  mat.aoMapIntensity = 0.8;
+  mat.roughnessMap = maps?.armMap ?? null;
+  // La rugosidad del mapa se multiplica por la del material: se compensa para que el brillo
+  // medio siga siendo el del material (el canal G de estas texturas ronda 0.7).
+  mat.roughness = maps?.armMap ? Math.min(1, def.roughness / 0.7) : def.roughness;
+  // Lo de canvas no trae normal: la propia textura sirve de relieve (juntas hundidas).
+  mat.bumpMap = maps?.bumpMap ?? null;
+  mat.bumpScale = 1.2;
+  mat.needsUpdate = true;
+}
+
 /**
  * Texturas de los acabados (Flyweight: cada imagen se carga una vez y se comparte). Primero las
  * PBR reales que sembró la API; si no hay (seed sin red, pruebas), las de canvas. Los acabados
@@ -209,6 +229,14 @@ export class TextureLibrary {
     if (where !== 'floor') return NONE;
     const map = this.floor(material);
     return map ? { ...NONE, map, bumpMap: map } : NONE;
+  }
+
+  /** Mapas PBR de un material de mueble (madera, tela, cuero), o null si no hay textura sembrada. */
+  furniture(materialId: string): SurfaceMaps | null {
+    const set = furnitureTextureSet(this.manifest, materialId);
+    const def = getMaterial(materialId);
+    if (!set || !def) return null;
+    return { map: this.texture(set, 'albedo'), normalMap: this.texture(set, 'normal'), normalScale: 1, armMap: this.texture(set, 'arm'), bumpMap: null, tint: tintFor(def.color, set.avgColor) };
   }
 
   /** Textura de canvas del piso para ese material, o null si va liso o no hay canvas (pruebas). */

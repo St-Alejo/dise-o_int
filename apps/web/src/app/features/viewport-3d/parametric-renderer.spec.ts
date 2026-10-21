@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { CatalogItem } from '@interiores/shared-types';
-import { ParametricRenderer } from './parametric-renderer';
+import { boxUVs, ParametricRenderer, type FurnitureTextures } from './parametric-renderer';
 
 const sofa = {
   id: 'p-sofa',
@@ -24,6 +24,8 @@ const sofa = {
 } as CatalogItem;
 
 const size = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+
+const r = () => new ParametricRenderer();
 
 describe('ParametricRenderer (adapter three.js del kit)', () => {
   it('una malla por slot con el material por defecto del catálogo', () => {
@@ -72,9 +74,36 @@ describe('ParametricRenderer (adapter three.js del kit)', () => {
     expect((r.material('fabric-velvet-green', 'tapizado') as THREE.MeshPhysicalMaterial).sheen).toBeGreaterThan(0);
   });
 
-  it('el vidrio es transparente y las pantallas de lámpara se ven por dentro', () => {
+  it('el vidrio deja pasar la luz y las pantallas de lámpara se ven por dentro', () => {
     const r = new ParametricRenderer();
-    expect(r.material('glass-clear', 'vidrio').transparent).toBe(true);
+    expect((r.material('glass-clear', 'vidrio') as THREE.MeshPhysicalMaterial).transmission).toBe(1);
     expect(r.material('fabric-linen-white', 'pantalla').side).toBe(THREE.DoubleSide);
+  });
+
+  it('las UV de caja van en metros y siguen la cara a la que mira cada vértice', () => {
+    const positions = new Float32Array([1.5, 0.4, 2, 1.5, 0.4, 2, 1.5, 0.4, 2]);
+    const normals = new Float32Array([0, 1, 0, 1, 0, 0, 0, 0, 1]);
+    expect([...boxUVs(positions, normals)].map((v) => +v.toFixed(3))).toEqual([1.5, 2, 2, 0.4, 1.5, 0.4]);
+    const mesh = r().create(sofa).children[0] as THREE.Mesh;
+    expect(mesh.geometry.getAttribute('uv').count).toBe(mesh.geometry.getAttribute('position').count);
+  });
+
+  it('madera, tela y cuero se visten con su textura PBR cuando llega; el metal y las pantallas no', () => {
+    const map = new THREE.Texture();
+    let ready = false;
+    const textures: FurnitureTextures = {
+      furniture: (id) => (ready && id !== 'metal-brass' ? { map, normalMap: map, normalScale: 1, armMap: map, bumpMap: null, tint: new THREE.Color(1, 0.5, 0.5) } : null),
+    };
+    const renderer = new ParametricRenderer(textures);
+    const fabric = renderer.material('fabric-velvet-green', 'tapizado') as THREE.MeshStandardMaterial;
+    const shade = renderer.material('fabric-linen-white', 'pantalla') as THREE.MeshStandardMaterial;
+    expect(fabric.map).toBeNull();
+    ready = true;
+    renderer.refreshTextures();
+    expect(fabric.map).toBe(map);
+    expect(fabric.roughnessMap).toBe(map);
+    expect(fabric.color.g).toBeCloseTo(0.5);
+    expect(shade.map).toBeNull();
+    expect((renderer.material('metal-brass', 'patas') as THREE.MeshStandardMaterial).map).toBeNull();
   });
 });
