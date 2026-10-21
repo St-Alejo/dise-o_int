@@ -1,15 +1,26 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import type { ChatAgentKind } from '@interiores/shared-types';
 import { DesignProjectStore } from '../project/design-project.store';
 import { DesignChatService } from './design-chat.service';
 
 /** Sugerencias según el tipo de cuarto (un clic las envía). */
 const SUGGESTIONS: Record<string, string[]> = {
-  bedroom: ['Agrega una mesa de noche junto a la cama', 'Pon una lámpara de mesa junto a la cama', 'Pinta las paredes de verde salvia'],
-  living: ['Pon una lámpara de pie junto al sofá', 'Agrega una mesa de centro frente al sofá', 'Cuelga un cuadro encima del sofá'],
-  office: ['Agrega una silla frente al escritorio', 'Pon una lámpara de escritorio sobre el escritorio', 'Agrega una estantería contra la pared'],
+  bedroom: ['Agrega un tocador junto a la cama', 'Agrega un baño privado con ducha de obra', 'Luz cálida y tenue', 'Pinta las paredes de verde salvia'],
+  living: ['Pon una lámpara de pie junto al sofá', 'Piso de madera de roble y luz cálida', 'Recomiéndame algo bohemio', 'Cuelga un cuadro encima del sofá'],
+  office: ['Agrega una silla frente al escritorio', 'Luz fría y alta', 'Agrega una estantería contra la pared'],
   dining: ['Agrega cuatro sillas junto a la mesa', 'Pon una lámpara colgante encima de la mesa', 'Piso de nogal'],
+  kitchen: ['Revestimiento de azulejo blanco tipo metro hasta 1,2 m', 'Piso de baldosa gris de 60x60 mate', 'Luz neutra y alta'],
+  bathroom: ['Piso de baldosa brillante azul claro con verde', 'Pared de la ducha con mármol hasta el techo', 'Agrega un espejo con luz'],
 };
-const DEFAULT_SUGGESTIONS = ['Agrega una planta en la esquina', 'Pinta las paredes de greige', 'El cuarto mide 4 x 3,5'];
+const DEFAULT_SUGGESTIONS = ['Piso de baldosa brillante azul claro con verde', 'Recomiéndame algo', 'El cuarto mide 4 x 3,5'];
+
+/** Quién respondió: la etiqueta y su explicación. */
+const AGENTS: Record<ChatAgentKind, { label: string; title: string; primary: boolean }> = {
+  local: { label: 'Local', title: 'Respondió el modelo propio de la app (sin IA externa)', primary: false },
+  groq: { label: 'Groq', title: 'Respondió un modelo de lenguaje en Groq', primary: true },
+  claude: { label: 'IA', title: 'Respondió Claude', primary: true },
+  rules: { label: 'Básico', title: 'Respondió el asistente básico por reglas', primary: false },
+};
 
 /** Chat con el asistente de diseño: escribe lo que quieres y lo coloca en el cuarto. */
 @Component({
@@ -20,7 +31,7 @@ const DEFAULT_SUGGESTIONS = ['Agrega una planta en la esquina', 'Pinta las pared
       <div class="log" #log role="log" aria-live="polite" aria-label="Conversación con el asistente">
         @if (chat.messages().length === 0) {
           <div class="intro">
-            <p>Dime qué quieres cambiar y lo coloco por ti: muebles, lámparas, colores, medidas del cuarto…</p>
+            <p>Dime qué quieres cambiar y lo coloco por ti: muebles, pisos y baldosas, luces, un baño privado… o adjunta una foto que te guste y la replico en tu cuarto. Lo que pidas queda fijado para Recomendar.</p>
             <div class="suggestions" role="group" aria-label="Sugerencias">
               @for (s of suggestions(); track s) {
                 <button type="button" class="chip" (click)="send(s)" [disabled]="chat.busy()">{{ s }}</button>
@@ -31,12 +42,20 @@ const DEFAULT_SUGGESTIONS = ['Agrega una planta en la esquina', 'Pinta las pared
         @for (m of chat.messages(); track m.id; let last = $last) {
           <div class="msg" [class.user]="m.role === 'user'" [class.error]="m.error">
             <span class="sr-only">{{ m.role === 'user' ? 'Tú' : 'Asistente' }}:</span>
+            @if (m.imageUrl) {
+              <img class="ref" [src]="m.imageUrl" alt="Imagen de referencia que enviaste" />
+            }
             <p class="text">{{ m.text }}</p>
-            @if (m.role === 'assistant' && !m.error) {
+            @if (m.palette) {
+              <div class="palette" role="img" [attr.aria-label]="'Colores leídos: ' + m.palette.join(', ')">
+                @for (c of m.palette; track $index) {
+                  <span class="sw" [style.background]="c"></span>
+                }
+              </div>
+            }
+            @if (m.role === 'assistant' && !m.error && m.agent) {
               <div class="meta row">
-                <span class="badge" [class.badge-primary]="m.agent === 'claude'" [title]="m.agent === 'claude' ? 'Respondió Claude' : 'Respondió el asistente básico (sin IA)'">
-                  {{ m.agent === 'claude' ? 'IA' : 'Básico' }}
-                </span>
+                <span class="badge" [class.badge-primary]="agents[m.agent].primary" [title]="agents[m.agent].title">{{ agents[m.agent].label }}</span>
                 @if (m.changes) {
                   <span class="muted">{{ m.changes }} {{ m.changes === 1 ? 'cambio' : 'cambios' }}</span>
                 }
@@ -53,7 +72,18 @@ const DEFAULT_SUGGESTIONS = ['Agrega una planta en la esquina', 'Pinta las pared
         }
       </div>
 
-      <form class="composer" (submit)="$event.preventDefault(); send(draft())">
+      <form class="composer" (submit)="$event.preventDefault(); send(draft())" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
+        <input #file type="file" accept="image/jpeg,image/png,image/webp" hidden (change)="onFile($event)" />
+        <button
+          type="button"
+          class="btn btn-ghost attach"
+          (click)="file.click()"
+          [disabled]="chat.busy() || readOnly()"
+          aria-label="Adjuntar una imagen de referencia"
+          title="Adjunta (o pega) una foto de un cuarto que te guste y la replico"
+        >
+          📎
+        </button>
         <label class="sr-only" for="chat-input">Mensaje para el asistente</label>
         <textarea
           id="chat-input"
@@ -64,6 +94,7 @@ const DEFAULT_SUGGESTIONS = ['Agrega una planta en la esquina', 'Pinta las pared
           [value]="draft()"
           (input)="draft.set($any($event.target).value)"
           (keydown.enter)="onEnter($any($event))"
+          (paste)="onPaste($event)"
           [disabled]="readOnly()"
         ></textarea>
         <button type="submit" class="btn btn-primary" [disabled]="chat.busy() || !draft().trim() || readOnly()">Enviar</button>
@@ -126,9 +157,32 @@ const DEFAULT_SUGGESTIONS = ['Agrega una planta en la esquina', 'Pinta las pared
       margin-top: 6px;
       font-size: 0.78rem;
     }
+    .ref {
+      display: block;
+      max-width: 180px;
+      max-height: 140px;
+      border-radius: calc(var(--radius) - 2px);
+      margin-bottom: 6px;
+      object-fit: cover;
+    }
+    .palette {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .sw {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .attach {
+      font-size: 1.1rem;
+      padding-inline: 10px;
+    }
     .composer {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: auto 1fr auto;
       gap: 8px;
       align-items: end;
     }
@@ -178,6 +232,7 @@ export class ChatPanelComponent {
   private readonly store = inject(DesignProjectStore);
   private readonly log = viewChild<ElementRef<HTMLElement>>('log');
 
+  protected readonly agents = AGENTS;
   protected readonly draft = signal('');
   protected readonly readOnly = computed(() => !this.store.project());
   protected readonly suggestions = computed(() => SUGGESTIONS[this.store.project()?.roomType ?? ''] ?? DEFAULT_SUGGESTIONS);
@@ -196,6 +251,28 @@ export class ChatPanelComponent {
     if (!text.trim() || this.chat.busy()) return;
     this.draft.set('');
     void this.chat.send(text);
+  }
+
+  protected onFile(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const image = input.files?.[0];
+    input.value = '';
+    if (image) void this.chat.sendImage(image);
+  }
+
+  /** Una imagen pegada (Ctrl+V) se manda como referencia; el texto se pega como siempre. */
+  protected onPaste(e: ClipboardEvent): void {
+    const image = [...(e.clipboardData?.items ?? [])].find((i) => i.kind === 'file' && i.type.startsWith('image/'))?.getAsFile();
+    if (!image || this.readOnly()) return;
+    e.preventDefault();
+    void this.chat.sendImage(image);
+  }
+
+  protected onDrop(e: DragEvent): void {
+    const image = [...(e.dataTransfer?.files ?? [])].find((f) => f.type.startsWith('image/'));
+    if (!image || this.readOnly()) return;
+    e.preventDefault();
+    void this.chat.sendImage(image);
   }
 
   /** Enter envía; Shift+Enter hace un salto de línea. */

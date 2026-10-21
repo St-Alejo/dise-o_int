@@ -355,7 +355,8 @@ export class SceneEditsService {
   }
 
   /** Guarda y pide al motor otra distribución con lo fijado en su sitio. */
-  private async relayout(): Promise<void> {
+  /** Otra distribución que respeta lo fijado (tras cambiar zonas o la planta). */
+  async relayout(): Promise<void> {
     const project = this.store.project();
     if (!project || !this.api) return;
     try {

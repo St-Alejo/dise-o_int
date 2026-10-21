@@ -152,6 +152,14 @@ export class ProjectsApi {
     return firstValueFrom(this.http.post<ChatResponse>(`${this.base}/${id}/chat`, body));
   }
 
+  /** Imagen de referencia ("hazlo como esta foto"): la lee, fija lo visto y pide una propuesta. */
+  chatReference(id: string, revision: number, image: Blob): Promise<ChatResponse> {
+    const form = new FormData();
+    form.append('revision', String(revision));
+    form.append('image', image, 'referencia.jpg');
+    return firstValueFrom(this.http.post<ChatResponse>(`${this.base}/${id}/chat/reference`, form));
+  }
+
   updateRoom(id: string, body: UpdateRoomRequest): Promise<DesignProject> {
     return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/room`, body));
   }
