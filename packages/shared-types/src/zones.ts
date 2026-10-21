@@ -55,7 +55,7 @@ function polygonsOverlap(p: readonly Point2[], q: readonly Point2[]): boolean {
  * Lanza `RoomGeometryError` si alguna zona no se puede construir: fuera del cuarto, cruzada,
  * demasiado chica, encimada con otra o con la puerta en un lado que no es tabique.
  */
-export function validateZones(shell: Pick<RoomShell, 'walls' | 'zones'>): void {
+export function validateZones(shell: Pick<RoomShell, 'walls' | 'zones'> & Partial<Pick<RoomShell, 'openings'>>): void {
   const zones = shell.zones ?? [];
   if (new Set(zones.map((z) => z.id)).size !== zones.length) throw new RoomGeometryError('Hay zonas con el mismo id');
   const room = roomPolygon(shell);
@@ -69,6 +69,9 @@ export function validateZones(shell: Pick<RoomShell, 'walls' | 'zones'>): void {
     for (const other of zones.slice(i + 1)) {
       if (polygonsOverlap(zone.outline, other.outline)) throw new RoomGeometryError(`Las zonas "${label}" y "${other.name ?? other.id}" se enciman`);
     }
+    for (const end of zoneEdges(shell, zone).filter((e) => e.partition).flatMap((e) => [e.a, e.b])) {
+      if (cutsOpening(shell, end)) throw new RoomGeometryError(`Un tabique de "${label}" corta una puerta o una ventana del cuarto`);
+    }
     if (zone.door) {
       const edge = zoneEdges(shell, zone)[zone.door.edge];
       if (!edge || !edge.partition) throw new RoomGeometryError(`La puerta de "${label}" tiene que ir en un tabique`);
@@ -78,6 +81,21 @@ export function validateZones(shell: Pick<RoomShell, 'walls' | 'zones'>): void {
       }
     }
   });
+}
+
+/** ¿El punto (donde un tabique toca una pared) cae sobre una puerta o ventana de esa pared? */
+function cutsOpening(shell: Pick<RoomShell, 'walls'> & Partial<Pick<RoomShell, 'openings'>>, p: Point2): boolean {
+  for (const o of shell.openings ?? []) {
+    const wall = shell.walls.find((w) => w.id === o.wallId);
+    if (!wall) continue;
+    const len = Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z) || 1;
+    const ux = (wall.end.x - wall.start.x) / len;
+    const uz = (wall.end.z - wall.start.z) / len;
+    const along = (p.x - wall.start.x) * ux + (p.z - wall.start.z) * uz;
+    const off = Math.abs((p.x - wall.start.x) * uz - (p.z - wall.start.z) * ux);
+    if (off < ON_WALL_M && Math.abs(along - o.offsetM) < o.widthM / 2 + PARTITION_THICKNESS_M) return true;
+  }
+  return false;
 }
 
 /** ¿En qué zona cae un punto? null = en el espacio común del cuarto. */
@@ -117,15 +135,15 @@ export function partitions(shell: Pick<RoomShell, 'walls' | 'zones'>): Partition
 }
 
 /** Los tramos macizos de los tabiques (sin el hueco de la puerta): lo que no se puede atravesar. */
-export function partitionSolids(shell: Pick<RoomShell, 'walls' | 'zones'>): { a: Point2; b: Point2 }[] {
+export function partitionSolids(shell: Pick<RoomShell, 'walls' | 'zones'>): { zoneId: string; a: Point2; b: Point2 }[] {
   const at = (p: Partition, t: number): Point2 => ({ x: p.a.x + ((p.b.x - p.a.x) * t) / p.lengthM, z: p.a.z + ((p.b.z - p.a.z) * t) / p.lengthM });
   return partitions(shell).flatMap((p) => {
-    if (!p.door) return [{ a: p.a, b: p.b }];
+    if (!p.door) return [{ zoneId: p.zoneId, a: p.a, b: p.b }];
     const from = p.door.offsetM - p.door.widthM / 2;
     const to = p.door.offsetM + p.door.widthM / 2;
     return [
-      ...(from > 0.01 ? [{ a: p.a, b: at(p, from) }] : []),
-      ...(to < p.lengthM - 0.01 ? [{ a: at(p, to), b: p.b }] : []),
+      ...(from > 0.01 ? [{ zoneId: p.zoneId, a: p.a, b: at(p, from) }] : []),
+      ...(to < p.lengthM - 0.01 ? [{ zoneId: p.zoneId, a: at(p, to), b: p.b }] : []),
     ];
   });
 }
@@ -175,9 +193,14 @@ export function cornerZone(
     if (!longest) continue;
     const doorWidth = Math.min(opts.doorWidthM ?? 0.7, longest.lengthM - 2 * DOOR_MARGIN_M - 0.1);
     if (doorWidth < 0.5) continue;
-    const candidate: Zone = { ...zone, door: { edge: longest.index, offsetM: longest.lengthM / 2, widthM: doorWidth } };
+    // La puerta va junto a la esquina de dentro (la que no toca pared): el lado de las paredes
+    // queda libre para el lavamanos, el inodoro y la ducha.
+    const innerAtEnd = distanceToBoundary(longest.b, room) > ON_WALL_M;
+    const fromInner = doorWidth / 2 + 0.12;
+    const offsetM = innerAtEnd ? longest.lengthM - fromInner : fromInner;
+    const candidate: Zone = { ...zone, door: { edge: longest.index, offsetM, widthM: doorWidth } };
     try {
-      validateZones({ walls: shell.walls, zones: [...(shell.zones ?? []).filter((z) => z.id !== opts.id), candidate] });
+      validateZones({ walls: shell.walls, openings: shell.openings, zones: [...(shell.zones ?? []).filter((z) => z.id !== opts.id), candidate] });
       return candidate;
     } catch {
       /* esa esquina no sirve: la siguiente */

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { ROOM_LIMITS, wallLength } from '@interiores/shared-types';
+import { BATHROOM_PRESETS, ROOM_LIMITS, wallLength } from '@interiores/shared-types';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { metres } from './floor-plan-model';
@@ -44,13 +44,29 @@ import { metres } from './floor-plan-model';
         </label>
         <button type="button" class="act danger" (click)="edits.removeOpening(view().id)">Quitar</button>
       }
+      @case ('zone') {
+        <strong>{{ view().text }}</strong>
+        <label class="height">
+          Tipo
+          <select class="num wide" aria-label="Tipo de baño" [value]="view().preset" (change)="edits.setZonePreset(view().id, $any($event.target).value)">
+            @for (p of presets; track p.id) {
+              <option [value]="p.id">{{ p.label }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" class="act danger" (click)="edits.removeZone(view().id)">Quitar zona</button>
+      }
       @case ('vertex') {
         <strong>Esquina</strong>
         <button type="button" class="act danger" (click)="edits.removeVertex(view().index)" [disabled]="!view().removable">Quitar esquina</button>
       }
       @default {
-        <span class="muted">Toca una pared, una esquina, una puerta o una ventana para ver qué puedes hacer con ella.</span>
+        <span class="muted">Toca una pared, una esquina, una puerta, una ventana o una zona para ver qué puedes hacer con ella.</span>
       }
+    }
+    @if (view().kind !== 'zone') {
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" class="act" (click)="edits.addBathroom()" title="Un baño con tabiques y puerta en el rincón más alejado de la entrada">+ Baño privado</button>
     }
   `,
   styles: `
@@ -77,6 +93,9 @@ import { metres } from './floor-plan-model';
       background: var(--surface);
       color: var(--text);
       font: inherit;
+    }
+    .num.wide {
+      width: auto;
     }
     .sep {
       width: 1px;
@@ -112,18 +131,26 @@ export class RoomActionsComponent {
   private readonly store = inject(DesignProjectStore);
   protected readonly edits = inject(SceneEditsService);
   protected readonly limits = ROOM_LIMITS;
+  protected readonly presets = BATHROOM_PRESETS;
 
   protected readonly height = computed(() => this.store.shell()?.heightM ?? 2.6);
 
   /** Lo que se muestra para la parte del cuarto elegida (o nada si ya no existe). */
   protected readonly view = computed(() => {
-    const none = { kind: 'none' as const, id: '', index: -1, text: '', width: 0, removable: false };
+    const none = { kind: 'none' as const, id: '', index: -1, text: '', width: 0, removable: false, preset: '' };
     const shell = this.store.shell();
     const target = this.store.roomTarget();
     if (!shell || !target) return none;
     if (target.kind === 'wall') {
       const wall = shell.walls.find((w) => w.id === target.wallId);
       return wall ? { ...none, kind: 'wall' as const, id: wall.id, text: metres(wallLength(wall)) } : none;
+    }
+    if (target.kind === 'zone') {
+      const zone = shell.zones?.find((z) => z.id === target.zoneId);
+      if (!zone) return none;
+      const own = this.store.finishes()?.zones?.[zone.id];
+      const preset = BATHROOM_PRESETS.find((p) => p.finishes.floor === own?.floor && p.finishes.wallTiles?.material === own?.wallTiles?.material);
+      return { ...none, kind: 'zone' as const, id: zone.id, text: zone.name ?? 'Zona', preset: preset?.id ?? '' };
     }
     if (target.kind === 'opening') {
       const opening = shell.openings.find((o) => o.id === target.openingId);

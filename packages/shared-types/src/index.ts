@@ -28,3 +28,4 @@ export * from './spatial-resolver.js';
 export * from './design-operations.js';
 export * from './design-toolbox.js';
 export * from './home-plan.js';
+export * from './zone-presets.js';

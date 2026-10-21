@@ -3,7 +3,7 @@
  * las primitivas que dibuja el SVG. La pared del fondo queda arriba y x crece a la derecha, igual
  * que se ve el cuarto desde la cámara. Todo va en metros: el `viewBox` hace la escala.
  */
-import { wallFrames, type RoomShell, type Vector3 } from '@interiores/shared-types';
+import { partitionSolids, partitions, pointInPolygon, wallFrames, type RoomShell, type Vector3 } from '@interiores/shared-types';
 
 export interface PlanPoint {
   x: number;
@@ -39,12 +39,24 @@ export interface PlanItem {
   depthM: number;
 }
 
+/** Zona interior (baño privado…): su piso, sus tabiques macizos y el vano de su puerta. */
+export interface PlanZone {
+  id: string;
+  name: string;
+  points: string;
+  /** Dónde va su nombre: el centro de la zona. */
+  centre: PlanPoint;
+  walls: { from: PlanPoint; to: PlanPoint }[];
+  door: PlanOpening | null;
+}
+
 export interface FloorPlan {
   viewBox: string;
   /** Contorno del piso como lista de puntos SVG. */
   outline: string;
   walls: PlanWall[];
   openings: PlanOpening[];
+  zones: PlanZone[];
   items: PlanItem[];
   /** Descripción para lectores de pantalla. */
   summary: string;
@@ -156,6 +168,8 @@ export function clearancesOf(shell: Pick<RoomShell, 'walls'>, corners: readonly 
   });
 }
 
+const ZONE_NAMES = { bathroom: 'Baño', closet: 'Vestidor', vanity: 'Tocador', 'office-nook': 'Rincón de estudio' } as const;
+
 export function floorPlanOf(shell: RoomShell, footprints: readonly PlanFootprint[] = []): FloorPlan {
   const frames = wallFrames(shell);
   const walls: PlanWall[] = shell.walls.map((wall, i) => {
@@ -194,6 +208,42 @@ export function floorPlanOf(shell: RoomShell, footprints: readonly PlanFootprint
     return [{ id: o.id, type: o.type, from: at(a), to: at(b), swing }];
   });
 
+  const solids = partitionSolids(shell);
+  const zones: PlanZone[] = (shell.zones ?? []).map((zone) => {
+    const xs = zone.outline.map((p) => p.x);
+    const zs = zone.outline.map((p) => p.z);
+    const door = partitions(shell).find((p) => p.zoneId === zone.id && p.door);
+    let planDoor: PlanOpening | null = null;
+    if (door?.door) {
+      const dir = { x: (door.b.x - door.a.x) / door.lengthM, z: (door.b.z - door.a.z) / door.lengthM };
+      const point = (t: number) => ({ x: door.a.x + dir.x * t, z: door.a.z + dir.z * t });
+      const a = point(door.door.offsetM - door.door.widthM / 2);
+      const b = point(door.door.offsetM + door.door.widthM / 2);
+      // La hoja abre hacia dentro de la zona.
+      const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+      const inside = pointInPolygon({ x: mid.x - dir.z * 0.1, z: mid.z + dir.x * 0.1 }, zone.outline) ? 1 : -1;
+      const w = door.door.widthM;
+      const leaf = { x: a.x - dir.z * inside * w, z: a.z + dir.x * inside * w };
+      const cross = (leaf.x - a.x) * (b.z - a.z) - (leaf.z - a.z) * (b.x - a.x);
+      const r = r3(w);
+      planDoor = {
+        id: `zone-door-${zone.id}`,
+        type: 'door',
+        from: at(a),
+        to: at(b),
+        swing: `M ${r3(a.x)} ${r3(a.z)} L ${r3(leaf.x)} ${r3(leaf.z)} A ${r} ${r} 0 0 ${cross > 0 ? 1 : 0} ${r3(b.x)} ${r3(b.z)}`,
+      };
+    }
+    return {
+      id: zone.id,
+      name: zone.name ?? ZONE_NAMES[zone.kind],
+      points: pts(zone.outline),
+      centre: { x: r3((Math.min(...xs) + Math.max(...xs)) / 2), y: r3((Math.min(...zs) + Math.max(...zs)) / 2) },
+      walls: solids.filter((s) => s.zoneId === zone.id).map((s) => ({ from: at(s.a), to: at(s.b) })),
+      door: planDoor,
+    };
+  });
+
   const doors = shell.openings.filter((o) => o.type === 'door').length;
   const windows = shell.openings.length - doors;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -202,6 +252,7 @@ export function floorPlanOf(shell: RoomShell, footprints: readonly PlanFootprint
     outline: pts(shell.walls.map((w) => w.start)),
     walls,
     openings,
+    zones,
     items: footprints.map((f) => {
       const xs = f.corners.map((c) => c.x);
       const zs = f.corners.map((c) => c.z);
@@ -245,6 +296,7 @@ export function planSvg(shell: RoomShell, footprints: readonly PlanFootprint[], 
     `<rect x="${x}" y="${r3(y - head)}" width="${w}" height="${r3(h + head)}" fill="#ffffff"/>`,
     `<text x="${r3(x + 0.3)}" y="${r3(y - head / 2)}" font-size="${r3(font * 1.3)}" font-weight="700" dominant-baseline="middle">${xml(title)}</text>`,
     `<polygon points="${plan.outline}" fill="#f4f1ec"/>`,
+    ...plan.zones.map((zone) => `<polygon points="${zone.points}" fill="#e6eef0"/>`),
     ...plan.items.map((item) => {
       const caption = captionFor(item.name, item.widthM, item.depthM, font * 0.72);
       const label = caption
@@ -258,6 +310,11 @@ export function planSvg(shell: RoomShell, footprints: readonly PlanFootprint[], 
         line(o.from, o.to, o.type === 'door' ? 'stroke="#f4f1ec" stroke-width="0.12"' : 'stroke="#3f6b5a" stroke-width="0.06"') +
         (o.swing ? `<path d="${o.swing}" fill="none" stroke="#6f655b" stroke-width="0.025" stroke-dasharray="0.08 0.06"/>` : ''),
     ),
+    ...plan.zones.flatMap((zone) => [
+      ...zone.walls.map((w) => line(w.from, w.to, 'stroke="#1b1714" stroke-width="0.06" stroke-linecap="square"')),
+      zone.door ? `<path d="${zone.door.swing}" fill="none" stroke="#6f655b" stroke-width="0.025" stroke-dasharray="0.08 0.06"/>` : '',
+      `<text x="${zone.centre.x}" y="${zone.centre.y}" font-size="${r3(font * 0.8)}" text-anchor="middle" dominant-baseline="middle" font-style="italic" fill="#6f655b">${xml(zone.name)}</text>`,
+    ]),
     ...plan.walls.map(
       (wall) =>
         `<text x="${wall.label.x}" y="${wall.label.y}" font-size="${r3(font)}" text-anchor="${wall.label.anchor}" dominant-baseline="middle" fill="#4a423b">${wall.label.text}</text>`,

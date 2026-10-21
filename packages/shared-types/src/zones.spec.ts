@@ -66,7 +66,8 @@ describe('zonas interiores', () => {
       id: 'z-closet',
       kind: 'closet',
       door: undefined,
-      outline: [{ x: 0.5, z: 2.2 }, { x: 2.5, z: 2.2 }, { x: 2.5, z: 4 }, { x: 0.5, z: 4 }],
+      // Desde x = 1,5: más a la izquierda, su tabique cortaría la puerta del cuarto.
+      outline: [{ x: 1.5, z: 2.2 }, { x: 2.5, z: 2.2 }, { x: 2.5, z: 4 }, { x: 1.5, z: 4 }],
     });
     expect(() => validateZones(shellWith(bath(), closet))).not.toThrow();
   });
@@ -158,3 +159,35 @@ describe('tabiques y plantilla de baño en esquina', () => {
     expect(cornerZone(shell, { id: 'z', kind: 'bathroom', widthM: 5, depthM: 5 })).toBeNull();
   });
 });
+
+describe('tabiques y aberturas del cuarto', () => {
+  it('un tabique no puede cortar una ventana; la plantilla busca otro rincón o se corre', () => {
+    const base = createRectangularShell(4.5, 4, 2.6);
+    const win = base.openings.find((o) => o.type === 'window');
+    const zone = cornerZone(base, { id: 'z', kind: 'bathroom', widthM: 2, depthM: 1.6 })!;
+    expect(() => validateZones({ ...base, zones: [zone] })).not.toThrow();
+    if (win) {
+      // Un baño cuyo tabique cae justo en el centro de la ventana se rechaza.
+      const wall = base.walls.find((w) => w.id === win.wallId)!;
+      const len = Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z);
+      const t = win.offsetM / len;
+      const cut = { x: wall.start.x + (wall.end.x - wall.start.x) * t, z: wall.start.z + (wall.end.z - wall.start.z) * t };
+      const inward = { x: -(wall.end.z - wall.start.z) / len, z: (wall.end.x - wall.start.x) / len };
+      const along = { x: (wall.end.x - wall.start.x) / len, z: (wall.end.z - wall.start.z) / len };
+      const pts = [cut, { x: cut.x + along.x * 1.6, z: cut.z + along.z * 1.6 }];
+      const outline = [...pts, { x: pts[1]!.x + inward.x * 1.5, z: pts[1]!.z + inward.z * 1.5 }, { x: cut.x + inward.x * 1.5, z: cut.z + inward.z * 1.5 }];
+      const bad = { id: 'bad', kind: 'bathroom' as const, outline, open: false };
+      const fixed = validateZonesSafe({ ...base, zones: [bad] }) ?? validateZonesSafe({ ...base, zones: [{ ...bad, outline: [...outline].reverse() }] });
+      expect(fixed).toMatch(/corta una puerta o una ventana|se sale/);
+    }
+  });
+});
+
+function validateZonesSafe(shell: Parameters<typeof validateZones>[0]): string | null {
+  try {
+    validateZones(shell);
+    return null;
+  } catch (err) {
+    return (err as Error).message;
+  }
+}

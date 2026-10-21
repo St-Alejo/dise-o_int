@@ -27,7 +27,11 @@ import { ProjectPersistence } from './project-persistence';
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'conflict' | 'error';
 
 /** Parte del cuarto elegida con la herramienta de paredes (en el plano o en el 3D). */
-export type RoomTarget = { kind: 'wall'; wallId: string } | { kind: 'opening'; openingId: string } | { kind: 'vertex'; index: number };
+export type RoomTarget =
+  | { kind: 'wall'; wallId: string }
+  | { kind: 'opening'; openingId: string }
+  | { kind: 'vertex'; index: number }
+  | { kind: 'zone'; zoneId: string };
 
 const AUTOSAVE_MS = 1200;
 

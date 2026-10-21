@@ -1,7 +1,12 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
+  DEFAULT_FINISHES,
   RoomGeometryError,
   addOpening,
+  addPrivateBathroom,
+  removeZone as removeZoneOf,
+  setZonePreset,
+  zoneAt,
   checkDesign,
   alignDeltas,
   distributeDeltas,
@@ -24,11 +29,24 @@ import {
   type Opening,
   type Point2,
   type RoomEdit,
+  type RoomFinishes,
   type RoomShell,
 } from '@interiores/shared-types';
+import { ProjectsApi } from '../../core/api/projects.api';
+import { ApiError } from '../../core/api/api-error';
 import { newPlacementId } from '../../core/ids';
 import { ToastService } from '../../core/ui/toast.service';
-import { AddCommand, DuplicateCommand, MacroCommand, MoveCommand, RemountCommand, RemoveCommand, SetLockCommand, SetRoomCommand } from '../viewport-3d/commands';
+import {
+  AddCommand,
+  DuplicateCommand,
+  MacroCommand,
+  MoveCommand,
+  RemountCommand,
+  RemoveCommand,
+  SetFinishesCommand,
+  SetLockCommand,
+  SetRoomCommand,
+} from '../viewport-3d/commands';
 import { DesignProjectStore } from './design-project.store';
 
 /**
@@ -40,6 +58,7 @@ import { DesignProjectStore } from './design-project.store';
 export class SceneEditsService {
   private readonly store = inject(DesignProjectStore);
   private readonly toast = inject(ToastService);
+  private readonly api = inject(ProjectsApi, { optional: true });
 
   /** Avisos de la revisión del diseño, recalculados con cada cambio del cuarto o de los muebles. */
   readonly issues = computed<DesignIssue[]>(() => {
@@ -274,6 +293,77 @@ export class SceneEditsService {
 
   removeVertex(index: number): void {
     if (this.editRoom('Quitar esquina', (shell) => removeVertex(shell, index))) this.store.roomTarget.set(null);
+  }
+
+  // ------------------------------------------------------------------ zonas interiores
+  /**
+   * Baño privado en el rincón más alejado de la puerta, con los acabados del tipo elegido. Lo que
+   * no estaba fijado y quedaba dentro sale, y se pide una distribución nueva: el motor llena el
+   * baño con su plantilla y reacomoda el resto. Todo se deshace con un Ctrl+Z.
+   */
+  async addBathroom(presetId = 'ducha-obra'): Promise<boolean> {
+    const shell = this.store.shell();
+    if (!shell) return false;
+    const finishes = this.store.finishes() ?? DEFAULT_FINISHES;
+    let result: ReturnType<typeof addPrivateBathroom>;
+    try {
+      result = addPrivateBathroom(shell, finishes, presetId);
+    } catch (err) {
+      if (!(err instanceof RoomGeometryError)) throw err;
+      this.toast.error(err.message);
+      return false;
+    }
+    const before = this.store.placements();
+    const kept = before.filter((p) => p.lockedByUser || zoneAt(result.shell, p.position)?.id !== result.zone.id);
+    this.store.execute(
+      new MacroCommand('Añadir baño privado', [
+        new SetRoomCommand('Añadir baño privado', { shell, placements: before }, { shell: result.shell, placements: kept }),
+        new SetFinishesCommand(this.store.finishes(), result.finishes),
+      ]),
+    );
+    this.store.roomTarget.set({ kind: 'zone', zoneId: result.zone.id });
+    await this.relayout();
+    return true;
+  }
+
+  setZonePreset(zoneId: string, presetId: string): void {
+    const finishes = this.store.finishes() ?? DEFAULT_FINISHES;
+    let next: RoomFinishes;
+    try {
+      next = setZonePreset(finishes, zoneId, presetId);
+    } catch (err) {
+      if (!(err instanceof RoomGeometryError)) throw err;
+      this.toast.error(err.message);
+      return;
+    }
+    this.store.execute(new SetFinishesCommand(this.store.finishes(), next));
+  }
+
+  removeZone(zoneId: string): void {
+    const shell = this.store.shell();
+    if (!shell) return;
+    const finishes = this.store.finishes() ?? DEFAULT_FINISHES;
+    const out = removeZoneOf(shell, finishes, zoneId);
+    const placements = this.store.placements();
+    this.store.execute(
+      new MacroCommand('Quitar zona', [
+        new SetRoomCommand('Quitar zona', { shell, placements }, { shell: out.shell, placements }),
+        new SetFinishesCommand(this.store.finishes(), out.finishes),
+      ]),
+    );
+    this.store.roomTarget.set(null);
+  }
+
+  /** Guarda y pide al motor otra distribución con lo fijado en su sitio. */
+  private async relayout(): Promise<void> {
+    const project = this.store.project();
+    if (!project || !this.api) return;
+    try {
+      await this.store.flush();
+      await this.api.autoLayout(project.id, { keepLocked: true, seed: Math.floor(Math.random() * 2_147_483_647) });
+    } catch (err) {
+      this.toast.error(ApiError.from(err).userMessage);
+    }
   }
 
   setRoomHeight(heightM: number): void {

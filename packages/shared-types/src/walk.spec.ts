@@ -177,7 +177,7 @@ describe('caminar con un baño privado (tabiques con puerta)', () => {
     // Un punto del cuarto, del otro lado de la puerta.
     const out = { x: 2 * doorAt.x - inside.x, z: 2 * doorAt.z - inside.z };
     // Frente a un tramo macizo del tabique no se pasa.
-    const solidAt = along(0.15);
+    const solidAt = along(door.door!.offsetM > door.lengthM / 2 ? 0.25 : door.lengthM - 0.25);
     const wallOut = { x: solidAt.x + (out.x - doorAt.x), z: solidAt.z + (out.z - doorAt.z) };
     const towardWall = { x: 2 * solidAt.x - wallOut.x, z: 2 * solidAt.z - wallOut.z };
     let s: WalkerState = { ...wallOut, yaw: 0 };

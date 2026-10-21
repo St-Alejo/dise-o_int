@@ -87,6 +87,11 @@ interface PlanPiece {
       >
         <g [attr.transform]="shiftTransform()" [attr.font-size]="fontM()">
           <polygon class="floor" [attr.points]="plan.outline" />
+          @for (zone of plan.zones; track zone.id) {
+            <polygon class="zone" [class.chosen]="chosen('zone', zone.id)" [attr.points]="zone.points" (pointerdown)="onZone($event, zone.id)">
+              <title>{{ zone.name }}</title>
+            </polygon>
+          }
 
           @for (piece of pieces(); track piece.id) {
             <polygon
@@ -115,6 +120,15 @@ interface PlanPiece {
             @if (o.swing) {
               <path class="swing" [attr.d]="o.swing" />
             }
+          }
+          @for (zone of plan.zones; track zone.id) {
+            @for (w of zone.walls; track $index) {
+              <line class="partition" [attr.x1]="w.from.x" [attr.y1]="w.from.y" [attr.x2]="w.to.x" [attr.y2]="w.to.y" />
+            }
+            @if (zone.door) {
+              <path class="swing" [attr.d]="zone.door.swing" />
+            }
+            <text class="zone-name" [attr.x]="zone.centre.x" [attr.y]="zone.centre.y" text-anchor="middle">{{ zone.name }}</text>
           }
 
           @if (tool() === 'room') {
@@ -240,6 +254,23 @@ interface PlanPiece {
     .window {
       stroke: var(--accent);
       stroke-width: 0.06;
+    }
+    .zone {
+      fill: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+    }
+    .zone.chosen {
+      fill: color-mix(in srgb, var(--primary) 22%, var(--surface-2));
+    }
+    .partition {
+      stroke: var(--text);
+      stroke-width: 0.06;
+      stroke-linecap: square;
+      pointer-events: none;
+    }
+    .zone-name {
+      fill: var(--text-muted);
+      font-style: italic;
+      pointer-events: none;
     }
     .swing {
       fill: none;
@@ -543,10 +574,18 @@ export class PlanEditorComponent {
   }
 
   /** ¿Es esta la parte del cuarto elegida? */
-  protected chosen(kind: 'wall' | 'opening' | 'vertex', id: string | number): boolean {
+  protected chosen(kind: 'wall' | 'opening' | 'vertex' | 'zone', id: string | number): boolean {
     const t = this.store.roomTarget();
     if (!t || t.kind !== kind) return false;
+    if (t.kind === 'zone') return t.zoneId === id;
     return t.kind === 'wall' ? t.wallId === id : t.kind === 'opening' ? t.openingId === id : t.index === id;
+  }
+
+  /** Con la herramienta de paredes, tocar una zona la elige (sus acciones salen en la barra). */
+  protected onZone(event: PointerEvent, zoneId: string): void {
+    if (this.tool() !== 'room') return;
+    event.stopPropagation();
+    this.store.roomTarget.set({ kind: 'zone', zoneId });
   }
 
   protected onWall(event: PointerEvent, wallId: string): void {

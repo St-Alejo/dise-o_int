@@ -1,4 +1,4 @@
-import { buildRoomFromSpec, createRectangularShell, footprint } from '@interiores/shared-types';
+import { buildRoomFromSpec, cornerZone, createRectangularShell, footprint } from '@interiores/shared-types';
 import { describe, expect, it } from 'vitest';
 import { captionFor, floorPlanOf, metres, planSvg } from './floor-plan-model';
 
@@ -92,5 +92,20 @@ describe('plano para imprimir', () => {
 
   it('cada mueble lleva su nombre y su centro', () => {
     expect(floorPlanOf(shell, [sofa]).items[0]).toMatchObject({ name: sofa.name, centre: { x: 2, y: 0.5 }, widthM: 2 });
+  });
+});
+
+describe('zonas en el plano', () => {
+  it('el baño privado sale con su piso, sus tabiques partidos por la puerta y el arco de la hoja', () => {
+    const base = createRectangularShell(4.5, 4, 2.6);
+    const zone = cornerZone(base, { id: 'b', kind: 'bathroom', widthM: 2, depthM: 1.6 })!;
+    const plan = floorPlanOf({ ...base, zones: [zone] });
+    expect(plan.zones).toHaveLength(1);
+    const [z] = plan.zones;
+    expect(z!.name).toBe('Baño');
+    // Un tabique entero y el de la puerta en dos tramos.
+    expect(z!.walls).toHaveLength(3);
+    expect(z!.door?.swing).toMatch(/^M .* A /);
+    expect(planSvg({ ...base, zones: [zone] }, [], 'Plano')).toContain('Baño');
   });
 });

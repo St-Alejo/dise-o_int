@@ -38,6 +38,12 @@ function shapeAfter(before: RoomShell, after: RoomShell, keepTemplate: boolean):
   return 'free';
 }
 
+/** Las zonas interiores se quedan donde estaban en el cuarto: se corren con él al origen. */
+function shiftedZones(shell: RoomShell, shift: Point2): Pick<RoomShell, 'zones'> {
+  if (!shell.zones) return {};
+  return { zones: shell.zones.map((z) => ({ ...z, outline: z.outline.map((p) => ({ x: r3(p.x + shift.x), z: r3(p.z + shift.z) })) })) };
+}
+
 /** Arma el cuarto con los vértices nuevos: lo lleva al origen y reacomoda las aberturas. */
 function rebuild(shell: RoomShell, points: readonly Point2[], keepTemplate: boolean): RoomEdit {
   const b = polygonBounds(points);
@@ -79,6 +85,7 @@ function rebuild(shell: RoomShell, points: readonly Point2[], keepTemplate: bool
     depthM,
     walls: walls.map((w) => ({ ...w, hasWindow: openings.some((o) => o.wallId === w.id && o.type === 'window') })),
     openings,
+    ...shiftedZones(shell, shift),
   };
   const shape = shapeAfter(shell, draft, keepTemplate);
   const { shape: _old, ...rest } = draft;
@@ -320,6 +327,7 @@ export function removeVertex(shell: RoomShell, index: number): RoomEdit {
     widthM: r3(b.maxX - b.minX),
     depthM: r3(b.maxZ - b.minZ),
     walls: shell.walls.map((w) => ({ ...w, start: slide(w.start), end: slide(w.end) })),
+    ...shiftedZones(shell, shift),
   };
   const edit = rewall(
     shifted,
