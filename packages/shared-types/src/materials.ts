@@ -32,6 +32,8 @@ const m = (
 ): MaterialDefinition => ({ id, name, kind, color, roughness, metalness, ...(surfaces ? { surfaces } : {}) });
 
 const FLOOR = ['floor'] as const;
+const WALL = ['wall'] as const;
+const FLOOR_WALL = ['floor', 'wall'] as const;
 const WALL_CEILING = ['wall', 'ceiling'] as const;
 
 export const MATERIALS: readonly MaterialDefinition[] = [
@@ -53,6 +55,7 @@ export const MATERIALS: readonly MaterialDefinition[] = [
   m('wood-walnut', 'Nogal', 'wood', '#6b4a33', 0.65, 0, FLOOR),
   m('wood-ash-white', 'Fresno blanqueado', 'wood', '#e3d8c6', 0.7, 0, FLOOR),
   m('wood-teak', 'Teca', 'wood', '#9a6a3f', 0.65, 0, FLOOR),
+  m('wood-herringbone', 'Parqué en espiga', 'wood', '#b48a5c', 0.6, 0, FLOOR),
   m('wood-black', 'Madera negra', 'wood', '#2a2522', 0.6),
   // Metales
   m('metal-black', 'Acero negro', 'metal', '#232323', 0.45, 0.9),
@@ -60,12 +63,20 @@ export const MATERIALS: readonly MaterialDefinition[] = [
   m('metal-chrome', 'Cromo', 'metal', '#d6d8da', 0.15, 1),
   m('metal-white', 'Metal blanco', 'metal', '#ecebe8', 0.5, 0.6),
   // Piedras y cerámicas (también pisos)
-  m('stone-marble-white', 'Mármol blanco', 'stone', '#ebe8e2', 0.25, 0, FLOOR),
+  m('stone-marble-white', 'Mármol blanco', 'stone', '#ebe8e2', 0.25, 0, FLOOR_WALL),
   m('stone-travertine', 'Travertino', 'stone', '#d6c4a4', 0.6, 0, FLOOR),
   m('stone-microcement', 'Microcemento', 'stone', '#b9b5ae', 0.8, 0, FLOOR),
-  m('ceramic-white', 'Cerámica blanca', 'ceramic', '#f4f3ef', 0.3, 0, FLOOR),
+  m('stone-terrazzo', 'Terrazo', 'stone', '#ddd6cb', 0.35, 0, FLOOR),
+  m('stone-slate', 'Pizarra', 'stone', '#55585a', 0.7, 0, FLOOR_WALL),
+  m('ceramic-white', 'Cerámica blanca', 'ceramic', '#f4f3ef', 0.3, 0, FLOOR_WALL),
   m('ceramic-terracotta', 'Baldosa terracota', 'ceramic', '#b8653f', 0.75, 0, FLOOR),
-  m('ceramic-grey-tile', 'Porcelanato gris', 'ceramic', '#9c9b97', 0.5, 0, FLOOR),
+  m('ceramic-grey-tile', 'Porcelanato gris', 'ceramic', '#9c9b97', 0.5, 0, FLOOR_WALL),
+  m('ceramic-marble-mosaic', 'Mosaico de mármol', 'ceramic', '#d9d3c8', 0.3, 0, FLOOR_WALL),
+  m('ceramic-subway-white', 'Baldosa de metro blanca', 'ceramic', '#f1f0ec', 0.15, 0, WALL),
+  m('ceramic-square-wall', 'Azulejo cuadrado', 'ceramic', '#e7e4dc', 0.2, 0, WALL),
+  // Moquetas (piso de pared a pared)
+  m('carpet-grey', 'Moqueta gris', 'fabric', '#8f8f8c', 1, 0, FLOOR),
+  m('carpet-cream', 'Moqueta crema', 'fabric', '#e2d9c6', 1, 0, FLOOR),
   // Vidrio, plástico, plantas
   m('glass-clear', 'Vidrio', 'glass', '#dfe9ec', 0.05),
   m('glass-smoked', 'Vidrio ahumado', 'glass', '#5d5e5c', 0.05),
@@ -86,7 +97,8 @@ export const MATERIALS: readonly MaterialDefinition[] = [
   m('paint-forest', 'Verde bosque', 'paint', '#3f5a47', 0.9, 0, WALL_CEILING),
   m('paint-mustard', 'Mostaza suave', 'paint', '#d9b45a', 0.9, 0, WALL_CEILING),
   m('paint-wine', 'Vino', 'paint', '#5a2328', 0.9, 0, WALL_CEILING),
-  m('paint-brick', 'Ladrillo visto', 'paint', '#94553f', 0.95, 0, ['wall']),
+  m('paint-brick', 'Ladrillo visto', 'paint', '#94553f', 0.95, 0, WALL),
+  m('brick-white', 'Ladrillo blanco', 'paint', '#e9e5dd', 0.95, 0, WALL),
 ];
 
 const BY_ID = new Map(MATERIALS.map((mat) => [mat.id, mat]));
@@ -171,7 +183,7 @@ export function nearestMaterial(surface: 'floor' | 'wall' | 'ceiling', hex: stri
 }
 
 /** Qué materiales de piso corresponden a lo que un modelo de visión llama madera, baldosa, etc. */
-const FLOOR_KINDS: Record<string, readonly MaterialKind[]> = { wood: ['wood'], tile: ['ceramic', 'stone'], concrete: ['stone'] };
+const FLOOR_KINDS: Record<string, readonly MaterialKind[]> = { wood: ['wood'], tile: ['ceramic', 'stone'], concrete: ['stone'], carpet: ['fabric'] };
 
 /**
  * Acabados parecidos a los de la foto: la pintura y el piso de la biblioteca más cercanos a los
@@ -180,7 +192,7 @@ const FLOOR_KINDS: Record<string, readonly MaterialKind[]> = { wood: ['wood'], t
 export function finishesFromPhoto(seen: { wallColor?: string | undefined; floorColor?: string | undefined; floorMaterial?: string | undefined }): RoomFinishes | null {
   if (!seen.wallColor && !seen.floorColor) return null;
   const floor = seen.floorColor ? nearestMaterial('floor', seen.floorColor, FLOOR_KINDS[seen.floorMaterial ?? '']).id : DEFAULT_FINISHES.floor;
-  const wall = seen.wallColor ? nearestMaterial('wall', seen.wallColor).id : DEFAULT_FINISHES.walls['all']!;
+  const wall = seen.wallColor ? nearestMaterial('wall', seen.wallColor, ['paint']).id : DEFAULT_FINISHES.walls['all']!;
   return { floor, walls: { all: wall }, ceiling: DEFAULT_FINISHES.ceiling };
 }
 

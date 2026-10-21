@@ -8,6 +8,7 @@ export * from './styles.js';
 export * from './polygon.js';
 export * from './geometry.js';
 export * from './materials.js';
+export * from './textures.js';
 export * from './catalog-search.js';
 export * from './collision.js';
 export * from './shopping.js';

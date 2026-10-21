@@ -22,6 +22,7 @@ import { FULL_MANIFEST, shoppingUrl, type ManifestEntry } from './catalog/manife
 import { buildParametricGlb } from './catalog/parametric.js';
 import { downloadPolyHaven, downloadPolyHavenThumbnail } from './catalog/polyhaven.js';
 import { buildProceduralGlb } from './catalog/procedural.js';
+import { seedTextures } from './catalog/textures.js';
 
 const log = (msg: string) => process.stdout.write(`[seed] ${msg}\n`);
 
@@ -152,6 +153,8 @@ async function main(): Promise<void> {
     log(`✓ ${entry.id} (${built.source}, ${(built.glb.byteLength / 1024).toFixed(0)} KB)`);
   }
   log(`Catálogo listo: ${ok} muebles, ${skipped} omitidos.`);
+  if (offline) log('Sin red: se mantienen las texturas que hubiera (la web usa las de canvas si no hay).');
+  else log(`Texturas listas: ${await seedTextures(storage, cacheDir, log)} juegos.`);
   await prisma.$disconnect();
   storage.onModuleDestroy();
 }
