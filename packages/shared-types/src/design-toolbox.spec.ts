@@ -3,6 +3,8 @@ import type { CatalogItem, FurniturePlacement } from './domain.js';
 import { DesignOperationSchema } from './design-operations.js';
 import { DesignToolbox } from './design-toolbox.js';
 import { createRectangularShell } from './geometry.js';
+import { DEFAULT_FINISHES } from './materials.js';
+import { addPrivateBathroom } from './zone-presets.js';
 
 const item = (over: Partial<CatalogItem> & Pick<CatalogItem, 'id' | 'category' | 'dimensionsM'>): CatalogItem => ({
   name: over.id,
@@ -124,5 +126,82 @@ describe('DesignToolbox', () => {
     const out = tb.run('add_item', { catalogItemId: 'sofa', relation: 'in-front-of', nearId: 'nada' });
     expect(out).toMatchObject({ ok: false, summary: expect.stringMatching(/No existe/) });
     expect(tb.operations()).toEqual([]);
+  });
+  it('set_finishes conserva acabados propios, revestimiento, zonas y luz', () => {
+    let n = 0;
+    const spec = { name: 'Baldosa azul', kind: 'tile' as const, colors: ['#a9d4ee'], pattern: 'grid' as const, gloss: 0.8 };
+    const finishes = {
+      floor: 'custom-x',
+      walls: { all: 'paint-white' },
+      ceiling: 'paint-white',
+      custom: { 'custom-x': spec },
+      wallTiles: { material: 'ceramic-subway-white', heightM: 1.2 },
+      lighting: { mood: 'calida' as const, level: 'media' as const },
+    };
+    const tb = new DesignToolbox({ shell: createRectangularShell(4, 4, 2.6), placements: [], finishes, catalog: CATALOG, newId: () => `n${++n}` });
+    expect(tb.run('set_finishes', { walls: 'paint-sage' }).ok).toBe(true);
+    expect(tb.currentFinishes).toMatchObject({ floor: 'custom-x', custom: { 'custom-x': spec }, wallTiles: finishes.wallTiles, lighting: finishes.lighting });
+    // Al cambiar el piso, el acabado propio que ya nadie usa se descarta.
+    tb.run('set_finishes', { floor: 'wood-walnut' });
+    expect(tb.currentFinishes?.custom).toBeUndefined();
+  });
+
+  it('acabado descrito con palabras: queda puesto y fijado en el Brief', () => {
+    const tb = toolbox();
+    const spec = { name: 'Baldosa brillante azul y verde', kind: 'tile', colors: ['#a9d4ee', '#4f8a52'], pattern: 'mosaic', gloss: 0.85 };
+    const out = tb.run('set_finish_spec', { surface: 'floor', spec });
+    expect(out.ok).toBe(true);
+    expect(out.summary).toMatch(/fijado/);
+    const ops = tb.operations();
+    const fin = ops.find((o) => o.op === 'finishes');
+    const brief = ops.find((o) => o.op === 'brief');
+    expect(fin && fin.op === 'finishes' && fin.finishes.floor).toMatch(/^custom-/);
+    expect(brief && brief.op === 'brief' && brief.brief.surfaces.floor).toMatchObject({ locked: true, spec: { colors: ['#a9d4ee', '#4f8a52'] } });
+    for (const o of ops) expect(DesignOperationSchema.safeParse(o).success).toBe(true);
+    // Una moqueta no va en la pared.
+    expect(tb.run('set_finish_spec', { surface: 'walls', spec: { ...spec, kind: 'carpet' } }).ok).toBe(false);
+  });
+
+  it('revestimiento, luz, candados y piezas pedidas', () => {
+    const tb = toolbox();
+    expect(tb.run('set_wall_tiles', { materialId: 'ceramic-subway-white', fullHeight: true }).summary).toMatch(/2.6 m/);
+    expect(tb.run('set_wall_tiles', { materialId: 'paint-sage' }).ok).toBe(false);
+    expect(tb.run('set_lighting', { mood: 'calida', level: 'tenue', pin: true }).ok).toBe(true);
+    expect(tb.run('pin', { target: 'walls' }).ok).toBe(true);
+    expect(tb.run('pin', { target: 'style', styleId: 'industrial' }).ok).toBe(true);
+    expect(tb.run('unpin', { target: 'style' }).ok).toBe(true);
+    tb.run('want_item', { subcategory: 'dressing-table' });
+    tb.run('want_item', { subcategory: 'rug', avoid: true });
+    const brief = tb.currentBrief!;
+    expect(brief.lighting).toEqual({ mood: 'calida', level: 'tenue', locked: true });
+    expect(brief.surfaces.walls).toEqual({ material: 'paint-white', locked: true });
+    expect(brief.style).toEqual({ id: 'industrial', locked: false });
+    expect(brief.mustHave).toEqual([{ subcategory: 'dressing-table' }]);
+    expect(brief.avoid).toEqual(['rug']);
+    expect(tb.currentFinishes?.wallTiles).toEqual({ material: 'ceramic-subway-white', heightM: 2.6 });
+  });
+
+  it('baño privado: zona nueva, quita lo suelto que queda dentro y pide Recomendar al final', () => {
+    // La mesita suelta queda en el centro de donde irá el baño; la cama (fijada) se queda.
+    const { zone } = addPrivateBathroom(createRectangularShell(4.5, 4, 2.6), DEFAULT_FINISHES, 'spa-marmol');
+    const c = zone.outline.reduce((a, p) => ({ x: a.x + p.x / zone.outline.length, z: a.z + p.z / zone.outline.length }), { x: 0, z: 0 });
+    const loose: FurniturePlacement = { id: 'n1', catalogItemId: 'nightstand', position: { x: c.x, y: 0, z: c.z }, rotationY: 0 };
+    const tb = toolbox([...bedroom(), loose]);
+    const out = tb.run('add_zone', { kind: 'bathroom', preset: 'spa-marmol' });
+    expect(out.ok).toBe(true);
+    expect(tb.run('add_zone', { kind: 'bathroom', preset: 'nope' }).ok).toBe(false);
+    tb.run('recommend', { intensity: 'suave' });
+    const ops = tb.operations();
+    expect(ops.map((o) => o.op)[0]).toBe('zones');
+    expect(ops.at(-1)).toEqual({ op: 'recommend', intensity: 'suave' });
+    const zoneId = (data(out.content) as { zoneId: string }).zoneId;
+    const zones = ops[0]!.op === 'zones' ? ops[0]!.zones : [];
+    expect(zones.map((z) => z.id)).toEqual([zoneId]);
+    expect(ops).toContainEqual({ op: 'remove', id: 'n1' });
+    expect(ops.some((o) => o.op === 'remove' && o.id === 'b1')).toBe(false);
+    // Con zona, el acabado descrito puede ir solo al baño.
+    expect(tb.run('set_finish_spec', { surface: 'floor', zoneId, spec: { name: 'Hex blanco', kind: 'tile', colors: ['#ffffff'], pattern: 'hex' } }).ok).toBe(true);
+    expect(tb.currentFinishes?.zones?.[zoneId]?.floor).toMatch(/^custom-/);
+    expect(tb.run('set_finish_spec', { surface: 'floor', zoneId: 'nada', spec: { name: 'x', kind: 'tile', colors: ['#ffffff'] } }).summary).toMatch(/No existe la zona/);
   });
 });

@@ -8,10 +8,28 @@
  * Nada aquí toca la base de datos ni la red: es determinista y se prueba sin servidor.
  */
 import { z } from 'zod';
-import { CATALOG_CATEGORIES, MATERIAL_KINDS, MOUNTS, type CatalogItem, type FurniturePlacement, type RoomFinishes, type RoomShell, type Vector3 } from './domain.js';
+import {
+  CATALOG_CATEGORIES,
+  LIGHT_LEVELS,
+  LIGHT_MOODS,
+  MATERIAL_KINDS,
+  MOUNTS,
+  StyleIdSchema,
+  type CatalogItem,
+  type DesignBrief,
+  type FinishPin,
+  type FurniturePlacement,
+  type RoomFinishes,
+  type RoomShell,
+  type Vector3,
+} from './domain.js';
 import type { DesignOperation } from './design-operations.js';
 import { clampDimensions, defaultResizeRanges, effectiveDimensions, fitPlacementsToRoom, resizeRoomShell, rotateXZ, snapAngle } from './geometry.js';
-import { DEFAULT_FINISHES, getMaterial, materialsForSurface, materialsOfKinds, wallMaterialId } from './materials.js';
+import { customFinishId, FinishSpecSchema, SPEC_SURFACES, type FinishSpec } from './finish-spec.js';
+import { DEFAULT_FINISHES, getMaterial, materialsForSurface, materialsOfKinds, resolveFinishMaterial, wallMaterialId } from './materials.js';
+import { STYLES } from './styles.js';
+import { addPrivateBathroom, BATHROOM_PRESETS } from './zone-presets.js';
+import { zoneAt } from './zones.js';
 import { searchCatalog } from './catalog-search.js';
 import { alongOf, positionOnWall, wallFrames } from './walls.js';
 import { RELATIONS, SpatialResolver, type ResolvedPose } from './spatial-resolver.js';
@@ -64,6 +82,30 @@ export const TOOL_INPUTS = {
     depthM: z.number().min(0.8).max(30),
     heightM: z.number().min(2).max(6).optional(),
   }),
+  set_finish_spec: z.object({
+    surface: z.enum(['floor', 'walls', 'ceiling', 'wallTiles']),
+    spec: FinishSpecSchema,
+    wallId: WallId.optional(),
+    zoneId: Id.optional(),
+    /** Revestimiento: hasta qué altura (m). Sin ella, 1,2 m; o hasta el techo con fullHeight. */
+    heightM: z.number().min(0.3).max(6).optional(),
+    fullHeight: z.boolean().optional(),
+    /** Lo pedido queda fijado para "Recomendar" (por defecto sí). */
+    pin: z.boolean().optional(),
+  }),
+  set_wall_tiles: z.object({
+    materialId: z.string().min(1).max(64).optional(),
+    heightM: z.number().min(0.3).max(6).optional(),
+    fullHeight: z.boolean().optional(),
+    zoneId: Id.optional(),
+    remove: z.boolean().optional(),
+  }),
+  set_lighting: z.object({ mood: z.enum(LIGHT_MOODS).optional(), level: z.enum(LIGHT_LEVELS).optional(), pin: z.boolean().optional() }),
+  pin: z.object({ target: z.enum(['floor', 'walls', 'ceiling', 'wallTiles', 'style', 'lighting']), styleId: StyleIdSchema.optional() }),
+  unpin: z.object({ target: z.enum(['floor', 'walls', 'ceiling', 'wallTiles', 'style', 'lighting', 'palette']) }),
+  want_item: z.object({ subcategory: z.string().min(1).max(40), avoid: z.boolean().optional() }),
+  add_zone: z.object({ kind: z.literal('bathroom'), preset: z.string().min(1).max(40).optional() }),
+  recommend: z.object({ intensity: z.enum(['suave', 'total']).optional() }),
 } as const;
 export type ToolName = keyof typeof TOOL_INPUTS;
 export type ToolInput<K extends ToolName> = z.infer<(typeof TOOL_INPUTS)[K]>;
@@ -88,6 +130,15 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Cambia los acabados del cuarto: floor (material de piso), walls (pintura de las paredes; con wallId solo esa pared) y ceiling. Usa ids de list_materials con la superficie correspondiente.',
   set_room_size:
     'Cambia las medidas del cuarto en metros (ancho = eje X, largo = fondo, alto opcional). Los muebles se re-encajan dentro.',
+  set_finish_spec:
+    'Pone un acabado descrito con palabras que no está en la biblioteca: baldosa, madera, piedra, pintura, moqueta, ladrillo o cemento, con 1 a 3 colores #rrggbb, dibujo (grid, checker, subway, herringbone, hex, mosaic, planks), brillo 0–1 y tamaño de pieza. surface: floor, walls (wallId para una sola), ceiling o wallTiles (revestimiento hasta heightM o fullHeight). zoneId para el baño privado. Queda fijado para Recomendar salvo pin=false.',
+  set_wall_tiles: 'Revestimiento de pared (baldosa o piedra de la biblioteca) hasta una altura, en el cuarto o en una zona; remove=true lo quita.',
+  set_lighting: 'Cambia la luz general: mood (calida, neutra, fria) y level (tenue, media, alta). pin=true la fija para Recomendar.',
+  pin: 'Fija lo que hay ahora (piso, paredes, techo, revestimiento, estilo o luz) para que Recomendar no lo cambie. Con target=style y styleId, fija ese estilo.',
+  unpin: 'Suelta un candado: Recomendar ya puede cambiar eso.',
+  want_item: 'Anota en el Brief una pieza que la persona quiere (subcategoría: dressing-table, rug, floor-lamp...) o, con avoid=true, una que no quiere ver.',
+  add_zone: 'Añade un baño privado en una esquina del cuarto, con tabiques, puerta y su tipo (ducha-obra, banera-mampara, spa-marmol, industrial).',
+  recommend: 'Pide una propuesta de Recomendar al terminar (suave = solo colores, acabados y luz; total = también estilo y muebles), respetando lo fijado.',
 };
 
 export interface ToolOutcome {
@@ -104,6 +155,8 @@ export interface ToolboxInit {
   finishes: RoomFinishes | null;
   catalog: readonly CatalogItem[];
   newId: () => string;
+  /** Lo fijado y pedido; las herramientas de candados lo cambian. */
+  brief?: DesignBrief | null;
 }
 
 const cm = (m: number) => Math.round(m * 100);
@@ -122,15 +175,18 @@ export class DesignToolbox {
   private shell: RoomShell;
   private placements: FurniturePlacement[];
   private finishes: RoomFinishes | null;
+  private brief: DesignBrief | null;
+  private recommendWith: 'suave' | 'total' | null = null;
   private readonly catalogById: Map<string, CatalogItem>;
-  private readonly original: { shell: RoomShell; placements: Map<string, FurniturePlacement>; finishes: RoomFinishes | null };
+  private readonly original: { shell: RoomShell; placements: Map<string, FurniturePlacement>; finishes: RoomFinishes | null; brief: DesignBrief | null };
 
   constructor(private readonly init: ToolboxInit) {
     this.shell = init.shell;
     this.placements = init.placements.map((p) => structuredClone(p));
     this.finishes = init.finishes;
+    this.brief = init.brief ?? null;
     this.catalogById = new Map(init.catalog.map((c) => [c.id, c]));
-    this.original = { shell: init.shell, placements: new Map(init.placements.map((p) => [p.id, p])), finishes: init.finishes };
+    this.original = { shell: init.shell, placements: new Map(init.placements.map((p) => [p.id, p])), finishes: init.finishes, brief: init.brief ?? null };
   }
 
   // ------------------------------------------------------------------- consulta (para los agentes)
@@ -186,6 +242,22 @@ export class DesignToolbox {
         return this.setFinishes(input as ToolInput<'set_finishes'>);
       case 'set_room_size':
         return this.setRoomSize(input as ToolInput<'set_room_size'>);
+      case 'set_finish_spec':
+        return this.setFinishSpec(input as ToolInput<'set_finish_spec'>);
+      case 'set_wall_tiles':
+        return this.setWallTiles(input as ToolInput<'set_wall_tiles'>);
+      case 'set_lighting':
+        return this.setLighting(input as ToolInput<'set_lighting'>);
+      case 'pin':
+        return this.pin(input as ToolInput<'pin'>);
+      case 'unpin':
+        return this.unpin(input as ToolInput<'unpin'>);
+      case 'want_item':
+        return this.wantItem(input as ToolInput<'want_item'>);
+      case 'add_zone':
+        return this.addZone(input as ToolInput<'add_zone'>);
+      case 'recommend':
+        return this.recommend(input as ToolInput<'recommend'>);
     }
   }
 
@@ -461,7 +533,7 @@ export class DesignToolbox {
     };
     this.checkWall(input.wallId);
     const cur = this.finishes ?? DEFAULT_FINISHES;
-    const next: RoomFinishes = { floor: cur.floor, walls: { ...cur.walls }, ceiling: cur.ceiling };
+    const next: RoomFinishes = { ...structuredClone(cur), walls: { ...cur.walls } };
     const said: string[] = [];
     if (input.floor) {
       said.push(`piso de ${check(input.floor, 'floor').name.toLowerCase()}`);
@@ -477,7 +549,7 @@ export class DesignToolbox {
       else next.walls = { all: input.walls };
       said.push(`${input.wallId ? 'una pared' : 'paredes'} en ${mat.name.toLowerCase()}`);
     }
-    this.finishes = next;
+    this.finishes = pruneCustom(next);
     return this.success({ finishes: next }, `Listo: ${said.join(', ')}`);
   }
 
@@ -492,6 +564,161 @@ export class DesignToolbox {
     );
   }
 
+  // ------------------------------------------------------------------- acabados descritos, luz, Brief
+  private current(): RoomFinishes {
+    return structuredClone(this.finishes ?? DEFAULT_FINISHES);
+  }
+
+  private briefOrEmpty(): DesignBrief {
+    return structuredClone(this.brief ?? { surfaces: {}, mustHave: [], avoid: [], zones: [] });
+  }
+
+  private checkZone(zoneId: string | undefined): void {
+    if (zoneId && !(this.shell.zones ?? []).some((z) => z.id === zoneId)) {
+      const ids = (this.shell.zones ?? []).map((z) => z.id).join(', ');
+      throw new Error(ids ? `No existe la zona ${zoneId} (las de este cuarto: ${ids})` : 'Este cuarto no tiene zonas interiores');
+    }
+  }
+
+  private setFinishSpec(input: ToolInput<'set_finish_spec'>): ToolOutcome {
+    const spec: FinishSpec = input.spec;
+    const where = input.surface === 'walls' || input.surface === 'wallTiles' ? 'wall' : input.surface;
+    if (!SPEC_SURFACES[spec.kind].includes(where)) return this.error(`Un acabado de tipo ${spec.kind} no va en ${input.surface === 'floor' ? 'el piso' : input.surface === 'ceiling' ? 'el techo' : 'la pared'}`);
+    this.checkWall(input.wallId);
+    this.checkZone(input.zoneId);
+    const id = customFinishId(spec);
+    const next = this.current();
+    next.custom = { ...next.custom, [id]: spec };
+    const height = (input.fullHeight ? this.shell.heightM : input.heightM) ?? 1.2;
+    if (input.zoneId) {
+      const zone = { ...(next.zones?.[input.zoneId] ?? { floor: next.floor }) };
+      if (input.surface === 'floor') zone.floor = id;
+      else if (input.surface === 'walls') zone.walls = id;
+      else if (input.surface === 'wallTiles') zone.wallTiles = { material: id, heightM: Math.min(height, this.shell.heightM) };
+      else return this.error('Una zona comparte el techo del cuarto: cambia el techo sin zoneId');
+      next.zones = { ...next.zones, [input.zoneId]: zone };
+    } else if (input.surface === 'floor') next.floor = id;
+    else if (input.surface === 'ceiling') next.ceiling = id;
+    else if (input.surface === 'walls') next.walls = input.wallId ? { ...next.walls, [input.wallId]: id } : { all: id };
+    else next.wallTiles = { ...(next.wallTiles ?? {}), material: id, heightM: Math.min(height, this.shell.heightM) };
+    this.finishes = pruneCustom(next);
+    // Lo que se pide con palabras se fija: "Recomendar" ya no lo cambia (salvo pin=false).
+    if (input.pin !== false && !input.zoneId && !input.wallId) {
+      const brief = this.briefOrEmpty();
+      brief.surfaces[input.surface] = { spec, locked: true };
+      this.brief = brief;
+    }
+    const label = { floor: 'piso', walls: input.wallId ? 'una pared' : 'paredes', ceiling: 'techo', wallTiles: 'revestimiento' }[input.surface];
+    return this.success({ finishId: id, surface: input.surface, ...(input.zoneId ? { zoneId: input.zoneId } : {}) }, `Listo: ${label} de ${spec.name.toLowerCase()}${input.pin !== false && !input.zoneId && !input.wallId ? ' (fijado)' : ''}`);
+  }
+
+  private setWallTiles(input: ToolInput<'set_wall_tiles'>): ToolOutcome {
+    this.checkZone(input.zoneId);
+    const next = this.current();
+    const height = Math.min((input.fullHeight ? this.shell.heightM : input.heightM) ?? 1.2, this.shell.heightM);
+    if (input.remove) {
+      if (input.zoneId && next.zones?.[input.zoneId]) delete next.zones[input.zoneId]!.wallTiles;
+      else delete next.wallTiles;
+      this.finishes = pruneCustom(next);
+      return this.success({ removed: true }, 'Quité el revestimiento');
+    }
+    const id = input.materialId ?? (input.zoneId ? next.zones?.[input.zoneId]?.wallTiles?.material : next.wallTiles?.material) ?? 'ceramic-subway-white';
+    const mat = resolveFinishMaterial(next, id);
+    if (!mat) return this.error(`Material desconocido: ${id} (usa list_materials con surface=wall)`);
+    if (!['ceramic', 'stone'].includes(mat.kind)) return this.error(`"${mat.name}" no sirve de revestimiento: usa una baldosa o una piedra`);
+    if (input.zoneId) {
+      const zone = { ...(next.zones?.[input.zoneId] ?? { floor: next.floor }) };
+      zone.wallTiles = { material: id, heightM: height };
+      next.zones = { ...next.zones, [input.zoneId]: zone };
+    } else next.wallTiles = { material: id, heightM: height };
+    this.finishes = pruneCustom(next);
+    return this.success({ material: id, heightM: height }, `Revestimiento de ${mat.name.toLowerCase()} hasta ${r2(height)} m`);
+  }
+
+  private setLighting(input: ToolInput<'set_lighting'>): ToolOutcome {
+    if (!input.mood && !input.level) return this.error('Indica mood (calida, neutra, fria) o level (tenue, media, alta)');
+    const next = this.current();
+    const lighting = { mood: input.mood ?? next.lighting?.mood ?? 'neutra', level: input.level ?? next.lighting?.level ?? 'media' };
+    next.lighting = lighting;
+    this.finishes = next;
+    if (input.pin) {
+      const brief = this.briefOrEmpty();
+      brief.lighting = { ...lighting, locked: true };
+      this.brief = brief;
+    }
+    const moods = { calida: 'cálida', neutra: 'neutra', fria: 'fría' } as const;
+    return this.success({ lighting }, `Luz ${moods[lighting.mood]} e intensidad ${lighting.level}`);
+  }
+
+  /** Candado con lo que hay ahora en esa superficie (con su acabado propio, si lo es). */
+  private pinOf(id: string | undefined): FinishPin | null {
+    if (!id) return null;
+    const spec = this.finishes?.custom?.[id];
+    return spec ? { spec, locked: true } : { material: id, locked: true };
+  }
+
+  private pin(input: ToolInput<'pin'>): ToolOutcome {
+    const brief = this.briefOrEmpty();
+    const f = this.finishes ?? DEFAULT_FINISHES;
+    if (input.target === 'style') {
+      const styleId = input.styleId ?? brief.style?.id;
+      if (!styleId) return this.error('Indica el estilo a fijar (styleId)');
+      brief.style = { id: styleId, locked: true };
+      this.brief = brief;
+      return this.success({ style: styleId }, `Fijé el estilo ${STYLES[styleId].label.toLowerCase()}`);
+    }
+    if (input.target === 'lighting') {
+      brief.lighting = { ...(f.lighting ?? { mood: 'neutra', level: 'media' }), locked: true };
+      this.brief = brief;
+      return this.success({ lighting: brief.lighting }, 'Fijé la luz');
+    }
+    const id = input.target === 'walls' ? f.walls['all'] : input.target === 'wallTiles' ? f.wallTiles?.material : f[input.target];
+    const pin = this.pinOf(id);
+    if (!pin) return this.error('No hay revestimiento que fijar');
+    brief.surfaces[input.target] = pin;
+    this.brief = brief;
+    const label = { floor: 'el piso', walls: 'las paredes', ceiling: 'el techo', wallTiles: 'el revestimiento' }[input.target];
+    return this.success({ target: input.target }, `Fijé ${label}: Recomendar no lo cambiará`);
+  }
+
+  private unpin(input: ToolInput<'unpin'>): ToolOutcome {
+    const brief = this.briefOrEmpty();
+    if (input.target === 'style' && brief.style) brief.style.locked = false;
+    else if (input.target === 'lighting' && brief.lighting) brief.lighting.locked = false;
+    else if (input.target === 'palette' && brief.palette) brief.palette.locked = false;
+    else if (input.target !== 'style' && input.target !== 'lighting' && input.target !== 'palette' && brief.surfaces[input.target]) brief.surfaces[input.target]!.locked = false;
+    else return this.success({ target: input.target }, 'Eso no estaba fijado');
+    this.brief = brief;
+    return this.success({ target: input.target }, 'Listo: Recomendar ya puede cambiarlo');
+  }
+
+  private wantItem(input: ToolInput<'want_item'>): ToolOutcome {
+    const brief = this.briefOrEmpty();
+    brief.mustHave = brief.mustHave.filter((m) => m.subcategory !== input.subcategory || m.zoneKind);
+    brief.avoid = brief.avoid.filter((a) => a !== input.subcategory);
+    if (input.avoid) brief.avoid = [...brief.avoid, input.subcategory].slice(-20);
+    else brief.mustHave = [...brief.mustHave, { subcategory: input.subcategory }].slice(-20);
+    this.brief = brief;
+    return this.success({ subcategory: input.subcategory, avoid: !!input.avoid }, input.avoid ? 'Anotado: no lo pondré en las propuestas' : 'Anotado: irá en las próximas distribuciones');
+  }
+
+  private addZone(input: ToolInput<'add_zone'>): ToolOutcome {
+    const preset = input.preset ?? 'ducha-obra';
+    if (!BATHROOM_PRESETS.some((p) => p.id === preset)) return this.error(`Tipos de baño: ${BATHROOM_PRESETS.map((p) => p.id).join(', ')}`);
+    const { shell, finishes, zone } = addPrivateBathroom(this.shell, this.finishes ?? DEFAULT_FINISHES, preset);
+    this.shell = shell;
+    this.finishes = finishes;
+    // Lo que no estaba fijado y queda dentro del baño se quita: la distribución nueva lo recoloca.
+    this.placements = this.placements.filter((p) => p.lockedByUser || zoneAt(shell, p.position)?.id !== zone.id);
+    const label = BATHROOM_PRESETS.find((p) => p.id === preset)!.label.toLowerCase();
+    return this.success({ zoneId: zone.id, preset }, `Añadí un baño privado (${label}); al aplicarlo se redistribuyen los muebles`);
+  }
+
+  private recommend(input: ToolInput<'recommend'>): ToolOutcome {
+    this.recommendWith = input.intensity ?? 'total';
+    return this.success({ intensity: this.recommendWith }, this.recommendWith === 'suave' ? 'Pido una propuesta de colores, acabados y luz' : 'Pido una propuesta completa');
+  }
+
   // ------------------------------------------------------------------- resultado
   /**
    * Diferencia entre la escena original y la actual: medidas del cuarto primero, luego acabados,
@@ -503,7 +730,9 @@ export class DesignToolbox {
     if (o.shell.widthM !== this.shell.widthM || o.shell.depthM !== this.shell.depthM || o.shell.heightM !== this.shell.heightM) {
       ops.push({ op: 'room', widthM: this.shell.widthM, depthM: this.shell.depthM, heightM: this.shell.heightM });
     }
+    if (stable(this.shell.zones ?? []) !== stable(o.shell.zones ?? [])) ops.push({ op: 'zones', zones: this.shell.zones ?? [] });
     if (this.finishes && stable(this.finishes) !== stable(o.finishes)) ops.push({ op: 'finishes', finishes: this.finishes });
+    if (this.brief && stable(this.brief) !== stable(o.brief)) ops.push({ op: 'brief', brief: this.brief });
     const now = new Map(this.placements.map((p) => [p.id, p]));
     for (const id of o.placements.keys()) if (!now.has(id)) ops.push({ op: 'remove', id });
     for (const p of this.placements) {
@@ -511,6 +740,27 @@ export class DesignToolbox {
       if (!before) ops.push({ op: 'add', placement: p });
       else if (stable(before) !== stable(p)) ops.push({ op: 'update', placement: p });
     }
+    if (this.recommendWith) ops.push({ op: 'recommend', intensity: this.recommendWith });
     return ops;
   }
+
+  /** Lo fijado y pedido tras las herramientas (los agentes lo leen para responder). */
+  get currentBrief(): DesignBrief | null {
+    return this.brief;
+  }
+
+  get currentFinishes(): RoomFinishes | null {
+    return this.finishes;
+  }
+}
+
+/** Los acabados propios que ninguna superficie usa ya no se guardan. */
+function pruneCustom(f: RoomFinishes): RoomFinishes {
+  if (!f.custom) return f;
+  const used = new Set([f.floor, f.ceiling, ...Object.values(f.walls), f.wallTiles?.material, ...Object.values(f.zones ?? {}).flatMap((z) => [z.floor, z.walls, z.wallTiles?.material])]);
+  const custom = Object.fromEntries(Object.entries(f.custom).filter(([id]) => used.has(id)));
+  const next = { ...f };
+  if (Object.keys(custom).length) next.custom = custom;
+  else delete next.custom;
+  return next;
 }
