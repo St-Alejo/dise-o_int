@@ -208,3 +208,125 @@ class PlaceFurnitureResponse(Model):
     unplaced: list[str]
     score: float
     engine: str
+
+
+# ----------------------------------------------------------------- modelo local del chat (NLU)
+NluIntent = Literal[
+    "set_floor",
+    "set_walls",
+    "set_wall_tiles",
+    "set_ceiling",
+    "add_item",
+    "remove_item",
+    "move_item",
+    "set_lighting",
+    "set_style",
+    "recommend",
+    "pin",
+    "unpin",
+    "add_zone",
+    "avoid_item",
+    "replicate_image",
+    "room_size",
+    "other",
+]
+Hex = Annotated[str, Field(pattern=r"^#[0-9a-f]{6}$")]
+FinishKind = Literal["tile", "wood", "stone", "paint", "carpet", "brick", "concrete"]
+FloorKind = Literal["tile", "wood", "stone", "carpet", "concrete"]
+Pattern = Literal["plain", "grid", "checker", "subway", "herringbone", "hex", "mosaic", "planks"]
+Mood = Literal["calida", "neutra", "fria"]
+Level = Literal["tenue", "media", "alta"]
+
+
+class NluParseRequest(Model):
+    text: str = Field(min_length=1, max_length=500)
+
+
+class NluColor(Model):
+    name: str
+    hex: Hex
+
+
+class NluSlots(Model):
+    colors: list[NluColor] = Field(default_factory=list, max_length=3)
+    surface: Literal["floor", "walls", "ceiling", "wallTiles"] | None = None
+    finishKind: FinishKind | None = None
+    base: str | None = None
+    pattern: Pattern | None = None
+    gloss: float | None = Field(default=None, ge=0, le=1)
+    tileSizeM: float | None = Field(default=None, gt=0)
+    heightM: float | None = Field(default=None, gt=0)
+    fullHeight: bool = False
+    subcategory: str | None = None
+    quantity: int | None = Field(default=None, gt=0)
+    style: StyleId | None = None
+    mood: Mood | None = None
+    level: Level | None = None
+    zoneKind: Literal["bathroom", "closet", "vanity", "office-nook"] | None = None
+    preset: str | None = None
+    intensity: Literal["suave", "total"] | None = None
+    pinTarget: Literal["floor", "walls", "ceiling", "wallTiles", "style", "lighting", "palette"] | None = None
+    widthM: float | None = Field(default=None, gt=0)
+    depthM: float | None = Field(default=None, gt=0)
+
+
+class NluAlternative(Model):
+    intent: NluIntent
+    confidence: float = Field(ge=0, le=1)
+
+
+class NluParseResponse(Model):
+    intent: NluIntent
+    confidence: float = Field(ge=0, le=1)
+    alternatives: list[NluAlternative]
+    slots: NluSlots
+    model: str
+
+
+# ------------------------------------------------------------------- ranking de propuestas
+FeedbackAction = Literal["shown", "like", "dislike", "kept", "undone"]
+
+
+class RankCandidate(Model):
+    id: str = Field(min_length=1, max_length=64)
+    features: dict[str, float]
+    prior: float
+
+
+class RankSample(Model):
+    features: dict[str, float]
+    action: FeedbackAction
+
+
+class RankRecommendationsRequest(Model):
+    candidates: list[RankCandidate] = Field(min_length=1, max_length=20)
+    history: list[RankSample] = Field(default_factory=list, max_length=500)
+
+
+class RankRecommendationsResponse(Model):
+    scores: dict[str, float]
+    model: Literal["prior", "logreg"]
+    samples: int = Field(ge=0)
+
+
+# ------------------------------------------------------------------- imagen de referencia
+class AnalyzeReferenceRequest(Model):
+    imageKey: str = Field(min_length=1, max_length=512)
+
+
+class ReferenceFloor(Model):
+    kind: FloorKind
+    pattern: Pattern
+    colors: list[Hex] = Field(min_length=1, max_length=3)
+    gloss: float = Field(ge=0, le=1)
+
+
+class AnalyzeReferenceResponse(Model):
+    style: StyleId | None = None
+    palette: list[Hex] = Field(max_length=5)
+    floor: ReferenceFloor | None = None
+    wallColor: Hex | None = None
+    objects: list[str] = Field(default_factory=list, max_length=8)
+    mood: Mood | None = None
+    level: Level | None = None
+    source: Literal["vision", "colors"]

@@ -14,15 +14,27 @@ from fastapi.responses import JSONResponse
 from .config import Settings, get_settings
 from .container import Container, build_container
 from .contracts import (
+    AnalyzeReferenceRequest,
+    AnalyzeReferenceResponse,
     AnalyzeRoomRequest,
     AnalyzeRoomResponse,
     GenerateStyleRequest,
     GenerateStyleResponse,
+    NluAlternative,
+    NluParseRequest,
+    NluParseResponse,
+    NluSlots,
     PlaceFurnitureRequest,
     PlaceFurnitureResponse,
+    RankRecommendationsRequest,
+    RankRecommendationsResponse,
+    ReferenceFloor,
 )
 from .imaging import InvalidImageError, decode_rgb, encode_jpeg
 from .logging import configure_logging, log
+from .ml import preferences
+from .ml.nlu import IntentService
+from .ml.reference import ReferenceAnalyzer
 from .providers.base import ProviderError
 from .storage import ObjectNotFoundError
 
@@ -120,6 +132,48 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         result = c.layout_engine.place(req)
         log.info("layout", engine=result.engine, placed=len(result.placements), unplaced=result.unplaced, score=result.score)
         return result
+
+    @app.post("/v1/nlu/parse", dependencies=auth, response_model_exclude_none=True)
+    def nlu_parse(req: NluParseRequest, c: Dep) -> NluParseResponse:
+        intents = c.intents or IntentService(None)
+        c.intents = intents
+        p = intents.parse(req.text)
+        slots = NluSlots.model_validate({**p.slots.__dict__, "colors": [{"name": col.name, "hex": col.hex} for col in p.slots.colors]})
+        log.info("nlu", intent=p.intent, confidence=p.confidence)
+        return NluParseResponse(
+            intent=p.intent,
+            confidence=p.confidence,
+            alternatives=[NluAlternative(intent=i, confidence=conf) for i, conf in p.alternatives],
+            slots=slots,
+            model=intents.model.version,
+        )
+
+    @app.post("/v1/recommend/rank", dependencies=auth)
+    def recommend_rank(req: RankRecommendationsRequest) -> RankRecommendationsResponse:
+        ranking = preferences.rank(
+            [preferences.Candidate(id=cand.id, features=cand.features, prior=cand.prior) for cand in req.candidates],
+            [preferences.Sample(features=h.features, action=h.action) for h in req.history],
+        )
+        return RankRecommendationsResponse(scores=ranking.scores, model=ranking.model, samples=ranking.samples)
+
+    @app.post("/v1/reference/analyze", dependencies=auth, response_model_exclude_none=True)
+    def analyze_reference(req: AnalyzeReferenceRequest, c: Dep) -> AnalyzeReferenceResponse:
+        if not req.imageKey.startswith("projects/"):
+            raise HTTPException(status_code=422, detail="imageKey fuera del espacio de proyectos")
+        analyzer = c.reference or ReferenceAnalyzer()
+        image = decode_rgb(c.storage.get_bytes(req.imageKey), c.settings.max_image_side)
+        ref = analyzer.analyze(encode_jpeg(image), image)
+        log.info("referencia", source=ref.source, style=ref.style)
+        return AnalyzeReferenceResponse(
+            style=ref.style,
+            palette=ref.palette,
+            floor=ReferenceFloor(kind=ref.floor.kind, pattern=ref.floor.pattern, colors=ref.floor.colors, gloss=ref.floor.gloss) if ref.floor else None,
+            wallColor=ref.wallColor,
+            objects=ref.objects,
+            mood=ref.mood,
+            level=ref.level,
+            source=ref.source,
+        )
 
     return app
 

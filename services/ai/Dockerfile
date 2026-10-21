@@ -37,6 +37,10 @@ COPY pyproject.toml ./
 COPY src ./src
 RUN pip install --no-deps . \
  && useradd --create-home --uid 10001 app
+# El modelo de intención del chat se entrena al construir la imagen (segundos, sin datos externos):
+# el servicio arranca con él y no lo vuelve a entrenar.
+ENV NLU_MODEL_PATH=/app/models/nlu.joblib
+RUN python -m interiores_ai.ml.train --out /app/models
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=5 \

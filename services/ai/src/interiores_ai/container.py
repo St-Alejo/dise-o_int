@@ -1,10 +1,13 @@
 """Raíz de composición: el único lugar que decide qué proveedor implementa cada capacidad."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from .config import Settings
 from .layout.rules_engine import LayoutEngine, RulesLayoutEngine
 from .logging import log
+from .ml.nlu import IntentService
+from .ml.reference import ReferenceAnalyzer
 from .providers.base import RoomAnalyzer, StyleGenerator
 from .providers.fallback import FallbackRoomAnalyzer
 from .providers.replicate import ReplicateClient, ReplicateRoomAnalyzer, ReplicateStyleGenerator
@@ -30,6 +33,8 @@ class Container:
     style_generator: StyleGenerator
     layout_engine: LayoutEngine
     replicate: ReplicateClient | None = None
+    intents: IntentService | None = None
+    reference: ReferenceAnalyzer | None = None
 
     def provider_health(self) -> dict[str, str]:
         """Estado de los proveedores sin gastar inferencias: se lee el circuit breaker."""
@@ -57,12 +62,14 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
     client = ReplicateClient(settings) if "replicate" in (room_kind, style_kind) else None
     room: RoomAnalyzer
     style: StyleGenerator
+    # Una sola cuota diaria de visión para las fotos del cuarto y las imágenes de referencia.
+    budget, cache = vision_state(settings) if settings.groq_api_key else (None, None)
+    groq = GroqVisionClient(settings.groq_api_key, settings.vision_model, timeout_s=settings.vision_timeout_s) if settings.groq_api_key else None
     if client and room_kind == "replicate":
         room = ReplicateRoomAnalyzer(client, settings.replicate_depth_model)
-    elif room_kind == "vision" and settings.groq_api_key:
-        budget, cache = vision_state(settings)
+    elif room_kind == "vision" and groq is not None and budget is not None:
         vision = VisionRoomAnalyzer(
-            GroqVisionClient(settings.groq_api_key, settings.vision_model, timeout_s=settings.vision_timeout_s),
+            groq,
             budget=budget,
             cache=cache,
         )
@@ -82,4 +89,6 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
         style_generator=style,
         layout_engine=RulesLayoutEngine(),
         replicate=client,
+        intents=IntentService(Path(settings.nlu_model_path)),
+        reference=ReferenceAnalyzer(groq, budget),
     )

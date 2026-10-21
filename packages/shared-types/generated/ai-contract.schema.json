@@ -1139,6 +1139,490 @@
         "score",
         "engine"
       ]
+    },
+    "NluParseRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "NluParseResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "enum": [
+            "set_floor",
+            "set_walls",
+            "set_wall_tiles",
+            "set_ceiling",
+            "add_item",
+            "remove_item",
+            "move_item",
+            "set_lighting",
+            "set_style",
+            "recommend",
+            "pin",
+            "unpin",
+            "add_zone",
+            "avoid_item",
+            "replicate_image",
+            "room_size",
+            "other"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "set_floor",
+                  "set_walls",
+                  "set_wall_tiles",
+                  "set_ceiling",
+                  "add_item",
+                  "remove_item",
+                  "move_item",
+                  "set_lighting",
+                  "set_style",
+                  "recommend",
+                  "pin",
+                  "unpin",
+                  "add_zone",
+                  "avoid_item",
+                  "replicate_image",
+                  "room_size",
+                  "other"
+                ]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "intent",
+              "confidence"
+            ]
+          }
+        },
+        "slots": {
+          "type": "object",
+          "properties": {
+            "colors": {
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "hex": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$"
+                  }
+                },
+                "required": [
+                  "name",
+                  "hex"
+                ]
+              }
+            },
+            "surface": {
+              "type": "string",
+              "enum": [
+                "floor",
+                "walls",
+                "ceiling",
+                "wallTiles"
+              ]
+            },
+            "finishKind": {
+              "type": "string",
+              "enum": [
+                "tile",
+                "wood",
+                "stone",
+                "paint",
+                "carpet",
+                "brick",
+                "concrete"
+              ]
+            },
+            "base": {
+              "type": "string"
+            },
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "plain",
+                "grid",
+                "checker",
+                "subway",
+                "herringbone",
+                "hex",
+                "mosaic",
+                "planks"
+              ]
+            },
+            "gloss": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "tileSizeM": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "heightM": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fullHeight": {
+              "type": "boolean"
+            },
+            "subcategory": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "style": {
+              "type": "string",
+              "enum": [
+                "escandinavo",
+                "minimalista",
+                "industrial",
+                "bohemio",
+                "moderno",
+                "clasico"
+              ]
+            },
+            "mood": {
+              "type": "string",
+              "enum": [
+                "calida",
+                "neutra",
+                "fria"
+              ]
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "tenue",
+                "media",
+                "alta"
+              ]
+            },
+            "zoneKind": {
+              "type": "string",
+              "enum": [
+                "bathroom",
+                "closet",
+                "vanity",
+                "office-nook"
+              ]
+            },
+            "preset": {
+              "type": "string"
+            },
+            "intensity": {
+              "type": "string",
+              "enum": [
+                "suave",
+                "total"
+              ]
+            },
+            "pinTarget": {
+              "type": "string",
+              "enum": [
+                "floor",
+                "walls",
+                "ceiling",
+                "wallTiles",
+                "style",
+                "lighting",
+                "palette"
+              ]
+            },
+            "widthM": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "depthM": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "colors",
+            "fullHeight"
+          ]
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent",
+        "confidence",
+        "alternatives",
+        "slots",
+        "model"
+      ]
+    },
+    "RankRecommendationsRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "candidates": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "features": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "prior": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "features",
+              "prior"
+            ]
+          }
+        },
+        "history": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "shown",
+                  "like",
+                  "dislike",
+                  "kept",
+                  "undone"
+                ]
+              }
+            },
+            "required": [
+              "features",
+              "action"
+            ]
+          }
+        }
+      },
+      "required": [
+        "candidates",
+        "history"
+      ]
+    },
+    "RankRecommendationsResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scores": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "prior",
+            "logreg"
+          ]
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "scores",
+        "model",
+        "samples"
+      ]
+    },
+    "AnalyzeReferenceRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "imageKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "imageKey"
+      ]
+    },
+    "AnalyzeReferenceResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "escandinavo",
+            "minimalista",
+            "industrial",
+            "bohemio",
+            "moderno",
+            "clasico"
+          ]
+        },
+        "palette": {
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9a-f]{6}$"
+          }
+        },
+        "floor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "tile",
+                "wood",
+                "stone",
+                "carpet",
+                "concrete"
+              ]
+            },
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "plain",
+                "grid",
+                "checker",
+                "subway",
+                "herringbone",
+                "hex",
+                "mosaic",
+                "planks"
+              ]
+            },
+            "colors": {
+              "minItems": 1,
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^#[0-9a-f]{6}$"
+              }
+            },
+            "gloss": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "pattern",
+            "colors",
+            "gloss"
+          ]
+        },
+        "wallColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$"
+        },
+        "objects": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mood": {
+          "type": "string",
+          "enum": [
+            "calida",
+            "neutra",
+            "fria"
+          ]
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "tenue",
+            "media",
+            "alta"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "vision",
+            "colors"
+          ]
+        }
+      },
+      "required": [
+        "palette",
+        "objects",
+        "source"
+      ]
     }
   }
 }

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Con Redis, la cuota diaria y la caché de visión se comparten entre réplicas y sobreviven a
     # reinicios. Sin él, cada proceso lleva las suyas en memoria.
     redis_url: str | None = Field(default=None, alias="REDIS_URL")
+    # Modelo de intención del chat (scikit-learn). La imagen lo trae entrenado; si falta, se
+    # entrena al primer uso (unos segundos) y se guarda aquí.
+    nlu_model_path: str = Field(default="models/nlu.joblib", alias="NLU_MODEL_PATH")
 
     s3_endpoint: str | None = Field(default=None, alias="S3_ENDPOINT")
     s3_region: str = Field(default="us-east-1", alias="S3_REGION")

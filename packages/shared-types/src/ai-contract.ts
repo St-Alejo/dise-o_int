@@ -112,6 +112,106 @@ export const PlaceFurnitureResponseSchema = z.object({
 });
 export type PlaceFurnitureResponse = z.infer<typeof PlaceFurnitureResponseSchema>;
 
+// ---------- Modelo local del chat (intención + parámetros), sin IA externa ----------
+export const NLU_INTENTS = [
+  'set_floor',
+  'set_walls',
+  'set_wall_tiles',
+  'set_ceiling',
+  'add_item',
+  'remove_item',
+  'move_item',
+  'set_lighting',
+  'set_style',
+  'recommend',
+  'pin',
+  'unpin',
+  'add_zone',
+  'avoid_item',
+  'replicate_image',
+  'room_size',
+  'other',
+] as const;
+export const NluIntentSchema = z.enum(NLU_INTENTS);
+export type NluIntent = z.infer<typeof NluIntentSchema>;
+
+export const NluParseRequestSchema = z.object({ text: z.string().min(1).max(500) });
+export type NluParseRequest = z.infer<typeof NluParseRequestSchema>;
+
+const Hex = z.string().regex(/^#[0-9a-f]{6}$/);
+const SpecKind = z.enum(['tile', 'wood', 'stone', 'paint', 'carpet', 'brick', 'concrete']);
+const FloorKind = z.enum(['tile', 'wood', 'stone', 'carpet', 'concrete']);
+const Pattern = z.enum(['plain', 'grid', 'checker', 'subway', 'herringbone', 'hex', 'mosaic', 'planks']);
+const Mood = z.enum(['calida', 'neutra', 'fria']);
+const Level = z.enum(['tenue', 'media', 'alta']);
+
+export const NluSlotsSchema = z.object({
+  colors: z.array(z.object({ name: z.string(), hex: Hex })).max(3),
+  surface: z.enum(['floor', 'walls', 'ceiling', 'wallTiles']).optional(),
+  finishKind: SpecKind.optional(),
+  base: z.string().optional(),
+  pattern: Pattern.optional(),
+  gloss: z.number().min(0).max(1).optional(),
+  tileSizeM: z.number().positive().optional(),
+  heightM: z.number().positive().optional(),
+  fullHeight: z.boolean(),
+  subcategory: z.string().optional(),
+  quantity: z.number().int().positive().optional(),
+  style: StyleIdSchema.optional(),
+  mood: Mood.optional(),
+  level: Level.optional(),
+  zoneKind: z.enum(['bathroom', 'closet', 'vanity', 'office-nook']).optional(),
+  preset: z.string().optional(),
+  intensity: z.enum(['suave', 'total']).optional(),
+  pinTarget: z.enum(['floor', 'walls', 'ceiling', 'wallTiles', 'style', 'lighting', 'palette']).optional(),
+  widthM: z.number().positive().optional(),
+  depthM: z.number().positive().optional(),
+});
+export type NluSlots = z.infer<typeof NluSlotsSchema>;
+
+export const NluParseResponseSchema = z.object({
+  intent: NluIntentSchema,
+  confidence: z.number().min(0).max(1),
+  alternatives: z.array(z.object({ intent: NluIntentSchema, confidence: z.number().min(0).max(1) })),
+  slots: NluSlotsSchema,
+  model: z.string(),
+});
+export type NluParseResponse = z.infer<typeof NluParseResponseSchema>;
+
+// ---------- Ranking de propuestas con el modelo de preferencias ----------
+export const RankRecommendationsRequestSchema = z.object({
+  candidates: z
+    .array(z.object({ id: z.string().min(1).max(64), features: z.record(z.string(), z.number()), prior: z.number() }))
+    .min(1)
+    .max(20),
+  history: z.array(z.object({ features: z.record(z.string(), z.number()), action: z.enum(['shown', 'like', 'dislike', 'kept', 'undone']) })).max(500),
+});
+export type RankRecommendationsRequest = z.infer<typeof RankRecommendationsRequestSchema>;
+
+export const RankRecommendationsResponseSchema = z.object({
+  scores: z.record(z.string(), z.number()),
+  model: z.enum(['prior', 'logreg']),
+  samples: z.number().int().nonnegative(),
+});
+export type RankRecommendationsResponse = z.infer<typeof RankRecommendationsResponseSchema>;
+
+// ---------- Imagen de referencia ("hazlo como esta foto") ----------
+export const AnalyzeReferenceRequestSchema = z.object({ imageKey: z.string().min(1).max(512) });
+export type AnalyzeReferenceRequest = z.infer<typeof AnalyzeReferenceRequestSchema>;
+
+export const AnalyzeReferenceResponseSchema = z.object({
+  style: StyleIdSchema.optional(),
+  palette: z.array(Hex).max(5),
+  floor: z.object({ kind: FloorKind, pattern: Pattern, colors: z.array(Hex).min(1).max(3), gloss: z.number().min(0).max(1) }).optional(),
+  wallColor: Hex.optional(),
+  objects: z.array(z.string()).max(8),
+  mood: Mood.optional(),
+  level: Level.optional(),
+  /** vision = lo leyó el modelo multimodal; colors = respaldo local por colores dominantes. */
+  source: z.enum(['vision', 'colors']),
+});
+export type AnalyzeReferenceResponse = z.infer<typeof AnalyzeReferenceResponseSchema>;
+
 export const AI_CONTRACT_SCHEMAS = {
   AnalyzeRoomRequest: AnalyzeRoomRequestSchema,
   AnalyzeRoomResponse: AnalyzeRoomResponseSchema,
@@ -119,4 +219,10 @@ export const AI_CONTRACT_SCHEMAS = {
   GenerateStyleResponse: GenerateStyleResponseSchema,
   PlaceFurnitureRequest: PlaceFurnitureRequestSchema,
   PlaceFurnitureResponse: PlaceFurnitureResponseSchema,
+  NluParseRequest: NluParseRequestSchema,
+  NluParseResponse: NluParseResponseSchema,
+  RankRecommendationsRequest: RankRecommendationsRequestSchema,
+  RankRecommendationsResponse: RankRecommendationsResponseSchema,
+  AnalyzeReferenceRequest: AnalyzeReferenceRequestSchema,
+  AnalyzeReferenceResponse: AnalyzeReferenceResponseSchema,
 } as const;
