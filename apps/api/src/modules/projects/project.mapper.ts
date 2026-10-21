@@ -97,6 +97,7 @@ export function toDesignProject(
         }
       : null,
     budgetCap: project.budgetCap ?? null,
+    brief: project.brief ?? null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   };

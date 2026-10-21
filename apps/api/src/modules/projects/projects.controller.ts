@@ -27,6 +27,7 @@ import {
   SelectStyleRequestSchema,
   ImportProjectRequestSchema,
   SetBudgetRequestSchema,
+  SetBriefRequestSchema,
   SetHomePositionRequestSchema,
   SetHomeRequestSchema,
   UpdateProjectRequestSchema,
@@ -50,6 +51,7 @@ import {
   type DesignProjectVersion,
   type ImportProjectRequest,
   type SetBudgetRequest,
+  type SetBriefRequest,
   type SetHomePositionRequest,
   type SetHomeRequest,
   type UpdateSceneRequest,
@@ -147,6 +149,16 @@ export class ProjectsController {
     @Body(new ZodPipe(SetBudgetRequestSchema)) body: SetBudgetRequest,
   ): Promise<DesignProject> {
     return this.service.setBudget(this.actor(user), id, body.cap);
+  }
+
+  @Put(':id/brief')
+  @ApiBody({ schema: openApiSchema(SetBriefRequestSchema) })
+  setBrief(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(SetBriefRequestSchema)) body: SetBriefRequest,
+  ): Promise<DesignProject> {
+    return this.service.setBrief(this.actor(user), id, body.brief);
   }
 
   @Post(':id/duplicate')

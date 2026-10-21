@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
+  DesignBriefSchema,
+  type DesignBrief,
   FurniturePlacementSchema,
   InventoryItemSchema,
   type InventoryItem,
@@ -51,6 +53,9 @@ function parseRoomDims(value: unknown): RoomDimensions | null {
 function parseInventory(value: unknown): InventoryItem[] | null {
   return value === null || value === undefined ? null : z.array(InventoryItemSchema).parse(value);
 }
+function parseBrief(value: unknown): DesignBrief | null {
+  return value === null || value === undefined ? null : DesignBriefSchema.parse(value);
+}
 function parsePosition(value: unknown): PlanPosition | null {
   return value === null || value === undefined ? null : PlanPositionSchema.parse(value);
 }
@@ -82,6 +87,7 @@ function toProject(row: ProjectRow): ProjectRecord {
     homeName: row.homeName,
     homePosition: parsePosition(row.homePosition),
     budgetCap: row.budgetCap,
+    brief: parseBrief(row.brief),
     selectedStyleId: row.selectedStyleId as StyleId | null,
     requestedStyles: row.requestedStyles as StyleId[],
     saved: row.saved,
@@ -137,6 +143,7 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.homeName !== undefined) data.homeName = patch.homeName;
   if (patch.homePosition !== undefined) data.homePosition = nullableJson(patch.homePosition);
   if (patch.budgetCap !== undefined) data.budgetCap = patch.budgetCap;
+  if (patch.brief !== undefined) data.brief = nullableJson(patch.brief);
   if (patch.selectedStyleId !== undefined) data.selectedStyleId = patch.selectedStyleId;
   if (patch.requestedStyles !== undefined) data.requestedStyles = patch.requestedStyles;
   if (patch.saved !== undefined) data.saved = patch.saved;
@@ -167,6 +174,7 @@ export class PrismaProjectRepository implements IProjectRepository {
         homeName: data.homeName ?? null,
         homePosition: nullableJson(data.homePosition),
         budgetCap: data.budgetCap ?? null,
+        brief: nullableJson(data.brief),
         selectedStyleId: data.selectedStyleId,
         requestedStyles: data.requestedStyles,
         saved: data.saved,

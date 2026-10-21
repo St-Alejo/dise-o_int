@@ -264,6 +264,51 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('brief y zonas', () => {
+    it('el brief se guarda sin cambiar la revisión, se copia al duplicar y se borra con null', async () => {
+      const p = await readyProject();
+      expect(p.brief).toBeNull();
+      const brief = { surfaces: { floor: { material: 'ceramic-white', locked: true } }, mustHave: [{ subcategory: 'dressing-table' }], avoid: [], zones: [] };
+      const withBrief = await service.setBrief(alice, p.id, brief);
+      expect(withBrief.brief?.mustHave[0]!.subcategory).toBe('dressing-table');
+      expect(withBrief.revision).toBe(p.revision);
+      await expect(service.setBrief(bob, p.id, null)).rejects.toBeInstanceOf(NotFoundError);
+      expect((await service.duplicate(alice, p.id)).brief?.surfaces.floor?.material).toBe('ceramic-white');
+      expect((await service.setBrief(alice, p.id, null)).brief).toBeNull();
+    });
+
+    it('la planta guarda un baño privado y sus acabados; los de una zona inexistente se rechazan', async () => {
+      const p = await readyProject();
+      const shell = p.roomShell!;
+      const { widthM: w, depthM: d } = shell;
+      const zone = {
+        id: 'z-bath',
+        kind: 'bathroom' as const,
+        outline: [{ x: w - 2, z: d - 1.8 }, { x: w, z: d - 1.8 }, { x: w, z: d }, { x: w - 2, z: d }],
+        open: false,
+        door: { edge: 0, offsetM: 1, widthM: 0.75 },
+      };
+      const finishes = {
+        floor: 'wood-oak',
+        walls: { all: 'paint-white' },
+        ceiling: 'paint-white',
+        zones: { 'z-bath': { floor: 'ceramic-grey-tile', wallTiles: { material: 'paint-white', heightM: 2 } } },
+      };
+      const saved = await service.updateScene(alice, p.id, { revision: p.revision, furniturePlacements: [], roomShell: { ...shell, zones: [zone] }, finishes });
+      expect(saved.roomShell!.zones).toHaveLength(1);
+      expect(saved.finishes?.zones?.['z-bath']?.floor).toBe('ceramic-grey-tile');
+      // Sin zonas en la planta, los acabados de la zona ya no tienen dónde ir.
+      await expect(
+        service.updateScene(alice, p.id, { revision: saved.revision, furniturePlacements: [], roomShell: { ...shell, zones: [] }, finishes }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      // Una zona fuera del cuarto no se puede construir.
+      const outside = { ...zone, outline: zone.outline.map((v) => ({ x: v.x + 1, z: v.z })) };
+      await expect(
+        service.updateScene(alice, p.id, { revision: saved.revision, furniturePlacements: [], roomShell: { ...shell, zones: [outside] } }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+  });
+
   describe('viviendas (varios cuartos juntos)', () => {
     const room = { shape: 'rect' as const, widthM: 4, depthM: 3, heightM: 2.6 };
 

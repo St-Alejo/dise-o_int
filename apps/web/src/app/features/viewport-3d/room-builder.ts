@@ -6,7 +6,7 @@
  * código puro de Three.js: no necesita WebGL y se prueba en jsdom.
  */
 import {
-  getMaterial,
+  resolveFinishMaterial,
   isConvexVertex,
   roomPolygon,
   wallFrames,
@@ -288,7 +288,7 @@ export interface FloorTextures {
 
 export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?: FloorTextures): void {
   const paint = (mat: THREE.MeshStandardMaterial, id: string, floor = false) => {
-    const def = getMaterial(id);
+    const def = resolveFinishMaterial(finishes, id);
     if (!def) return;
     mat.color.set(def.color);
     mat.roughness = def.roughness;

@@ -8,6 +8,7 @@ import {
   CreateProjectFieldsSchema,
   DEFAULT_PROMPT_STRENGTH,
   DEFAULT_STYLES,
+  type DesignBrief,
   type DesignProject,
   type DesignProjectVersion,
   type GenerateStylesRequest,
@@ -124,6 +125,12 @@ export class ProjectsService {
   async setBudget(actor: Actor, id: string, cap: number | null): Promise<DesignProject> {
     await this.access.own(actor, id);
     return this.toDto(await this.projects.update(id, { budgetCap: cap }));
+  }
+
+  /** Brief de diseño: preferencias de quien diseña, no cambian la escena ni su revisión. */
+  async setBrief(actor: Actor, id: string, brief: DesignBrief | null): Promise<DesignProject> {
+    await this.access.own(actor, id);
+    return this.toDto(await this.projects.update(id, { brief }));
   }
 
   saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
@@ -286,6 +293,7 @@ export class ProjectsService {
       homeId: source.homeId ?? null,
       homeName: source.homeName ?? null,
       budgetCap: source.budgetCap ?? null,
+      brief: source.brief ?? null,
       selectedStyleId: source.selectedStyleId,
       requestedStyles: source.requestedStyles,
       saved: false,
@@ -308,7 +316,7 @@ export class ProjectsService {
       shell,
       req.furniturePlacements.filter((p) => known.has(p.catalogItemId)),
     );
-    if (req.finishes) this.rules.validateFinishes(req.finishes);
+    if (req.finishes) this.rules.validateFinishes(req.finishes, shell);
     const created = await this.projects.create({
       id: randomUUID(),
       ownerId: actor.userId,
@@ -359,7 +367,7 @@ export class ProjectsService {
     const current = this.access.requireShell(project);
     const shell = req.roomShell ? this.rules.editedShell(current, req.roomShell) : current;
     const placements = await this.rules.sanitizePlacements(shell, req.furniturePlacements);
-    if (req.finishes) this.rules.validateFinishes(req.finishes);
+    if (req.finishes) this.rules.validateFinishes(req.finishes, shell);
     const updated = await this.projects.update(
       id,
       {

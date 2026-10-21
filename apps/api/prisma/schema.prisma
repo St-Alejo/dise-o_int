@@ -84,6 +84,8 @@ model Project {
   homePosition    Json?
   /// Tope de gasto que se puso la persona para este cuarto; null = sin tope.
   budgetCap       Float?
+  /// Brief de diseño: lo que la persona pidió y quiere conservar entre recomendaciones.
+  brief           Json?
   selectedStyleId String?
   /// Estilos pedidos al subir la foto (el worker los genera en el pipeline inicial).
   requestedStyles String[]       @default([])

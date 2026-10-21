@@ -10,6 +10,7 @@ import type {
   CatalogCategory,
   CatalogFilters,
   CatalogSpec,
+  DesignBrief,
   FurniturePlacement,
   GenerateStyleRequest,
   GenerateStyleResponse,
@@ -55,6 +56,8 @@ export interface ProjectRecord {
   homePosition?: PlanPosition | null;
   /** Tope de gasto del cuarto (null o ausente = sin tope). */
   budgetCap?: number | null;
+  /** Lo que la persona fijó (null o ausente = nada). */
+  brief?: DesignBrief | null;
   selectedStyleId: StyleId | null;
   requestedStyles: StyleId[];
   saved: boolean;
@@ -133,6 +136,7 @@ export type ProjectPatch = Partial<
     | 'homeName'
     | 'homePosition'
     | 'budgetCap'
+    | 'brief'
     | 'selectedStyleId'
     | 'requestedStyles'
     | 'saved'

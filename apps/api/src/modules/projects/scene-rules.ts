@@ -29,7 +29,7 @@ export class SceneRules {
    * caja que las envuelve y el alto). El id y la confianza de la escala siguen siendo los guardados.
    */
   editedShell(current: RoomShell, edited: RoomShell): RoomShell {
-    const { shape: _shape, ...kept } = current;
+    const { shape: _shape, zones: _zones, ...kept } = current;
     const next: RoomShell = {
       ...kept,
       widthM: edited.widthM,
@@ -38,6 +38,7 @@ export class SceneRules {
       walls: edited.walls,
       openings: edited.openings,
       ...(edited.shape ? { shape: edited.shape } : {}),
+      ...(edited.zones?.length ? { zones: edited.zones } : {}),
     };
     const { minSideM, maxSideM, minHeightM, maxHeightM } = ROOM_LIMITS;
     if (Math.min(next.widthM, next.depthM) < minSideM || Math.max(next.widthM, next.depthM) > maxSideM) {
@@ -55,9 +56,10 @@ export class SceneRules {
     return next;
   }
 
-  validateFinishes(finishes: RoomFinishes): void {
+  /** Los acabados de zona solo valen para zonas que existen en la planta. */
+  validateFinishes(finishes: RoomFinishes, shell?: Pick<RoomShell, 'zones'>): void {
     try {
-      assertValidFinishes(finishes);
+      assertValidFinishes(finishes, (shell?.zones ?? []).map((z) => z.id));
     } catch (err) {
       if (err instanceof UnknownMaterialError) throw new ValidationError(err.message);
       throw err;
