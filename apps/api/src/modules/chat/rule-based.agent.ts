@@ -104,19 +104,24 @@ export class RuleBasedDesignAgent implements DesignAgent {
   }
 }
 
-/** Separa "agrega una mesa y quita la alfombra, luego pinta..." en órdenes sueltas. */
-export function splitClauses(message: string): Clause[] {
+/**
+ * Separa "agrega una mesa y quita la alfombra, luego pinta..." en órdenes sueltas. Con
+ * `commas: false` una coma sola no corta ("piso de baldosa brillante, azul claro con verde").
+ */
+export function splitClauses(message: string, { commas = true }: { commas?: boolean } = {}): Clause[] {
   const verbs = Object.values(VERBS)
     .map((r) => r.source.replace(/^\^\(\?:por favor\\s\+\)\?/, ''))
     .join('|');
+  const comma = commas ? ',\\s*(?:y\\s+)?(?:luego|despues|tambien)?' : `,\\s*(?:y\\s+)?(?:luego|despues|tambien)\\b|,\\s*(?=(?:${verbs}))`;
   return fold(message)
-    .split(new RegExp(`\\s*(?:[;!?]|\\.(?=\\s|$)|,\\s*(?:y\\s+)?(?:luego|despues|tambien)?|\\b(?:luego|despues)\\b|\\by\\s+(?=(?:${verbs})))\\s*`))
+    .split(new RegExp(`\\s*(?:[;!?]|\\.(?=\\s|$)|${comma}|\\b(?:luego|despues)\\b|\\by\\s+(?=(?:${verbs})))\\s*`))
     .map((t) => t.replace(/^(?:y|luego|despues|tambien)\s+/, '').trim())
     .filter((t) => t.length > 1)
     .map((text) => ({ text }));
 }
 
-class RuleSession {
+/** Una conversación con las reglas: junta lo hecho y lo que no se pudo para la respuesta. */
+export class RuleSession {
   private readonly said: string[] = [];
   private readonly problems: string[] = [];
   /** Última pieza tocada ("ponla más cerca", "gírala"). */
@@ -138,6 +143,17 @@ class RuleSession {
     }
     const lines = [...this.said.map((s) => `✓ ${s}`), ...this.problems.map((p) => `✗ ${p}`)];
     return lines.join('\n');
+  }
+
+  /** Órdenes que entendió (cada una, bien o mal resuelta). */
+  get understoodCount(): number {
+    return this.understood;
+  }
+
+  /** Lo que resolvió otro (el modelo local) entra en la misma respuesta. */
+  note(out: ToolOutcome): void {
+    this.understood++;
+    this.record(out);
   }
 
   private record(out: ToolOutcome, id?: string): void {

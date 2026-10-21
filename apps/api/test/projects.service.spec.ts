@@ -14,6 +14,7 @@ import { MediaUrlSigner } from '../src/infrastructure/media/media-url-signer.js'
 import { MemoryFileStorage } from '../src/infrastructure/storage/memory-file-storage.js';
 import { ProjectsService } from '../src/modules/projects/projects.service.js';
 import {
+  FakeAi,
   FakeBroker,
   FakeQueue,
   FakeQuota,
@@ -232,6 +233,24 @@ describe('ProjectsService', () => {
       await expect(service.recommendationFeedback(alice, p.id, like.id, { action: 'dislike' })).rejects.toBeInstanceOf(NotFoundError);
       await expect(service.recommendationFeedback(bob, p.id, shown.recommendationId, { action: 'like' })).rejects.toBeInstanceOf(NotFoundError);
       await expect(service.recommend(bob, p.id, {})).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('con historial elige con el modelo de preferencias del servicio; si falla, puntúa en local', async () => {
+      const ai = new FakeAi();
+      const svc = new ProjectsService(repo, catalog, storage, queue, broker, quota, testConfig, new PhotoProcessor(), new MediaUrlSigner(testConfig), ai);
+      const p = await readyProject();
+      // Sin gestos no hace falta preguntar.
+      await svc.recommend(alice, p.id, { seed: 5, intensity: 'suave' });
+      expect(ai.calls).not.toContain('rank');
+      const first = repo.recommendations.at(-1)!;
+      await svc.recommendationFeedback(alice, p.id, first.id, { action: 'like' });
+      // El modelo prefiere la última candidata (semilla derivada 5 + 5·7919).
+      ai.rank = (req) => ({ scores: Object.fromEntries(req.candidates.map((c, i) => [c.id, i])), model: 'logreg', samples: 6 });
+      expect((await svc.recommend(alice, p.id, { seed: 5, intensity: 'suave' })).seed).toBe(5 + 5 * 7919);
+      ai.rank = new Error('IA caída');
+      const fallback = await svc.recommend(alice, p.id, { seed: 5, intensity: 'suave' });
+      expect(ai.calls.filter((c) => c === 'rank')).toHaveLength(2);
+      expect(fallback.recommendationId).toBeTruthy();
     });
 
     it('sin planta todavía no se puede recomendar', async () => {

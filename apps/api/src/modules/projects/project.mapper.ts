@@ -16,6 +16,8 @@ export const projectKeys = {
   photo: (projectId: string) => `projects/${projectId}/source.jpg`,
   thumb: (projectId: string) => `projects/${projectId}/thumb.webp`,
   preview: (projectId: string, previewId: string) => `projects/${projectId}/previews/${previewId}.jpg`,
+  /** Imagen de referencia del chat ("hazlo como esta foto"); el hash evita duplicarla. */
+  reference: (projectId: string, hash: string) => `projects/${projectId}/refs/${hash.slice(0, 24)}.jpg`,
 };
 
 export function toPreviewDto(p: PreviewRecord, signer: MediaUrlSigner): StylePreview {

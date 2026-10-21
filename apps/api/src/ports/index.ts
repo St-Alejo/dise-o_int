@@ -5,6 +5,8 @@
  */
 import type { Readable } from 'node:stream';
 import type {
+  AnalyzeReferenceRequest,
+  AnalyzeReferenceResponse,
   AnalyzeRoomRequest,
   AnalyzeRoomResponse,
   CatalogCategory,
@@ -18,8 +20,12 @@ import type {
   JobKind,
   JobProgressEvent,
   Mount,
+  NluParseRequest,
+  NluParseResponse,
   PlaceFurnitureRequest,
   PlaceFurnitureResponse,
+  RankRecommendationsRequest,
+  RankRecommendationsResponse,
   ProjectStatus,
   RoomDimensions,
   RoomFinishes,
@@ -247,12 +253,20 @@ export interface IFileStorage {
 export interface AiCallContext {
   requestId?: string;
   signal?: AbortSignal;
+  /** Tope de esta llamada (por defecto AI_TIMEOUT_MS). */
+  timeoutMs?: number;
 }
 
 export interface IAiClient {
   analyzeRoom(req: AnalyzeRoomRequest, ctx?: AiCallContext): Promise<AnalyzeRoomResponse>;
   generateStyle(req: GenerateStyleRequest, ctx?: AiCallContext): Promise<GenerateStyleResponse>;
   placeFurniture(req: PlaceFurnitureRequest, ctx?: AiCallContext): Promise<PlaceFurnitureResponse>;
+  /** Modelo propio de intención del chat (CPU, milisegundos, sin IA externa). */
+  parseIntent(req: NluParseRequest, ctx?: AiCallContext): Promise<NluParseResponse>;
+  /** Ordena propuestas de "Recomendar" con lo que aprendió de los 👍/👎 de la persona. */
+  rankRecommendations(req: RankRecommendationsRequest, ctx?: AiCallContext): Promise<RankRecommendationsResponse>;
+  /** Lee estilo, paleta, piso, paredes y luz de una imagen de referencia ya subida. */
+  analyzeReference(req: AnalyzeReferenceRequest, ctx?: AiCallContext): Promise<AnalyzeReferenceResponse>;
   ping(): Promise<void>;
 }
 

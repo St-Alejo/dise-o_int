@@ -1,6 +1,15 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
+  AnalyzeReferenceResponseSchema,
   AnalyzeRoomResponseSchema,
+  NluParseResponseSchema,
+  RankRecommendationsResponseSchema,
+  type AnalyzeReferenceRequest,
+  type AnalyzeReferenceResponse,
+  type NluParseRequest,
+  type NluParseResponse,
+  type RankRecommendationsRequest,
+  type RankRecommendationsResponse,
   GenerateStyleResponseSchema,
   PlaceFurnitureResponseSchema,
   type AnalyzeRoomRequest,
@@ -23,6 +32,10 @@ const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 const BREAKER_FAILURES = 4;
 /** Con el circuito abierto, cada cuánto se deja pasar una llamada de prueba. */
 const BREAKER_OPEN_MS = 15_000;
+/** Modelo de intención y ranking: en CPU tardan milisegundos; si no, mejor el respaldo. */
+const FAST_TIMEOUT_MS = 4_000;
+/** La lectura de una referencia puede pasar por el modelo de visión. */
+const REFERENCE_TIMEOUT_MS = 45_000;
 
 /**
  * Adaptador HTTP hacia el microservicio de IA (FastAPI). Aplica timeout por llamada,
@@ -59,6 +72,19 @@ export class HttpAiClient implements IAiClient {
 
   placeFurniture(req: PlaceFurnitureRequest, ctx?: AiCallContext): Promise<PlaceFurnitureResponse> {
     return this.post('/v1/layout/place', req, PlaceFurnitureResponseSchema, ctx);
+  }
+
+  // El chat y Recomendar esperan a estas tres: un solo intento y poco tiempo (hay respaldo).
+  parseIntent(req: NluParseRequest, ctx?: AiCallContext): Promise<NluParseResponse> {
+    return this.post('/v1/nlu/parse', req, NluParseResponseSchema, { timeoutMs: FAST_TIMEOUT_MS, ...ctx }, 1);
+  }
+
+  rankRecommendations(req: RankRecommendationsRequest, ctx?: AiCallContext): Promise<RankRecommendationsResponse> {
+    return this.post('/v1/recommend/rank', req, RankRecommendationsResponseSchema, { timeoutMs: FAST_TIMEOUT_MS, ...ctx }, 1);
+  }
+
+  analyzeReference(req: AnalyzeReferenceRequest, ctx?: AiCallContext): Promise<AnalyzeReferenceResponse> {
+    return this.post('/v1/reference/analyze', req, AnalyzeReferenceResponseSchema, { timeoutMs: REFERENCE_TIMEOUT_MS, ...ctx }, 1);
   }
 
   async ping(): Promise<void> {
@@ -98,7 +124,7 @@ export class HttpAiClient implements IAiClient {
   private async attempt<S extends z.ZodType>(path: string, body: unknown, schema: S, ctx: AiCallContext, maxAttempts: number): Promise<z.output<S>> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const signals = [AbortSignal.timeout(this.config.AI_TIMEOUT_MS)];
+      const signals = [AbortSignal.timeout(ctx.timeoutMs ?? this.config.AI_TIMEOUT_MS)];
       if (ctx.signal) signals.push(ctx.signal);
       try {
         const res = await fetch(`${this.baseUrl}${path}`, {

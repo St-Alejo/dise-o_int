@@ -14,9 +14,16 @@ import type { CatalogService } from '../src/modules/catalog/catalog.service.js';
 import type { ProjectsService } from '../src/modules/projects/projects.service.js';
 import { ChatService } from '../src/modules/chat/chat.service.js';
 import { ClaudeDesignAgent, buildTools, historyToMessages, type MessagesApi } from '../src/modules/chat/claude.agent.js';
-import { AgentUnavailableError, type DesignAgent } from '../src/modules/chat/design-agent.js';
+import { AgentDeclinedError, AgentUnavailableError, type DesignAgent } from '../src/modules/chat/design-agent.js';
 import { RuleBasedDesignAgent, parsePlacement, splitClauses } from '../src/modules/chat/rule-based.agent.js';
-import { FakeQuota } from './fakes.js';
+import sharp from 'sharp';
+import type { NluParseResponse } from '@interiores/shared-types';
+import { PhotoProcessor } from '../src/infrastructure/imaging/photo-processor.js';
+import { MemoryFileStorage } from '../src/infrastructure/storage/memory-file-storage.js';
+import type { ChatAgents } from '../src/modules/chat/chat.service.js';
+import { GroqDesignAgent, buildGroqTools, type FetchLike } from '../src/modules/chat/groq.agent.js';
+import { LocalNluDesignAgent, specName } from '../src/modules/chat/local-nlu.agent.js';
+import { FakeAi, FakeQuota } from './fakes.js';
 
 const item = (over: Partial<CatalogItem> & Pick<CatalogItem, 'id' | 'name' | 'category' | 'dimensionsM'>): CatalogItem => ({
   styleTags: [],
@@ -278,7 +285,7 @@ function project(over: Partial<ProjectRecord> = {}): ProjectRecord {
 function service(claude: DesignAgent, quota = new FakeQuota(5), record = project()) {
   const projects = { own: async () => record } as unknown as ProjectsService;
   const catalog = { all: async () => CATALOG } as unknown as CatalogService;
-  return { svc: new ChatService(projects, catalog, claude, new RuleBasedDesignAgent(), quota), quota };
+  return { svc: new ChatService(projects, catalog, { claude, rules: new RuleBasedDesignAgent() }, quota), quota };
 }
 
 const unavailable: DesignAgent = { kind: 'claude', available: false, run: async () => ({ reply: '' }) };
@@ -330,5 +337,183 @@ describe('ChatService', () => {
 
   it('revisión vieja → 409', async () => {
     await expect(service(unavailable).svc.chat({ userId: 'alice' }, 'p1', req('hola', 1))).rejects.toBeInstanceOf(StaleRevisionError);
+  });
+});
+
+// --------------------------------------------------------------------------- cascada: local → Groq → reglas
+const nluHit = (intent: NluParseResponse['intent'], slots: Partial<NluParseResponse['slots']> = {}, confidence = 0.93): Partial<NluParseResponse> => ({
+  intent,
+  confidence,
+  slots: { colors: [], fullHeight: false, ...slots },
+});
+
+describe('LocalNluDesignAgent (modelo propio)', () => {
+  const run = (ai: FakeAi, message: string, tb = toolbox()) =>
+    new LocalNluDesignAgent(ai, { minConfidence: 0.75 }).run({ message, history: [], toolbox: tb, context: { roomType: 'bedroom', styleId: 'moderno' } });
+
+  it('piso descrito con palabras: acabado propio, fijado, sin LLM', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('piso', nluHit('set_floor', { surface: 'floor', finishKind: 'tile', gloss: 0.85, colors: [{ name: 'azul claro', hex: '#a9d4ee' }, { name: 'verde', hex: '#4f8a52' }] }));
+    const tb = toolbox();
+    const { reply } = await run(ai, 'Quiero el piso de baldosa brillante, color azul claro con verde', tb);
+    expect(reply).toMatch(/baldosa brillante azul claro y verde \(fijado\)/i);
+    // La coma no partió la orden en dos.
+    expect(ai.calls.filter((c) => c.startsWith('nlu:'))).toHaveLength(1);
+    const ops = tb.operations();
+    expect(ops.find((o) => o.op === 'brief')).toMatchObject({ brief: { surfaces: { floor: { locked: true, spec: { pattern: 'mosaic', gloss: 0.85 } } } } });
+  });
+
+  it('muebles y medidas se los pasa a las reglas; luz, veto y Recomendar los resuelve él', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('quita', nluHit('remove_item', { subcategory: 'rug' }));
+    ai.nlu.set('luz', nluHit('set_lighting', { mood: 'calida', level: 'tenue' }));
+    ai.nlu.set('cortinas', nluHit('avoid_item', { subcategory: 'curtain' }));
+    ai.nlu.set('recomienda', nluHit('recommend', { intensity: 'suave' }));
+    const tb = toolbox();
+    const { reply } = await run(ai, 'quita la alfombra. luz cálida y tenue. nada de cortinas. recomienda solo colores', tb);
+    expect(reply.split('\n')).toHaveLength(4);
+    const ops = tb.operations();
+    expect(ops).toContainEqual({ op: 'remove', id: 'rug1' });
+    expect(ops.at(-1)).toEqual({ op: 'recommend', intensity: 'suave' });
+    expect(ops.find((o) => o.op === 'brief')).toMatchObject({ brief: { avoid: ['curtain'], lighting: { mood: 'calida', locked: true } } });
+  });
+
+  it('estilo nuevo = fijarlo y pedir una propuesta completa; baño privado como zona', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('industrial', nluHit('set_style', { style: 'industrial' }));
+    ai.nlu.set('bano', nluHit('add_zone', { zoneKind: 'bathroom', preset: 'banera-mampara' }));
+    const tb = toolbox();
+    await run(ai, 'hazlo industrial y agrega un baño privado con bañera', tb);
+    const kinds = tb.operations().map((o) => o.op);
+    expect(kinds[0]).toBe('zones');
+    expect(kinds).toContain('brief');
+    expect(kinds.at(-1)).toBe('recommend');
+  });
+
+  it('si duda, falta un dato o el servicio está caído, pasa el turno sin tocar nada', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('algo', nluHit('set_floor', {}, 0.5));
+    await expect(run(ai, 'algo raro con el piso')).rejects.toBeInstanceOf(AgentDeclinedError);
+    ai.nlu.set('luz', nluHit('set_lighting'));
+    await expect(run(ai, 'cambia la luz')).rejects.toBeInstanceOf(AgentDeclinedError);
+    await expect(run(ai, 'hola, qué tal')).rejects.toBeInstanceOf(AgentDeclinedError);
+    ai.nluDown = true;
+    await expect(run(ai, 'quita la alfombra')).rejects.toBeInstanceOf(AgentDeclinedError);
+  });
+
+  it('nombre del acabado', () => {
+    expect(specName('tile', 0.85, ['azul claro', 'verde'])).toBe('Baldosa brillante azul claro y verde');
+    expect(specName('wood', 0.1, ['roble'])).toBe('Madera mate roble');
+    expect(specName('paint', undefined, ['a', 'b', 'c'])).toBe('Pintura a, b y c');
+  });
+});
+
+/** fetch falso con respuestas en orden (o un estado de error). */
+function scriptedFetch(answers: unknown[]) {
+  const bodies: Record<string, unknown>[] = [];
+  const fn: FetchLike = async (_url, init) => {
+    bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    const next = answers.shift();
+    if (typeof next === 'number') return { ok: false, status: next, json: async () => ({}), text: async () => 'rate limited' };
+    return { ok: true, status: 200, json: async () => next, text: async () => '' };
+  };
+  return { fn, bodies };
+}
+const completion = (content: string | null, calls: { name: string; args: unknown }[] = []) => ({
+  choices: [
+    {
+      finish_reason: calls.length ? 'tool_calls' : 'stop',
+      message: { content, tool_calls: calls.length ? calls.map((c, i) => ({ id: `c${i}`, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) : undefined },
+    },
+  ],
+});
+
+describe('GroqDesignAgent', () => {
+  const input = (tb = toolbox()) => ({ message: 'piso de mármol', history: [], toolbox: tb, context: { roomType: 'bedroom', styleId: null } });
+
+  it('usa las herramientas con el formato de OpenAI y resume', async () => {
+    const { fn, bodies } = scriptedFetch([completion(null, [{ name: 'set_finishes', args: { floor: 'stone-marble-white' } }]), completion('Puse piso de mármol.')]);
+    const tb = toolbox();
+    const agent = new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: fn });
+    expect(agent.available).toBe(true);
+    const { reply } = await agent.run(input(tb));
+    expect(reply).toBe('Puse piso de mármol.');
+    expect(tb.operations()).toEqual([expect.objectContaining({ op: 'finishes' })]);
+    expect(bodies[0]).toMatchObject({ model: 'm', tool_choice: 'auto' });
+    expect((bodies[1]!['messages'] as { role: string }[]).at(-1)).toMatchObject({ role: 'tool', tool_call_id: 'c0' });
+    const tools = buildGroqTools();
+    expect(tools.map((t) => t.function.name)).toContain('set_finish_spec');
+    expect(tools[0]!.function.parameters).not.toHaveProperty('$schema');
+  });
+
+  it('un 429 no se reintenta, y tras tres fallos seguidos descansa', async () => {
+    let now = 0;
+    const { fn, bodies } = scriptedFetch([429, 503, 429]);
+    const agent = new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: fn, now: () => now });
+    for (let i = 0; i < 3; i++) await expect(agent.run(input())).rejects.toBeInstanceOf(AgentUnavailableError);
+    expect(bodies).toHaveLength(3);
+    expect(agent.available).toBe(false);
+    now = 61_000;
+    expect(agent.available).toBe(true);
+    expect(new GroqDesignAgent({ apiKey: undefined, model: 'm' }).available).toBe(false);
+  });
+});
+
+describe('ChatService en cascada', () => {
+  const req = (message: string) => ({ revision: 3, message, history: [] });
+  function cascade(agents: Partial<ChatAgents>, quota = new FakeQuota(5), ai = new FakeAi()) {
+    const projects = { own: async () => project() } as unknown as ProjectsService;
+    const catalog = { all: async () => CATALOG } as unknown as CatalogService;
+    const reference = { ai, storage: new MemoryFileStorage(), photos: new PhotoProcessor(), maxBytes: 5_000_000 };
+    return { svc: new ChatService(projects, catalog, { rules: new RuleBasedDesignAgent(), ...agents }, quota, reference), quota, ai, reference };
+  }
+
+  it('responde el modelo local sin gastar cuota', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('quita', nluHit('remove_item'));
+    const groq: DesignAgent = { kind: 'groq', available: true, run: async () => ({ reply: 'groq' }) };
+    const { svc, quota } = cascade({ local: new LocalNluDesignAgent(ai, { minConfidence: 0.75 }), groq });
+    const res = await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra'));
+    expect(res).toMatchObject({ agent: 'local', operations: [{ op: 'remove', id: 'rug1' }] });
+    expect(quota.used.get('alice') ?? 0).toBe(0);
+  });
+
+  it('si el local duda responde Groq (con cuota); si Groq cae, las reglas con aviso', async () => {
+    const ai = new FakeAi();
+    const local = new LocalNluDesignAgent(ai, { minConfidence: 0.75 });
+    const groq: DesignAgent = {
+      kind: 'groq',
+      available: true,
+      run: async ({ toolbox }) => {
+        toolbox.run('set_lighting', { mood: 'fria' });
+        return { reply: 'Luz fría.' };
+      },
+    };
+    const ok = cascade({ local, groq });
+    expect(await ok.svc.chat({ userId: 'alice' }, 'p1', req('algo que el local no sabe'))).toMatchObject({ agent: 'groq', reply: 'Luz fría.' });
+    expect(ok.quota.used.get('alice')).toBe(1);
+
+    const down: DesignAgent = { kind: 'groq', available: true, run: async () => Promise.reject(new AgentUnavailableError('429')) };
+    const fallback = cascade({ local, groq: down });
+    const res = await fallback.svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra'));
+    expect(res).toMatchObject({ agent: 'rules', reply: expect.stringMatching(/no está disponible/) });
+    expect(fallback.quota.used.get('alice')).toBe(0);
+  });
+
+  it('imagen de referencia: fija piso, paredes, estilo y luz y pide una propuesta', async () => {
+    const { svc, ai, reference } = cascade({});
+    const image = await sharp({ create: { width: 400, height: 320, channels: 3, background: '#a9d4ee' } }).jpeg().toBuffer();
+    const res = await svc.fromReference({ userId: 'alice' }, 'p1', 3, image);
+    expect(res.agent).toBe('groq');
+    expect(res.reference).toEqual({ source: 'vision', palette: ai.reference.palette, style: 'escandinavo' });
+    expect(res.reply).toMatch(/piso de baldosa, color de paredes, estilo escandinavo, luz/);
+    const brief = res.operations.find((o) => o.op === 'brief');
+    expect(brief).toMatchObject({ brief: { style: { id: 'escandinavo', locked: true }, surfaces: { floor: { locked: true }, walls: { locked: true } } } });
+    expect(res.operations.at(-1)).toEqual({ op: 'recommend', intensity: 'total' });
+    // La imagen quedó guardada bajo el proyecto (se borra con él).
+    const key = ai.calls.find((c) => c.startsWith('reference:'))!.slice('reference:'.length);
+    expect(key).toMatch(/^projects\/p1\/refs\/[0-9a-f]{24}\.jpg$/);
+    expect(await reference.storage.exists(key)).toBe(true);
+    await expect(svc.fromReference({ userId: 'alice' }, 'p1', 3, Buffer.from('no es imagen'))).rejects.toThrow(/JPG, PNG o WebP/);
   });
 });

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   type AutoLayoutRequest,
   type CalibrateRequest,
@@ -40,8 +40,10 @@ import { PhotoProcessor } from '../../infrastructure/imaging/photo-processor.js'
 import {
   APP_CONFIG,
   CATALOG_REPOSITORY,
+  AI_CLIENT,
   FILE_STORAGE,
   type ICatalogRepository,
+  type IAiClient,
   type IFileStorage,
   type IJobQueue,
   type IProgressBroker,
@@ -100,6 +102,7 @@ export class ProjectsService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly photos: PhotoProcessor,
     private readonly signer: MediaUrlSigner,
+    @Optional() @Inject(AI_CLIENT) private readonly ai?: IAiClient,
   ) {
     this.access = new ProjectAccess(projects, signer);
     this.rules = new SceneRules(catalog);
@@ -107,7 +110,12 @@ export class ProjectsService {
     this.sharing = new SharingService(projects, this.access);
     this.reports = new ProjectReports(catalog, this.access, projects);
     this.homes = new HomesService(projects, this.access);
-    this.recommendations = new RecommendationsService(projects, this.access, (actor, id, req) => this.autoLayout(actor, id, req));
+    this.recommendations = new RecommendationsService(
+      projects,
+      this.access,
+      (actor, id, req) => this.autoLayout(actor, id, req),
+      ai ? (req) => ai.rankRecommendations(req) : undefined,
+    );
   }
 
   // ------------------------------------------------------------------ delegado en sus colaboradores

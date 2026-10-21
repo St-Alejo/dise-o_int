@@ -1,6 +1,12 @@
 /** Dobles de prueba en memoria que implementan los puertos (arquitectura hexagonal). */
 import { randomUUID } from 'node:crypto';
 import type {
+  AnalyzeReferenceRequest,
+  AnalyzeReferenceResponse,
+  NluParseRequest,
+  NluParseResponse,
+  RankRecommendationsRequest,
+  RankRecommendationsResponse,
   AnalyzeRoomRequest,
   AnalyzeRoomResponse,
   CatalogFilters,
@@ -270,6 +276,37 @@ export class FakeAi implements IAiClient {
       score: 1,
       engine: 'fake',
     };
+  }
+  /** Respuestas del modelo de intención por texto; lo demás es "other" sin confianza. */
+  nlu = new Map<string, Partial<NluParseResponse>>();
+  nluDown = false;
+  async parseIntent(req: NluParseRequest): Promise<NluParseResponse> {
+    this.calls.push(`nlu:${req.text}`);
+    if (this.nluDown) throw new Error('IA caída');
+    const hit = [...this.nlu].find(([k]) => req.text.includes(k))?.[1] ?? {};
+    return { intent: 'other', confidence: 0.2, alternatives: [], model: 'fake', ...hit, slots: { colors: [], fullHeight: false, ...hit.slots } };
+  }
+  /** Sin valor: puntúa con la nota de oficio (como el servicio sin historial suficiente). */
+  rank: ((req: RankRecommendationsRequest) => RankRecommendationsResponse) | Error | null = null;
+  async rankRecommendations(req: RankRecommendationsRequest): Promise<RankRecommendationsResponse> {
+    this.calls.push('rank');
+    if (this.rank instanceof Error) throw this.rank;
+    if (this.rank) return this.rank(req);
+    return { scores: Object.fromEntries(req.candidates.map((c) => [c.id, c.prior])), model: 'prior', samples: req.history.length };
+  }
+  reference: AnalyzeReferenceResponse = {
+    style: 'escandinavo',
+    palette: ['#a9d4ee', '#9bd3b0', '#f4f4f1'],
+    floor: { kind: 'tile', pattern: 'mosaic', colors: ['#a9d4ee', '#9bd3b0'], gloss: 0.85 },
+    wallColor: '#f4f4f1',
+    objects: ['sofa', 'rug'],
+    mood: 'calida',
+    level: 'media',
+    source: 'vision',
+  };
+  async analyzeReference(req: AnalyzeReferenceRequest): Promise<AnalyzeReferenceResponse> {
+    this.calls.push(`reference:${req.imageKey}`);
+    return this.reference;
   }
   async ping() {}
 }

@@ -54,6 +54,11 @@ export const EnvSchema = z
     CHAT_MODEL: z.string().min(1).default('claude-opus-5-5'),
     CHAT_PER_DAY: z.coerce.number().int().min(1).default(60),
     CHAT_MAX_TOOL_TURNS: z.coerce.number().int().min(1).max(20).default(8),
+    /** Groq: segundo paso del chat (si el modelo local no está seguro). Sin clave, se salta. */
+    GROQ_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+    GROQ_CHAT_MODEL: z.string().min(1).default('llama-3.3-70b-versatile'),
+    /** Confianza mínima del modelo local para actuar sin LLM. */
+    NLU_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.75),
     THROTTLE_LIMIT_PER_MIN: z.coerce.number().int().min(10).default(240),
     /** Relaja todos los límites por IP (solo para las pruebas e2e; ver `common/rate-limit.ts`). */
     RATE_LIMIT_MULTIPLIER: z.coerce.number().min(1).max(100).default(1),
