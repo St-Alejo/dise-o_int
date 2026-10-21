@@ -23,11 +23,11 @@ BATH = Zone(
     id="bano",
     kind="bathroom",
     outline=[Point2(x=2.5, z=0), Point2(x=4.5, z=0), Point2(x=4.5, z=1.6), Point2(x=2.5, z=1.6)],
-    door=ZoneDoor(edge=2, offsetM=1.0, widthM=0.7),
+    door=ZoneDoor(edge=2, offsetM=1.47, widthM=0.7),
 )
 
 BATH_ITEMS = [
-    cand("ducha", "bathroom", "shower", (0.8, 2.1, 0.8), ["moderno"]),
+    cand("ducha", "bathroom", "shower", (0.9, 2.1, 0.9), ["moderno"]),
     cand("lavabo", "bathroom", "vanity", (0.7, 0.85, 0.45), ["moderno"]),
     cand("inodoro", "bathroom", "toilet", (0.38, 0.8, 0.65), ["moderno"]),
 ]
@@ -78,7 +78,7 @@ def test_el_bano_privado_se_distribuye_dentro_y_el_dormitorio_fuera(catalog):
     items = {c.id: c for c in catalog + BATH_ITEMS}
     poly = zone_poly(BATH)
     by_id = {p.catalogItemId: p for p in result.placements}
-    for fixture in ("lavabo", "inodoro"):
+    for fixture in ("ducha", "lavabo", "inodoro"):
         assert fixture in by_id, result.unplaced
         p = by_id[fixture]
         assert point_in_polygon((p.position.x, p.position.z), poly), fixture
@@ -95,8 +95,8 @@ def test_el_bano_privado_se_distribuye_dentro_y_el_dormitorio_fuera(catalog):
 def test_nada_tapa_la_puerta_del_bano_por_fuera(catalog):
     _, result = place(catalog)
     items = {c.id: c for c in catalog + BATH_ITEMS}
-    # Paso de 0,9 m delante del vano (x de 3,15 a 3,85; z de 1,7 a 2,5).
-    door_way = Footprint.rect(3.15, 1.7, 3.85, 2.5)
+    # Paso de 0,9 m delante del vano, junto a la esquina de dentro (x de 2,68 a 3,38; z de 1,7 a 2,5).
+    door_way = Footprint.rect(2.68, 1.7, 3.38, 2.5)
     for p in result.placements:
         if layer_of(items[p.catalogItemId]) == "floor":
             assert not overlaps(fp_of(p, items), door_way, 0.0), p.catalogItemId

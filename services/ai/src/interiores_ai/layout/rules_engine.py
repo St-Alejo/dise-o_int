@@ -50,6 +50,8 @@ Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
 Anchor = Literal["wall", "front-of", "facing-wall", "beside", "next-to", "around", "corner", "center", "over", "under"]
 
 DOOR_CLEARANCE_M = 0.9
+# Dentro de un baño privado el paso de la puerta es más corto: no caben 0,9 m y la ducha.
+ZONE_DOOR_CLEARANCE_M = 0.6
 # Con semilla, cuánto peor que la mejor puede ser una pose para entrar en el sorteo. Las reglas
 # duras (no tapar ventanas, no bloquear la puerta, muebles altos lejos de la cámara) cuestan más
 # que esto, así que una variante nunca las rompe.
@@ -393,12 +395,12 @@ class RulesLayoutEngine:
         """
         zones = closed_zones(req.roomShell)
         if not zones:
-            return self._place_variants(req, None, [], [])
+            return self._place_variants(req, None, [], [], DOOR_CLEARANCE_M)
         shell = req.roomShell
         in_zone = {lp.id: zone_of(shell, lp.position.x, lp.position.z) for lp in req.locked}
         keep_out = [fp for fp in (door_clearance_outside(shell, z) for z in zones) if fp is not None]
         common_req = req.model_copy(update={"locked": [lp for lp in req.locked if in_zone[lp.id] is None]})
-        parts = [self._place_variants(common_req, None, keep_out, [zone_poly(z) for z in zones])]
+        parts = [self._place_variants(common_req, None, keep_out, [zone_poly(z) for z in zones], DOOR_CLEARANCE_M)]
         for zone in zones:
             mine = [lp for lp in req.locked if (found := in_zone[lp.id]) is not None and found.id == zone.id]
             sub = req.model_copy(
@@ -410,7 +412,7 @@ class RulesLayoutEngine:
                     "mustHave": None,
                 }
             )
-            parts.append(self._place_variants(sub, ZONE_TEMPLATES[zone.kind], [], []))
+            parts.append(self._place_variants(sub, ZONE_TEMPLATES[zone.kind], [], [], ZONE_DOOR_CLEARANCE_M))
         return PlaceFurnitureResponse(
             placements=[p for part in parts for p in part.placements],
             unplaced=[u for part in parts for u in part.unplaced],
@@ -419,17 +421,22 @@ class RulesLayoutEngine:
         )
 
     def _place_variants(
-        self, req: PlaceFurnitureRequest, roles: list[Role] | None, keep_out: list[Footprint], forbidden: list[list[Point]]
+        self,
+        req: PlaceFurnitureRequest,
+        roles: list[Role] | None,
+        keep_out: list[Footprint],
+        forbidden: list[list[Point]],
+        door_clearance: float,
     ) -> PlaceFurnitureResponse:
         """Sin semilla, la distribución de siempre. Con semilla ("otra distribución"), se generan
         varias variantes y se devuelve la de la semilla pedida salvo que sea claramente peor que
         otra: así cada semilla sigue dando algo distinto, pero nunca una mala habiendo una buena.
         """
         if req.seed is None:
-            return self._place_once(req, roles, keep_out, forbidden)
+            return self._place_once(req, roles, keep_out, forbidden, door_clearance)
         catalog = {c.id: c for c in req.candidates}
         variants = [
-            self._place_once(req.model_copy(update={"seed": (req.seed + step * 7919) % 2_147_483_647}), roles, keep_out, forbidden)
+            self._place_once(req.model_copy(update={"seed": (req.seed + step * 7919) % 2_147_483_647}), roles, keep_out, forbidden, door_clearance)
             for step in range(VARIANTS)
         ]
         qualities = [layout_quality(req.roomShell, v.placements, catalog, v.score) for v in variants]
@@ -442,6 +449,7 @@ class RulesLayoutEngine:
         roles: list[Role] | None = None,
         keep_out: list[Footprint] | None = None,
         forbidden: list[list[Point]] | None = None,
+        door_clearance: float = DOOR_CLEARANCE_M,
     ) -> PlaceFurnitureResponse:
         rng = random.Random(req.seed if req.seed is not None else 7)
         # Sin semilla se devuelve siempre la mejor distribución; con semilla, una variante válida
@@ -462,7 +470,7 @@ class RulesLayoutEngine:
                 Placed(lp.id, item, lp.position.x, lp.position.z, lp.rotationY, layer_of(item), self._role_of(item, req.roomType), locked=True)
             )
 
-        blocked = self._door_zones(shell) + (keep_out or [])
+        blocked = self._door_zones(shell, door_clearance) + (keep_out or [])
         scene.forbidden = forbidden or []
         new: list[Placed] = []
         unplaced: list[str] = []
@@ -795,8 +803,8 @@ class RulesLayoutEngine:
         return cost
 
     @staticmethod
-    def _door_zones(shell: RoomShell) -> list[Footprint]:
-        """Zona libre delante de cada puerta (paso de 0.9 m)."""
+    def _door_zones(shell: RoomShell, depth: float = DOOR_CLEARANCE_M) -> list[Footprint]:
+        """Zona libre delante de cada puerta (paso de `depth` metros, 0.9 m en un cuarto)."""
         zones: list[Footprint] = []
         for o in shell.openings:
             if o.type != "door":
@@ -805,7 +813,7 @@ class RulesLayoutEngine:
             if wall is None:
                 continue
             (sx, sz), (ux, uz, nx, nz), _ = wall_frame(wall, shell)
-            cx = sx + ux * o.offsetM + nx * DOOR_CLEARANCE_M / 2
-            cz = sz + uz * o.offsetM + nz * DOOR_CLEARANCE_M / 2
-            zones.append(Footprint.of(cx, cz, o.widthM + 0.2, DOOR_CLEARANCE_M, angle_facing(nx, nz)))
+            cx = sx + ux * o.offsetM + nx * depth / 2
+            cz = sz + uz * o.offsetM + nz * depth / 2
+            zones.append(Footprint.of(cx, cz, o.widthM + 0.2, depth, angle_facing(nx, nz)))
         return zones
