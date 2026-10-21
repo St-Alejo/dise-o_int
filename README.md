@@ -25,6 +25,11 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Presupuesto.** Un tope por cuarto, guardado con el proyecto, con aviso al acercarse o pasarse y el total por categoría.
 - **Viviendas.** Varios cuartos agrupados, con lo que suman, una planta conjunta donde se colocan a escala y se pegan unos a otros, y la vivienda entera en un PDF ([ADR-0021](docs/adr/0021-viviendas.md)).
 - **Comparar versiones.** Las dos plantas lado a lado con lo que cambia resaltado, antes de restaurar.
+- **Recomendar con candados.** El botón ✨ propone estilo, paleta, acabados, luz y muebles de una vez, y respeta lo que fijaste: si pediste "piso de baldosa brillante azul claro con verde", ese piso sigue en todas las propuestas. El panel "Lo que pediste" muestra lo fijado como chips con candado; 👍, 👎 y "me la quedo" enseñan al modelo de preferencias y toda la propuesta se deshace con un Ctrl+Z ([ADR-0027](docs/adr/0027-recomendar-y-preferencias.md)).
+- **Acabados a medida.** Baldosa, madera, piedra, pintura, moqueta, ladrillo o cemento con uno a tres colores, dibujo (cuadrícula, damero, metro, espiga, hexágono, mosaico, tablones), brillo y tamaño de pieza, con muestra en vivo. Van en piso, paredes, techo o como revestimiento hasta la altura que elijas ([ADR-0023](docs/adr/0023-brief-acabados-propios-y-zonas.md)).
+- **Texturas reales.** 21 juegos PBR CC0 de Poly Haven (color, normal y rugosidad) que se descargan al sembrar; una textura se tiñe para servir a varios colores, en metros reales sobre paredes, pisos y muebles. Sombras suaves y lámparas que alumbran desde su bombilla ([ADR-0024](docs/adr/0024-texturas-pbr-y-luz-realista.md)).
+- **Zonas dentro del cuarto.** Un baño privado (ducha de obra, bañera con mampara, spa en mármol o industrial), vestidor o zona de tocador con sus tabiques, su puerta y sus propios acabados. Se recorre a pie y el motor la distribuye como un cuarto propio ([ADR-0025](docs/adr/0025-zonas-interiores-y-bano-privado.md)).
+- **Chat que entiende sin IA externa.** Un modelo propio (scikit-learn) entiende "pon piso de baldosa brillante azul claro con verde", "agrega un tocador" o "estilo nórdico y recomienda". Solo si no está seguro pregunta a Groq, y al final queda el agente por reglas. Se le puede adjuntar o pegar una foto y replica su piso, paredes, estilo y luz ([ADR-0026](docs/adr/0026-chat-local-primero-y-cascada.md)).
 
 ## Diseño de la interfaz
 
@@ -161,7 +166,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Tipos compartidos | `npm test -w @interiores/shared-types` | Geometría (SAT, clamp, calibración), planta poligonal y su edición, guías, caminar y DTOs |
 | API | `npm test -w api` | Casos de uso con adaptadores en memoria: EXIF, cuotas, 409, borrado real, caché, retención, pipeline |
 | Web | `npm test -w web` | Command/undo, construcción del cuarto sin WebGL, gestos del plano, modos de cámara, asistente |
-| IA | `pytest` (`services/ai`) | Layout con **Hypothesis** (sin solapes, todo dentro, nunca bloquea puertas), API, Replicate simulado, **contrato zod ↔ Pydantic** |
+| IA | `pytest` (`services/ai`) | Layout con **Hypothesis** (sin solapes, todo dentro, nunca bloquea puertas), zonas, NLU (F1 en validación fija), ranking de preferencias, referencia con visión simulada, Replicate simulado y **contrato zod ↔ Pydantic** |
 | Humo | `node e2e/smoke.mjs <url>` | Flujo completo del backend por nginx (17 comprobaciones) |
 | UI + a11y | `make e2e` | Playwright: flujo completo, asistente, formas de cuarto, recorrido, plano y visor editables (se arrastran los tiradores reales), multiselección, guardado sin conexión, revisión del diseño, gestión de proyectos, link público y **axe** (WCAG 2.1 AA) en desktop y móvil |
 | Resiliencia | `node e2e/resilience.mjs <url> "<parar ia>" "<arrancar ia>"` | IA caída → 503 + reintentos + error claro → recuperación con "Reintentar" |
@@ -169,6 +174,19 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 Las E2E lanzan toda la suite desde una sola IP en menos de un minuto y esperan el análisis local: levanta el stack con `RATE_LIMIT_MULTIPLIER=20 ROOM_ANALYZER=mock docker compose up -d --wait` antes de correrlas.
 
 Las herramientas de Node corren en Docker con `./scripts/toolbox.sh <comando>` (Node 24, igual que las imágenes). CI (`.github/workflows/ci.yml`) ejecuta todas las suites, incluido el E2E sobre Docker Compose.
+
+## Modelo de ML propio
+
+El servicio de IA entrena sus modelos al construir la imagen (unos 10 s, sin GPU ni binarios versionados):
+
+| Modelo | Qué hace | Dónde |
+|---|---|---|
+| Intención | TF-IDF de caracteres (2–5) y palabras (1–2) + `LogisticRegression` sobre 17 intenciones, con ~15 000 frases en español generadas por plantillas. F1 macro ≥ 0,9 en frases escritas a mano | `services/ai/.../ml/nlu.py`, `dataset.py` |
+| Parámetros | Léxico determinista: colores en español a #hex ("azul claro"), material, dibujo, brillo, medidas, estilo, luz y zona | `ml/slots.py`, `ml/lexicon.py` |
+| Preferencias | Regresión logística sobre los rasgos de cada propuesta, entrenada con los 👍/👎 de la persona; con pocos gestos usa una nota de oficio por estilo | `ml/preferences.py` |
+| Referencia | Paleta por k-means y estilo aproximado cuando no hay modelo de visión | `ml/reference.py` |
+
+Endpoints: `POST /v1/nlu/parse`, `POST /v1/recommend/rank` y `POST /v1/reference/analyze`. La API los llama con un solo intento y timeout corto; si fallan, sigue con el siguiente agente.
 
 ## Proveedores de IA
 
@@ -185,6 +203,8 @@ ROOM_ANALYZER=vision
 ```
 
 Hace una llamada por foto, con caché y un tope diario (`VISION_PER_DAY`); si el modelo falla o se agota, responde el análisis local. Ver [ADR-0011](docs/adr/0011-analisis-de-la-foto-con-vision.md).
+
+El chat usa la misma clave para lo que el modelo local no entiende (`GROQ_CHAT_MODEL`, por defecto `llama-3.3-70b-versatile`), con cuota diaria y *circuit breaker*. `CHAT_LLM=off` lo deja solo en local y reglas (así corren las E2E); `NLU_MIN_CONFIDENCE` (0,75) decide cuándo el modelo propio responde solo.
 
 Para usar difusión real:
 
@@ -206,4 +226,4 @@ Consulta [`docs/deploy.md`](docs/deploy.md). En resumen:
 
 ## Licencias de contenido
 
-Los muebles 3D vienen de [Poly Haven](https://polyhaven.com) (CC0) o se generan proceduralmente. Las seis fotos de ambiente de la página de inicio son CC0; fuente y autor en [`apps/web/public/landing/fotos/ATTRIBUTION.md`](apps/web/public/landing/fotos/ATTRIBUTION.md). Los enlaces de compra son búsquedas de productos similares (Fase 4 del roadmap: afiliados).
+Los muebles 3D y las texturas PBR vienen de [Poly Haven](https://polyhaven.com) (CC0) o se generan proceduralmente. Las seis fotos de ambiente de la página de inicio son CC0; fuente y autor en [`apps/web/public/landing/fotos/ATTRIBUTION.md`](apps/web/public/landing/fotos/ATTRIBUTION.md). Los enlaces de compra son búsquedas de productos similares (Fase 4 del roadmap: afiliados).
