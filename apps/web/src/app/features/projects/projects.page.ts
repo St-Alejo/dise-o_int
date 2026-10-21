@@ -7,6 +7,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { ToastService } from '../../core/ui/toast.service';
 import { filterProjects, homesOf, oneDecimal, outlineSvg, roomTypesOf, summarize, type ProjectSort } from './projects-filter';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 const STATUS: Record<ProjectListItem['status'], { label: string; cls: string }> = {
   uploaded: { label: 'En cola', cls: 'badge' },
@@ -33,7 +34,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
 @Component({
   selector: 'app-projects-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, CurrencyPipe, IconComponent],
+  imports: [RouterLink, DatePipe, CurrencyPipe, IconComponent, TooltipDirective],
   template: `
     <section class="container page">
       <div class="row head">
@@ -180,7 +181,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
                     <h2 class="name">{{ p.name }}</h2>
                     <span [class]="status[p.status].cls">{{ status[p.status].label }}</span>
                     @if (p.homeName) {
-                      <span class="badge badge-primary" [title]="'Es un cuarto de la vivienda ' + p.homeName">{{ p.homeName }}</span>
+                      <span class="badge badge-primary" [appTooltip]="'Es un cuarto de la vivienda ' + p.homeName">{{ p.homeName }}</span>
                     }
                   }
                 </div>
@@ -198,7 +199,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
                 </ul>
                 <p class="muted small"><app-icon name="clock" /> {{ p.updatedAt | date: 'd MMM, HH:mm' }}</p>
                 @if (!p.saved) {
-                  <p class="small warn-text" title="Guarda una versión o compártelo para conservarlo"><app-icon name="info" /> Sin guardar: se borra a las 24 h</p>
+                  <p class="small warn-text" appTooltip="Guarda una versión o compártelo para conservarlo"><app-icon name="info" /> Sin guardar: se borra a las 24 h</p>
                 }
                 <div class="row actions">
                   <a [routerLink]="['/proyectos', p.id]" class="btn btn-sm">Abrir</a>
@@ -210,7 +211,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
                       (click)="duplicate(p)"
                       [disabled]="duplicating() === p.id"
                       [attr.aria-label]="'Duplicar ' + p.name"
-                      title="Copia el cuarto y los muebles en un proyecto nuevo para probar otra variante"
+                      appTooltip="Copia el cuarto y los muebles en un proyecto nuevo para probar otra variante"
                     >
                       {{ duplicating() === p.id ? 'Copiando…' : 'Duplicar' }}
                     </button>

@@ -11,6 +11,7 @@ import { ProjectFactsComponent } from '../project/project-facts.component';
 import { ProjectPersistence } from '../project/project-persistence';
 import { EditorComponent } from '../viewport-3d/editor.component';
 import { DEMO_PREFIX, LocalPersistence } from './local-persistence';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 /**
  * El editor completo sin crear cuenta: se abre una plantilla amueblada y lo que se cambia se
@@ -20,7 +21,7 @@ import { DEMO_PREFIX, LocalPersistence } from './local-persistence';
   selector: 'app-demo-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [LocalPersistence, { provide: ProjectPersistence, useExisting: LocalPersistence }, DesignProjectStore],
-  imports: [RouterLink, EditorComponent, ProjectFactsComponent, IconComponent],
+  imports: [RouterLink, EditorComponent, ProjectFactsComponent, IconComponent, TooltipDirective],
   template: `
     <section class="container page">
       @if (store.loadError(); as err) {
@@ -42,7 +43,7 @@ import { DEMO_PREFIX, LocalPersistence } from './local-persistence';
             </div>
           </div>
           <div class="row actions">
-            <button type="button" class="btn" (click)="restart()" title="Vuelve a la plantilla tal como viene">Empezar de nuevo</button>
+            <button type="button" class="btn" (click)="restart()" appTooltip="Vuelve a la plantilla tal como viene">Empezar de nuevo</button>
             <button type="button" class="btn btn-primary" (click)="keep()" [disabled]="saving()">
               <app-icon name="check" /> {{ saving() ? 'Guardando…' : 'Guardar en mi cuenta' }}
             </button>

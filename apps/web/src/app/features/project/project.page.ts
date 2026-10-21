@@ -27,6 +27,7 @@ import { DesignProjectStore } from './design-project.store';
 import { ProcessingPanelComponent } from './processing-panel.component';
 import { ProjectFactsComponent } from './project-facts.component';
 import { VersionCompareComponent } from './version-compare.component';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 type View = 'estilos' | '3d';
 
@@ -34,7 +35,7 @@ type View = 'estilos' | '3d';
   selector: 'app-project-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DesignProjectStore, RecommendService],
-  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, VersionCompareComponent, StyleGalleryComponent, EditorComponent, IconComponent, DialogComponent],
+  imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, VersionCompareComponent, StyleGalleryComponent, EditorComponent, IconComponent, DialogComponent, TooltipDirective],
   template: `
     <section class="container page">
       @if (store.loadError(); as err) {
@@ -54,7 +55,7 @@ type View = 'estilos' | '3d';
                 @if (p.saved) {
                   · <span class="badge badge-success">Guardado</span>
                 } @else {
-                  · <span class="badge badge-warning" title="Guarda una versión o compártelo para conservarlo">Se borra en 24 h si no lo guardas</span>
+                  · <span class="badge badge-warning" appTooltip="Guarda una versión o compártelo para conservarlo">Se borra en 24 h si no lo guardas</span>
                 }
                 @if (p.visibility === 'shared-link') {
                   · <span class="badge badge-primary">Compartido</span>
@@ -68,7 +69,7 @@ type View = 'estilos' | '3d';
               <button type="button" class="btn" (click)="openVersions()"><app-icon name="history" /> Versiones ({{ p.versions.length }})</button>
               <button type="button" class="btn" (click)="share()" [disabled]="working()"><app-icon name="share" /> Compartir</button>
               <button type="button" class="btn" (click)="downloadPdf()" [disabled]="working()"><app-icon name="receipt" /> Lista de compras</button>
-              <button type="button" class="btn" (click)="downloadDossier()" [disabled]="working()" title="Ficha del cuarto, plano acotado con los muebles y lista de compras"><app-icon name="download" /> Proyecto en PDF</button>
+              <button type="button" class="btn" (click)="downloadDossier()" [disabled]="working()" appTooltip="Ficha del cuarto, plano acotado con los muebles y lista de compras"><app-icon name="download" /> Proyecto en PDF</button>
             </div>
           }
         </header>
@@ -85,7 +86,7 @@ type View = 'estilos' | '3d';
           </nav>
         } @else if (p.status === 'ready') {
           <p class="home-start">
-            <button type="button" class="btn btn-sm btn-ghost" (click)="startHome()" [disabled]="working()" title="Crea una vivienda con este cuarto para ir sumando los demás: se ven juntos y con sus totales">
+            <button type="button" class="btn btn-sm btn-ghost" (click)="startHome()" [disabled]="working()" appTooltip="Crea una vivienda con este cuarto para ir sumando los demás: se ven juntos y con sus totales">
               <app-icon name="plus" /> Añadir otro cuarto a esta vivienda
             </button>
           </p>

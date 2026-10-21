@@ -15,6 +15,7 @@ import {
   type PlanGesture,
   type PlanPreview,
 } from './plan-gestures';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 export type PlanTool = 'select' | 'room' | 'measure';
 
@@ -50,7 +51,7 @@ interface PlanPiece {
 @Component({
   selector: 'app-plan-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RoomActionsComponent],
+  imports: [RoomActionsComponent, TooltipDirective],
   template: `
     <div class="bar">
       <div class="tools" role="group" aria-label="Herramientas del plano">
@@ -59,7 +60,7 @@ interface PlanPiece {
         }
       </div>
       @if (area(); as a) {
-        <span class="area" title="Superficie del piso">{{ a }}</span>
+        <span class="area" appTooltip="Superficie del piso">{{ a }}</span>
       }
     </div>
 

@@ -109,6 +109,7 @@ test('primeros pasos: salen la primera vez que se abre el editor y no vuelven', 
   });
   await page.goto('/demo/estudio-industrial');
   const tour = page.getByRole('complementary', { name: 'Primeros pasos' });
+  // En la demo no hay Recomendar ni asistente: sus pasos no salen.
   await expect(tour).toContainText('1 de 4');
   await expect(tour).toContainText('Mueve y gira');
   // No bloquea: el editor se puede usar con la franja abierta.

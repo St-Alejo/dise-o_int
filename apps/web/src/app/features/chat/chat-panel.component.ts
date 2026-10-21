@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, injec
 import type { ChatAgentKind } from '@interiores/shared-types';
 import { DesignProjectStore } from '../project/design-project.store';
 import { DesignChatService } from './design-chat.service';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 /** Sugerencias según el tipo de cuarto (un clic las envía). */
 const SUGGESTIONS: Record<string, string[]> = {
@@ -25,6 +26,7 @@ const AGENTS: Record<ChatAgentKind, { label: string; title: string; primary: boo
 /** Chat con el asistente de diseño: escribe lo que quieres y lo coloca en el cuarto. */
 @Component({
   selector: 'app-chat-panel',
+  imports: [TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="chat">
@@ -55,7 +57,7 @@ const AGENTS: Record<ChatAgentKind, { label: string; title: string; primary: boo
             }
             @if (m.role === 'assistant' && !m.error && m.agent) {
               <div class="meta row">
-                <span class="badge" [class.badge-primary]="agents[m.agent].primary" [title]="agents[m.agent].title">{{ agents[m.agent].label }}</span>
+                <span class="badge" [class.badge-primary]="agents[m.agent].primary" [appTooltip]="agents[m.agent].title">{{ agents[m.agent].label }}</span>
                 @if (m.changes) {
                   <span class="muted">{{ m.changes }} {{ m.changes === 1 ? 'cambio' : 'cambios' }}</span>
                 }
@@ -80,7 +82,7 @@ const AGENTS: Record<ChatAgentKind, { label: string; title: string; primary: boo
           (click)="file.click()"
           [disabled]="chat.busy() || readOnly()"
           aria-label="Adjuntar una imagen de referencia"
-          title="Adjunta (o pega) una foto de un cuarto que te guste y la replico"
+          appTooltip="Adjunta (o pega) una foto de un cuarto que te guste y la replico"
         >
           📎
         </button>

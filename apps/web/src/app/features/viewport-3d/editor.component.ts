@@ -94,7 +94,7 @@ function initialView(): ViewMode {
     }
 
     @if (!presenting()) {
-      <app-editor-tour />
+      <app-editor-tour [demo]="demo()" />
     }
     <div class="layout">
       <div class="viewport-wrap" #wrap [class.presenting]="presenting()">

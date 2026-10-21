@@ -3,6 +3,7 @@ import { materialsForSurface, type MaterialDefinition } from '@interiores/shared
 import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish } from '../../finishes/finishes-model';
 import { DesignProjectStore } from '../../project/design-project.store';
 import { SetFinishesCommand } from '../commands';
+import { TooltipDirective } from '../../../shared/ui/tooltip.directive';
 
 /** Superficie del cuarto que se pinta desde el visor. */
 export type PaintSurface = { surface: 'floor' } | { surface: 'ceiling' } | { surface: 'wall'; wallId: string };
@@ -16,6 +17,7 @@ const GROUPS = { floor: 'Material del piso', ceiling: 'Color del techo', wall: '
  */
 @Component({
   selector: 'app-paint-palette',
+  imports: [TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="head">
@@ -27,7 +29,7 @@ const GROUPS = { floor: 'Material del piso', ceiling: 'Color del techo', wall: '
     }
     <div class="swatches" role="group" [attr.aria-label]="groups[target().surface]">
       @for (m of options(); track m.id) {
-        <button type="button" class="swatch" [style.background]="m.color" [attr.aria-label]="m.name" [title]="m.name" [attr.aria-pressed]="current() === m.id" (click)="pick(m)"></button>
+        <button type="button" class="swatch" [style.background]="m.color" [attr.aria-label]="m.name" [appTooltip]="m.name" [attr.aria-pressed]="current() === m.id" (click)="pick(m)"></button>
       }
     </div>
   `,

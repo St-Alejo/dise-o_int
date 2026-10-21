@@ -14,7 +14,7 @@ describe('primeros pasos del editor', () => {
 
   it('la primera vez sale, se recorre paso a paso y no vuelve', () => {
     const { fixture, el, button } = render();
-    expect(el.textContent).toContain('1 de 4');
+    expect(el.textContent).toContain(`1 de ${TOUR_STEPS.length}`);
     expect(el.textContent).toContain(TOUR_STEPS[0]!.title);
     for (let i = 1; i < TOUR_STEPS.length; i++) {
       button('Siguiente').click();
@@ -26,6 +26,16 @@ describe('primeros pasos del editor', () => {
     expect(el.querySelector('.tour')).toBeNull();
     expect(tourSeen()).toBe(true);
     expect(render().el.querySelector('.tour')).toBeNull();
+  });
+
+  it('en la demo sin cuenta no habla de Recomendar ni del asistente', () => {
+    const fixture = TestBed.createComponent(EditorTourComponent);
+    fixture.componentRef.setInput('demo', true);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const shown = TOUR_STEPS.filter((s) => !s.account);
+    expect(el.textContent).toContain(`1 de ${shown.length}`);
+    expect(shown.some((s) => s.title === 'Recomendar')).toBe(false);
   });
 
   it('saltarla también la da por vista', () => {

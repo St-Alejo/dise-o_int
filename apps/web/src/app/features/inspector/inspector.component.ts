@@ -23,6 +23,7 @@ import {
   type Axis,
 } from './inspector-model';
 import { buildResize } from './resize-command';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 /**
  * Inspector de la pieza seleccionada: medidas (en cm, con sliders dentro de los rangos del
@@ -32,7 +33,7 @@ import { buildResize } from './resize-command';
 @Component({
   selector: 'app-inspector',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, CatalogThumbComponent, IconComponent],
+  imports: [CurrencyPipe, CatalogThumbComponent, IconComponent, TooltipDirective],
   template: `
     @if (placement(); as p) {
       @if (item(); as it) {
@@ -123,7 +124,7 @@ import { buildResize } from './resize-command';
                         [class.metal]="m.metalness > 0.5"
                         [attr.aria-pressed]="materialOf(p, slot) === m.id"
                         [attr.aria-label]="slot.label + ': ' + m.name"
-                        [title]="m.name"
+                        [appTooltip]="m.name"
                         (click)="setMaterial(slot, m.id)"
                       ></button>
                     }

@@ -5,6 +5,7 @@ import { DesignReviewComponent } from '../design-review/design-review.component'
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { SceneService } from '../viewport-3d/scene.service';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 interface OutlinerRow {
   placement: FurniturePlacement;
@@ -21,14 +22,14 @@ interface OutlinerRow {
 @Component({
   selector: 'app-outliner',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DesignReviewComponent],
+  imports: [DesignReviewComponent, TooltipDirective],
   template: `
     <div class="stack">
       <app-design-review />
       <div class="row">
         <h3>Objetos del cuarto</h3>
         <span class="spacer"></span>
-        <button type="button" class="btn btn-sm btn-danger" (click)="edits.clear()" [disabled]="!rows().length" title="Quita todos los muebles (se puede deshacer)">Vaciar cuarto</button>
+        <button type="button" class="btn btn-sm btn-danger" (click)="edits.clear()" [disabled]="!rows().length" appTooltip="Quita todos los muebles (se puede deshacer)">Vaciar cuarto</button>
       </div>
       <ul class="list" role="list">
         @for (row of rows(); track row.placement.id) {
@@ -42,7 +43,7 @@ interface OutlinerRow {
               class="mini"
               [attr.aria-pressed]="row.placement.lockedByUser"
               [attr.aria-label]="'Fijar ' + row.name"
-              [title]="row.placement.lockedByUser ? 'Fijo: Otra distribución no lo mueve' : 'Libre: Otra distribución puede moverlo'"
+              [appTooltip]="row.placement.lockedByUser ? 'Fijo: Otra distribución no lo mueve' : 'Libre: Otra distribución puede moverlo'"
               (click)="edits.toggleLock(row.placement)"
             >
               {{ row.placement.lockedByUser ? 'Fijo' : 'Libre' }}

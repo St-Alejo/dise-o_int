@@ -4,10 +4,12 @@ import { DesignProjectStore } from '../project/design-project.store';
 import { wallOptions as roomWalls } from '../room-dimensions/room-draft';
 import { SetFinishesCommand } from '../viewport-3d/commands';
 import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish, type FinishSurface, type WallTarget } from './finishes-model';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 /** Acabados del cuarto: piso, paredes (todas o una) y techo. Cada cambio es un comando deshacible. */
 @Component({
   selector: 'app-finishes-panel',
+  imports: [TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="stack">
@@ -15,7 +17,7 @@ import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish, type Fin
         <h4 id="fin-floor">Piso</h4>
         <div class="swatches" role="group" aria-label="Material del piso">
           @for (m of floorOptions; track m.id) {
-            <button type="button" class="swatch" [style.background]="m.color" [title]="m.name" [attr.aria-label]="'Piso: ' + m.name" [attr.aria-pressed]="selected('floor') === m.id" (click)="set('floor', m.id)"></button>
+            <button type="button" class="swatch" [style.background]="m.color" [appTooltip]="m.name" [attr.aria-label]="'Piso: ' + m.name" [attr.aria-pressed]="selected('floor') === m.id" (click)="set('floor', m.id)"></button>
           }
         </div>
       </section>
@@ -34,7 +36,7 @@ import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish, type Fin
         </div>
         <div class="swatches" role="group" aria-label="Color de las paredes">
           @for (m of wallOptions; track m.id) {
-            <button type="button" class="swatch" [style.background]="m.color" [title]="m.name" [attr.aria-label]="'Pared: ' + m.name" [attr.aria-pressed]="selected('wall') === m.id" (click)="set('wall', m.id)"></button>
+            <button type="button" class="swatch" [style.background]="m.color" [appTooltip]="m.name" [attr.aria-label]="'Pared: ' + m.name" [attr.aria-pressed]="selected('wall') === m.id" (click)="set('wall', m.id)"></button>
           }
         </div>
       </section>
@@ -43,7 +45,7 @@ import { effectiveFinishes, sameFinishes, selectedMaterial, withFinish, type Fin
         <h4 id="fin-ceiling">Techo</h4>
         <div class="swatches" role="group" aria-label="Color del techo">
           @for (m of ceilingOptions; track m.id) {
-            <button type="button" class="swatch" [style.background]="m.color" [title]="m.name" [attr.aria-label]="'Techo: ' + m.name" [attr.aria-pressed]="selected('ceiling') === m.id" (click)="set('ceiling', m.id)"></button>
+            <button type="button" class="swatch" [style.background]="m.color" [appTooltip]="m.name" [attr.aria-label]="'Techo: ' + m.name" [attr.aria-pressed]="selected('ceiling') === m.id" (click)="set('ceiling', m.id)"></button>
           }
         </div>
       </section>

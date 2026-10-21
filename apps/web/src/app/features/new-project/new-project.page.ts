@@ -9,6 +9,7 @@ import { IconComponent, type IconName } from '../../shared/ui/icon.component';
 import { FloorPlanComponent } from '../floor-plan/floor-plan.component';
 import { choicesOf } from './wizard-summary';
 import { NewProjectWizard, type ShapeChoice, type WizardData } from './wizard.store';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 const MAX_MB = 15;
 const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
@@ -39,7 +40,7 @@ const ROOM_ICONS: Record<(typeof ROOM_TYPES)[number], IconName> = {
 @Component({
   selector: 'app-new-project',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, FloorPlanComponent, IconComponent],
+  imports: [FormsModule, FloorPlanComponent, IconComponent, TooltipDirective],
   template: `
     <section class="container page">
       <div class="top">
@@ -127,7 +128,7 @@ const ROOM_ICONS: Record<(typeof ROOM_TYPES)[number], IconName> = {
                     </button>
                   }
                   @for (shape of shapes; track shape.id) {
-                    <button type="button" class="shape" [attr.aria-pressed]="d().shape === shape.id" [title]="shape.description" (click)="wizard.chooseShape(shape.id)">
+                    <button type="button" class="shape" [attr.aria-pressed]="d().shape === shape.id" [appTooltip]="shape.description" (click)="wizard.chooseShape(shape.id)">
                       <svg viewBox="-1 -1 12 10" aria-hidden="true"><polygon [attr.points]="shape.icon" /></svg>
                       {{ shape.label }}
                     </button>

@@ -4,6 +4,7 @@ import { AuthService } from './core/auth/auth.service';
 import { ThemeService } from './core/ui/theme.service';
 import { ToastService } from './core/ui/toast.service';
 import { IconComponent } from './shared/ui/icon.component';
+import { TooltipDirective } from './shared/ui/tooltip.directive';
 
 /** Secciones de la página de inicio a las que se llega desde la cabecera y el pie. */
 const SECTIONS = [
@@ -19,7 +20,7 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, TooltipDirective],
   host: { '(document:keydown.escape)': 'menuOpen.set(false)' },
   template: `
     <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -39,7 +40,7 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
           class="icon-btn small"
           (click)="theme.toggle()"
           [attr.aria-label]="theme.dark() ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
-          [title]="theme.dark() ? 'Tema claro' : 'Tema oscuro'"
+          [appTooltip]="theme.dark() ? 'Tema claro' : 'Tema oscuro'"
         >
           <app-icon [name]="theme.dark() ? 'sun' : 'moon'" />
         </button>
@@ -57,7 +58,7 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
           @if (auth.user(); as user) {
             <a routerLink="/proyectos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-link">Mis proyectos</a>
             <a routerLink="/proyectos/nuevo" class="btn btn-primary btn-sm">Nuevo proyecto</a>
-            <span class="user muted" [title]="user.email">{{ user.displayName }}</span>
+            <span class="user muted" [appTooltip]="user.email">{{ user.displayName }}</span>
             <button type="button" class="btn btn-ghost btn-sm" (click)="auth.logout()">Salir</button>
           } @else {
             @for (s of sections; track s.fragment) {

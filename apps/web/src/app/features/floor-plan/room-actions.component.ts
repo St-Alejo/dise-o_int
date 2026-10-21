@@ -3,6 +3,7 @@ import { BATHROOM_PRESETS, ROOM_LIMITS, wallLength } from '@interiores/shared-ty
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { metres } from './floor-plan-model';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 /**
  * Acciones sobre la parte del cuarto que se tocó con la herramienta de paredes (en el plano o en
@@ -11,6 +12,7 @@ import { metres } from './floor-plan-model';
  */
 @Component({
   selector: 'app-room-actions',
+  imports: [TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <label class="height">
@@ -33,7 +35,7 @@ import { metres } from './floor-plan-model';
         <strong>Pared de {{ view().text }}</strong>
         <button type="button" class="act" (click)="edits.addOpening(view().id, 'door')">+ Puerta</button>
         <button type="button" class="act" (click)="edits.addOpening(view().id, 'window')">+ Ventana</button>
-        <button type="button" class="act" (click)="edits.splitWall(view().id)" title="Añade una esquina en la mitad de la pared: después puedes moverla">Partir</button>
+        <button type="button" class="act" (click)="edits.splitWall(view().id)" appTooltip="Añade una esquina en la mitad de la pared: después puedes moverla">Partir</button>
       }
       @case ('opening') {
         <strong>{{ view().text }}</strong>
@@ -66,7 +68,7 @@ import { metres } from './floor-plan-model';
     }
     @if (view().kind !== 'zone') {
       <span class="sep" aria-hidden="true"></span>
-      <button type="button" class="act" (click)="edits.addBathroom()" title="Un baño con tabiques y puerta en el rincón más alejado de la entrada">+ Baño privado</button>
+      <button type="button" class="act" (click)="edits.addBathroom()" appTooltip="Un baño con tabiques y puerta en el rincón más alejado de la entrada">+ Baño privado</button>
     }
   `,
   styles: `

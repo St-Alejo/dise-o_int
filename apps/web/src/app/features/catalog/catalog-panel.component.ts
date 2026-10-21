@@ -14,6 +14,7 @@ import {
 import { CATEGORY_ICONS, CATEGORY_LABELS, MOUNT_LABELS } from './catalog-labels';
 import { CatalogThumbComponent } from './catalog-thumb.component';
 import { IconComponent } from '../../shared/ui/icon.component';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
 
@@ -24,7 +25,7 @@ export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
 @Component({
   selector: 'app-catalog-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, CatalogThumbComponent, IconComponent],
+  imports: [CurrencyPipe, CatalogThumbComponent, IconComponent, TooltipDirective],
   template: `
     <div class="stack">
       <div class="row">
@@ -65,7 +66,7 @@ export { CATEGORY_ICONS, CATEGORY_LABELS } from './catalog-labels';
               [class.current]="item.id === currentItemId()"
               [disabled]="item.id === currentItemId()"
               [draggable]="mode() === 'add'"
-              [title]="mode() === 'add' ? 'Clic para añadirlo o arrástralo al plano o al cuarto' : ''"
+              [appTooltip]="mode() === 'add' ? 'Clic para añadirlo o arrástralo al plano o al cuarto' : ''"
               (dragstart)="onDragStart($event, item)"
               (dragend)="dragEnded.emit()"
             >

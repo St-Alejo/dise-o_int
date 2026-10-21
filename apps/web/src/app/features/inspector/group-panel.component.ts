@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { ALIGN_LABELS, type AlignMode } from '@interiores/shared-types';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
+import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 
 const ALIGN_X: readonly AlignMode[] = ['left', 'centre-x', 'right'];
 const ALIGN_Z: readonly AlignMode[] = ['back', 'centre-z', 'front'];
@@ -13,6 +14,7 @@ const SHORT: Record<AlignMode, string> = { left: 'Izquierda', 'centre-x': 'Centr
  */
 @Component({
   selector: 'app-group-panel',
+  imports: [TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="stack">
@@ -27,10 +29,10 @@ const SHORT: Record<AlignMode, string> = { left: 'Izquierda', 'centre-x': 'Centr
         <h4 id="grp-align">Alinear</h4>
         <div class="grid">
           @for (mode of alignX; track mode) {
-            <button type="button" class="btn btn-sm" [title]="labels[mode]" [attr.aria-label]="labels[mode]" (click)="edits.align(mode)">{{ short[mode] }}</button>
+            <button type="button" class="btn btn-sm" [appTooltip]="labels[mode]" [attr.aria-label]="labels[mode]" (click)="edits.align(mode)">{{ short[mode] }}</button>
           }
           @for (mode of alignZ; track mode) {
-            <button type="button" class="btn btn-sm" [title]="labels[mode]" [attr.aria-label]="labels[mode]" (click)="edits.align(mode)">{{ short[mode] }}</button>
+            <button type="button" class="btn btn-sm" [appTooltip]="labels[mode]" [attr.aria-label]="labels[mode]" (click)="edits.align(mode)">{{ short[mode] }}</button>
           }
         </div>
       </section>
