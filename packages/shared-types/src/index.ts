@@ -29,3 +29,5 @@ export * from './design-operations.js';
 export * from './design-toolbox.js';
 export * from './home-plan.js';
 export * from './zone-presets.js';
+export * from './palette.js';
+export * from './recommend.js';
