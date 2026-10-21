@@ -22,12 +22,14 @@ import { Prisma } from '../../generated/prisma/client.js';
 import type {
   Project as ProjectRow,
   ProjectVersion as VersionRow,
+  RecommendationFeedback as RecommendationRow,
   StylePreview as PreviewRow,
 } from '../../generated/prisma/client.js';
 import { NotFoundError, StaleRevisionError } from '../../common/errors.js';
 import type {
   IProjectRepository,
   PreviewRecord,
+  RecommendationRecord,
   ProjectPatch,
   ProjectRecord,
   UpdateOptions,
@@ -321,6 +323,29 @@ export class PrismaProjectRepository implements IProjectRepository {
     return rows.map((r) => r.id);
   }
 
+  async addRecommendation(data: Omit<RecommendationRecord, 'id' | 'createdAt'>): Promise<RecommendationRecord> {
+    const row = await this.prisma.recommendationFeedback.create({ data: { ...data, features: data.features as Prisma.InputJsonValue } });
+    return toRecommendation(row);
+  }
+
+  async findRecommendation(projectId: string, id: string): Promise<RecommendationRecord | null> {
+    const row = await this.prisma.recommendationFeedback.findFirst({ where: { id, projectId } });
+    return row ? toRecommendation(row) : null;
+  }
+
+  async listRecommendations(filter: Parameters<IProjectRepository['listRecommendations']>[0]): Promise<RecommendationRecord[]> {
+    const rows = await this.prisma.recommendationFeedback.findMany({
+      where: {
+        ...(filter.projectId ? { projectId: filter.projectId } : {}),
+        ...(filter.ownerId ? { ownerId: filter.ownerId } : {}),
+        ...(filter.actions ? { action: { in: filter.actions } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: filter.limit,
+    });
+    return rows.map(toRecommendation);
+  }
+
   async auditJob(entry: Parameters<IProjectRepository['auditJob']>[0]): Promise<void> {
     if (entry.status === 'started') {
       await this.prisma.jobAudit.create({
@@ -346,4 +371,21 @@ export class PrismaProjectRepository implements IProjectRepository {
       },
     });
   }
+}
+
+const FeaturesSchema = z.record(z.string(), z.number());
+const ACTIONS = ['shown', 'like', 'dislike', 'kept', 'undone'] as const;
+
+function toRecommendation(row: RecommendationRow): RecommendationRecord {
+  const features = FeaturesSchema.safeParse(row.features);
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    ownerId: row.ownerId,
+    parentId: row.parentId,
+    styleId: row.styleId as StyleId,
+    features: features.success ? features.data : {},
+    action: (ACTIONS as readonly string[]).includes(row.action) ? (row.action as RecommendationRecord['action']) : 'shown',
+    createdAt: row.createdAt,
+  };
 }

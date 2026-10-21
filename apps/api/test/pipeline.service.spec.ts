@@ -122,6 +122,18 @@ describe('PipelineService', () => {
     expect(req.mustHave).toEqual(['dressing-table']);
   });
 
+  it('lo vetado en el Brief no se ofrece al motor', async () => {
+    const catalog = new InMemoryCatalogRepository();
+    await catalog.upsert(catalogItem({ id: 'alfombra', name: 'Alfombra', category: 'decor', subcategory: 'rug', roomTypes: ['living'] }));
+    await catalog.upsert(catalogItem({ id: 'sofa-2', name: 'Sofá', roomTypes: ['living'] }));
+    pipeline = new PipelineService(repo, catalog, ai, broker, new FakeQuota(100));
+    await repo.update('p1', { roomShell: createRectangularShell(4, 3.5, 2.6), status: 'ready', brief: { surfaces: {}, mustHave: [], avoid: ['Rug'], zones: [] } });
+    await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true }, { ...ctx(), kind: 'build-scene' });
+    const ids = ai.layoutRequests.at(-1)!.candidates.map((c) => c.id);
+    expect(ids).toContain('sofa-2');
+    expect(ids).not.toContain('alfombra');
+  });
+
   it('markFailed deja el proyecto en estado fallido con un mensaje entendible', async () => {
     await pipeline.markFailed(
       'analyze-room',

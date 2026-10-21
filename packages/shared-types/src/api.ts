@@ -263,6 +263,37 @@ export const AutoLayoutRequestSchema = z.object({
 });
 export type AutoLayoutRequest = z.input<typeof AutoLayoutRequestSchema>;
 
+/** "Recomendar": una propuesta completa que respeta lo fijado en el Brief. */
+export const RecommendRequestSchema = z.object({
+  /** Sin semilla, el servidor sortea una. */
+  seed: z.number().int().min(0).max(2_147_483_647).optional(),
+  /** suave: mismo estilo, otros acabados y luz; total: también el estilo y los muebles. */
+  intensity: z.enum(['suave', 'total']).default('total'),
+});
+export type RecommendRequest = z.input<typeof RecommendRequestSchema>;
+
+export const RecommendationActionSchema = z.enum(['shown', 'like', 'dislike', 'kept', 'undone']);
+export type RecommendationAction = z.infer<typeof RecommendationActionSchema>;
+
+export const RecommendResponseSchema = z.object({
+  recommendationId: z.string(),
+  projectId: z.string(),
+  /** Job de la distribución nueva (solo con intensidad total). */
+  jobId: z.string().nullable(),
+  styleId: StyleIdSchema,
+  seed: z.number().int(),
+  /** Pared, acento, piso, textil y detalle. */
+  palette: z.array(z.string().regex(/^#[0-9a-f]{6}$/i)).length(5),
+  summary: z.string(),
+  revision: z.number().int(),
+});
+export type RecommendResponse = z.infer<typeof RecommendResponseSchema>;
+
+export const RecommendationFeedbackRequestSchema = z.object({
+  action: RecommendationActionSchema.exclude(['shown']),
+});
+export type RecommendationFeedbackRequest = z.infer<typeof RecommendationFeedbackRequestSchema>;
+
 export const JobAcceptedSchema = z.object({ jobId: z.string(), projectId: z.string() });
 export type JobAccepted = z.infer<typeof JobAcceptedSchema>;
 

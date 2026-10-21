@@ -24,6 +24,7 @@ import type {
   IQuota,
   JobPayloads,
   PreviewRecord,
+  RecommendationRecord,
   ProjectPatch,
   ProjectRecord,
   UpdateOptions,
@@ -134,6 +135,21 @@ export class InMemoryProjectRepository implements IProjectRepository {
   }
   async existingIds(ids: string[]) {
     return ids.filter((id) => this.projects.has(id));
+  }
+  recommendations: RecommendationRecord[] = [];
+  async addRecommendation(data: Omit<RecommendationRecord, 'id' | 'createdAt'>) {
+    const rec: RecommendationRecord = { ...data, id: randomUUID(), createdAt: this.now() };
+    this.recommendations.push(rec);
+    return rec;
+  }
+  async findRecommendation(projectId: string, id: string) {
+    return this.recommendations.find((r) => r.projectId === projectId && r.id === id) ?? null;
+  }
+  async listRecommendations(f: { projectId?: string; ownerId?: string; actions?: RecommendationRecord['action'][]; limit: number }) {
+    return this.recommendations
+      .filter((r) => (!f.projectId || r.projectId === f.projectId) && (!f.ownerId || r.ownerId === f.ownerId) && (!f.actions || f.actions.includes(r.action)))
+      .reverse()
+      .slice(0, f.limit);
   }
   async auditJob(entry: unknown) {
     this.audits.push(entry);

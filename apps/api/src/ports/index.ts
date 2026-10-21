@@ -78,6 +78,18 @@ export interface VersionRecord {
   createdAt: Date;
 }
 
+export interface RecommendationRecord {
+  id: string;
+  projectId: string;
+  ownerId: string;
+  /** Propuesta a la que responde (null en la propuesta misma, acción 'shown'). */
+  parentId: string | null;
+  styleId: StyleId;
+  features: Record<string, number>;
+  action: 'shown' | 'like' | 'dislike' | 'kept' | 'undone';
+  createdAt: Date;
+}
+
 export interface PreviewRecord {
   id: string;
   projectId: string;
@@ -177,6 +189,11 @@ export interface IProjectRepository {
   listExpiredUnsaved(before: Date, limit: number): Promise<string[]>;
   /** De los ids dados, devuelve los que existen en la base de datos (barrido de huérfanos). */
   existingIds(ids: string[]): Promise<string[]>;
+
+  addRecommendation(data: Omit<RecommendationRecord, 'id' | 'createdAt'>): Promise<RecommendationRecord>;
+  findRecommendation(projectId: string, id: string): Promise<RecommendationRecord | null>;
+  /** Lo más reciente primero; por proyecto o por persona, opcionalmente solo ciertas acciones. */
+  listRecommendations(filter: { projectId?: string; ownerId?: string; actions?: RecommendationRecord['action'][]; limit: number }): Promise<RecommendationRecord[]>;
 
   auditJob(entry: {
     projectId: string;

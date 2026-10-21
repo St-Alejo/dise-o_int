@@ -288,7 +288,11 @@ export class PipelineService {
     // una sala abierta), así que se ofrece el catálogo entero; sin él, solo lo propio del cuarto.
     // Lo mismo si hay zonas interiores: el baño privado de un dormitorio necesita piezas de baño.
     const wholeCatalog = inventory.length > 0 || (shell.zones?.length ?? 0) > 0;
-    const catalog = await this.catalog.search(wholeCatalog ? {} : { roomType: project.roomType });
+    // Lo que la persona vetó en su Brief ("nada de alfombras") no se ofrece al motor ni a la decoración.
+    const avoid = new Set((project.brief?.avoid ?? []).map((a) => a.toLowerCase()));
+    const catalog = (await this.catalog.search(wholeCatalog ? {} : { roomType: project.roomType })).filter(
+      (c) => !avoid.has(c.category) && !avoid.has(c.subcategory?.toLowerCase() ?? ''),
+    );
     const candidates: LayoutCandidate[] = catalog.map((c) => ({
       id: c.id,
       category: c.category,

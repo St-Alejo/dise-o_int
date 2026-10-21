@@ -237,6 +237,33 @@ export function priorScore(p: Proposal): number {
   return round(score);
 }
 
+/** Lo que la persona hizo con una propuesta, con sus rasgos (historial para aprender). */
+export interface FeedbackSample {
+  features: Record<string, number>;
+  action: 'shown' | 'like' | 'dislike' | 'kept' | 'undone';
+}
+
+const ACTION_WEIGHT: Record<FeedbackSample['action'], number> = { shown: 0, like: 1, kept: 1.5, dislike: -1, undone: -0.75 };
+/** Rasgos continuos (0–1): se centran para que gustar de algo no suba todo a la vez. */
+const centred = (k: string, v: number) => (k.startsWith('palette:') || k === 'floor:lightness' ? v - 0.5 : v);
+
+/**
+ * Nota aprendida del historial: los rasgos de lo que gustó suman y los de lo rechazado restan,
+ * sobre la nota de oficio. Es el respaldo del modelo de preferencias del servicio de IA.
+ */
+export function preferenceScore(history: readonly FeedbackSample[]): (p: Proposal) => number {
+  const weights: Record<string, number> = {};
+  let n = 0;
+  for (const h of history) {
+    const a = ACTION_WEIGHT[h.action];
+    if (!a) continue;
+    n++;
+    for (const [k, v] of Object.entries(h.features)) weights[k] = (weights[k] ?? 0) + a * centred(k, v);
+  }
+  if (n === 0) return priorScore;
+  return (p) => round(priorScore(p) + Object.entries(p.features).reduce((s, [k, v]) => s + (weights[k] ?? 0) * centred(k, v), 0) / n);
+}
+
 /** Varias candidatas con semillas derivadas (la primera es la de la semilla pedida). */
 export function candidateProposals(input: RecommendInput, count = 6): Proposal[] {
   return Array.from({ length: count }, (_, i) => propose({ ...input, seed: (input.seed + i * 7919) % 2_147_483_647 }));

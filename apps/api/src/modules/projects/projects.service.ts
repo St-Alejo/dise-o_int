@@ -16,6 +16,9 @@ import {
   type JobAccepted,
   type JobProgressEvent,
   type ProjectListItem,
+  type RecommendationFeedbackRequest,
+  type RecommendRequest,
+  type RecommendResponse,
   resizeRoomShell,
   RoomGeometryError,
   type RoomShell,
@@ -56,6 +59,7 @@ import { newRoomFor } from './room-factory.js';
 import { HomesService } from './homes.service.js';
 import { ProjectAccess, revisionGuard, type Actor } from './project-access.js';
 import { ProjectReports } from './project-reports.service.js';
+import { RecommendationsService } from './recommendations.service.js';
 import { SceneRules } from './scene-rules.js';
 import { SharingService } from './sharing.service.js';
 import { VersionsService } from './versions.service.js';
@@ -84,6 +88,7 @@ export class ProjectsService {
   private readonly sharing: SharingService;
   private readonly reports: ProjectReports;
   private readonly homes: HomesService;
+  private readonly recommendations: RecommendationsService;
 
   constructor(
     @Inject(PROJECT_REPOSITORY) private readonly projects: IProjectRepository,
@@ -102,6 +107,7 @@ export class ProjectsService {
     this.sharing = new SharingService(projects, this.access);
     this.reports = new ProjectReports(catalog, this.access, projects);
     this.homes = new HomesService(projects, this.access);
+    this.recommendations = new RecommendationsService(projects, this.access, (actor, id, req) => this.autoLayout(actor, id, req));
   }
 
   // ------------------------------------------------------------------ delegado en sus colaboradores
@@ -131,6 +137,14 @@ export class ProjectsService {
   async setBrief(actor: Actor, id: string, brief: DesignBrief | null): Promise<DesignProject> {
     await this.access.own(actor, id);
     return this.toDto(await this.projects.update(id, { brief }));
+  }
+
+  recommend(actor: Actor, id: string, req: RecommendRequest): Promise<RecommendResponse> {
+    return this.recommendations.recommend(actor, id, req);
+  }
+
+  recommendationFeedback(actor: Actor, id: string, recommendationId: string, req: RecommendationFeedbackRequest): Promise<void> {
+    return this.recommendations.feedback(actor, id, recommendationId, req);
   }
 
   saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
@@ -520,16 +534,6 @@ export class ProjectsService {
     await this.publishQueued(id, jobId, 'build-scene');
     return { jobId, projectId: id };
   }
-
-
-
-
-
-
-
-
-
-
 
   private async publishQueued(projectId: string, jobId: string, kind: JobProgressEvent['kind']): Promise<void> {
     await this.progress

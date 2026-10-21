@@ -21,6 +21,8 @@ import {
   AutoLayoutRequestSchema,
   CalibrateRequestSchema,
   CreateProjectFieldsSchema,
+  RecommendationFeedbackRequestSchema,
+  RecommendRequestSchema,
   RestoreVersionRequestSchema,
   GenerateStylesRequestSchema,
   SaveVersionRequestSchema,
@@ -41,6 +43,9 @@ import {
   type JobAccepted,
   type JobProgressEvent,
   type ProjectListItem,
+  type RecommendationFeedbackRequest,
+  type RecommendRequest,
+  type RecommendResponse,
   type RestoreVersionRequest,
   type SaveVersionRequest,
   type SelectStyleRequest,
@@ -252,6 +257,30 @@ export class ProjectsController {
     @Body(new ZodPipe(AutoLayoutRequestSchema)) body: AutoLayoutRequest,
   ): Promise<JobAccepted> {
     return this.service.autoLayout(this.actor(user, requestId), id, body);
+  }
+
+  @Post(':id/recommend')
+  @Throttle(perMinute(30))
+  @ApiBody({ schema: openApiSchema(RecommendRequestSchema) })
+  recommend(
+    @CurrentUser() user: AuthPrincipal,
+    @RequestId() requestId: string | undefined,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(RecommendRequestSchema)) body: RecommendRequest,
+  ): Promise<RecommendResponse> {
+    return this.service.recommend(this.actor(user, requestId), id, body);
+  }
+
+  @Post(':id/recommendations/:rid/feedback')
+  @HttpCode(204)
+  @ApiBody({ schema: openApiSchema(RecommendationFeedbackRequestSchema) })
+  recommendationFeedback(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Param('rid', uuid) rid: string,
+    @Body(new ZodPipe(RecommendationFeedbackRequestSchema)) body: RecommendationFeedbackRequest,
+  ): Promise<void> {
+    return this.service.recommendationFeedback(this.actor(user), id, rid, body);
   }
 
   @Post(':id/versions')

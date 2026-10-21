@@ -97,6 +97,7 @@ model Project {
   previews        StylePreview[]
   shareLinks      ShareLink[]
   jobs            JobAudit[]
+  recommendations RecommendationFeedback[]
 
   @@index([ownerId, updatedAt])
   @@index([ownerId, homeId])
@@ -200,4 +201,24 @@ model JobAudit {
 
   @@index([projectId, startedAt])
   @@map("job_audit")
+}
+
+/// Historial de "Recomendar": cada propuesta enseñada y lo que la persona hizo con ella. Con los
+/// rasgos (features) se aprende qué le gusta.
+model RecommendationFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerId   String   @db.Uuid
+  /// La propuesta a la que responde este gesto (null = la propuesta misma, acción 'shown').
+  parentId  String?  @db.Uuid
+  styleId   String
+  features  Json
+  /// shown | like | dislike | kept | undone
+  action    String
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([ownerId, createdAt])
+  @@map("recommendation_feedback")
 }

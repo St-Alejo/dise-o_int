@@ -4,7 +4,7 @@ import { customFinishId } from './finish-spec.js';
 import { createRectangularShell } from './geometry.js';
 import { assertValidFinishes } from './materials.js';
 import { harmonize, hexToHsl, hslToHex, paletteFeatures, seededRandom } from './palette.js';
-import { bestProposal, candidateProposals, describeProposal, priorScore, propose } from './recommend.js';
+import { bestProposal, candidateProposals, describeProposal, preferenceScore, priorScore, propose } from './recommend.js';
 import { addPrivateBathroom } from './zone-presets.js';
 
 const shell = createRectangularShell(4.5, 4, 2.6);
@@ -90,5 +90,18 @@ describe('candidatas y nota', () => {
     expect(Math.max(...list.map(priorScore))).toBe(priorScore(best));
     expect(Object.keys(best.features).length).toBeGreaterThan(15);
     expect(describeProposal(best)).toMatch(/piso .*, paredes .*, luz/);
+  });
+});
+
+describe('preferencias aprendidas', () => {
+  it('sin historial es la nota de oficio; con 👍 a un estilo, gana ese estilo', () => {
+    const list = candidateProposals({ brief: null, finishes: null, styleId: null, shell, seed: 5 }, 6);
+    expect(preferenceScore([])).toBe(priorScore);
+    const target = list.find((p) => p.styleId !== bestProposal(list).styleId)!;
+    const liked = Array.from({ length: 4 }, () => ({ features: target.features, action: 'like' as const }));
+    expect(bestProposal(list, preferenceScore(liked)).styleId).toBe(target.styleId);
+    // Un 👎 a lo mismo lo hunde.
+    const disliked = liked.map((h) => ({ ...h, action: 'dislike' as const }));
+    expect(preferenceScore(disliked)(target)).toBeLessThan(priorScore(target));
   });
 });

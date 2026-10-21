@@ -186,6 +186,60 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('recomendar', () => {
+    const TILE = { name: 'Baldosa azul y verde', kind: 'tile' as const, colors: ['#a9d4ee', '#9bd3b0'], pattern: 'mosaic' as const, gloss: 0.85, tileSizeM: 0.1 };
+
+    it('propone acabados y estilo, respeta el piso fijado, guarda la propuesta y encola la distribución', async () => {
+      const p = await readyProject();
+      await service.setBrief(alice, p.id, { surfaces: { floor: { spec: TILE, locked: true } }, mustHave: [], avoid: [], zones: [] });
+      const floors = new Set<string>();
+      const styles = new Set<string>();
+      for (const seed of [1, 2, 3, 4]) {
+        const res = await service.recommend(alice, p.id, { seed, intensity: 'total' });
+        const after = await service.get(alice, p.id);
+        expect(after.revision).toBeGreaterThanOrEqual(res.revision);
+        expect(after.selectedStyleId).toBe(res.styleId);
+        expect(after.finishes?.custom?.[after.finishes.floor]?.colors).toEqual(TILE.colors);
+        floors.add(after.finishes!.floor);
+        styles.add(res.styleId);
+        expect(res.palette).toHaveLength(5);
+        expect(res.summary).toContain('piso');
+        expect(queue.jobs.at(-1)).toMatchObject({ kind: 'build-scene', jobId: res.jobId, data: { styleId: res.styleId, keepLocked: true } });
+      }
+      expect(floors.size).toBe(1);
+      // No repite los últimos estilos: cuatro pulsaciones dan al menos tres estilos distintos.
+      expect(styles.size).toBeGreaterThanOrEqual(3);
+      expect(repo.recommendations.filter((r) => r.action === 'shown')).toHaveLength(4);
+    });
+
+    it('la intensidad suave mantiene el estilo y no toca los muebles', async () => {
+      const p = await readyProject();
+      await repo.update(p.id, { selectedStyleId: 'bohemio' });
+      const jobs = queue.jobs.length;
+      const res = await service.recommend(alice, p.id, { seed: 9, intensity: 'suave' });
+      expect(res).toMatchObject({ styleId: 'bohemio', jobId: null });
+      expect(queue.jobs).toHaveLength(jobs);
+    });
+
+    it('los gestos se guardan con los rasgos de la propuesta y orientan las siguientes', async () => {
+      const p = await readyProject();
+      const shown = await service.recommend(alice, p.id, { seed: 3, intensity: 'suave' });
+      await service.recommendationFeedback(alice, p.id, shown.recommendationId, { action: 'like' });
+      const like = repo.recommendations.at(-1)!;
+      expect(like).toMatchObject({ action: 'like', parentId: shown.recommendationId, styleId: shown.styleId, ownerId: 'alice' });
+      expect(like.features).toEqual(repo.recommendations.find((r) => r.id === shown.recommendationId)!.features);
+      // Un gesto sobre otro gesto, o sobre una propuesta ajena, no existe.
+      await expect(service.recommendationFeedback(alice, p.id, like.id, { action: 'dislike' })).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.recommendationFeedback(bob, p.id, shown.recommendationId, { action: 'like' })).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.recommend(bob, p.id, {})).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('sin planta todavía no se puede recomendar', async () => {
+      const p = await service.create(alice, { name: 'Sala', roomType: 'living' }, await photoWithGps());
+      await expect(service.recommend(alice, p.id, {})).rejects.toBeInstanceOf(ValidationError);
+    });
+  });
+
   describe('importScene (guardar la demo sin cuenta)', () => {
     const shell = createRectangularShell(4, 3.5, 2.6);
     const sofa = { id: 'p1', catalogItemId: 'sofa-test', position: { x: 2, y: 0, z: 1 }, rotationY: 0, lockedByUser: false };
