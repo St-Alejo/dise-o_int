@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CameraDirector, TRANSITION_S } from './camera-director';
 import type { CameraMode, CameraModeId, CameraPose } from './camera-mode';
-import { WALK_FOV, WalkMode } from './walk-mode';
+import { BOB_M, WALK_FOV, WalkMode } from './walk-mode';
 
 const shell = createRectangularShell(4, 3, 2.6);
 const world = buildWalkWorld(shell);
@@ -176,6 +176,7 @@ describe('WalkMode', () => {
     expect(run(mode, 0.5)).toBe(true);
     expect(camera.position.z).toBeCloseTo(2.5 - WALKER.walkMps * 0.5, 1);
     mode.key('KeyW', false);
+    run(mode, 0.2); // la cabeza termina su medio paso
     expect(run(mode, 0.2)).toBe(false);
 
     // Las flechas laterales giran; A y D desplazan de lado.
@@ -183,6 +184,7 @@ describe('WalkMode', () => {
     run(mode, 0.4);
     expect(camera.position.x).toBeGreaterThan(2.4);
     mode.releaseKeys();
+    run(mode, 0.2);
     expect(run(mode, 0.2)).toBe(false);
     expect(mode.key('KeyX', true)).toBe(false);
   });
@@ -206,12 +208,29 @@ describe('WalkMode', () => {
     expect(camera.rotation.z).toBeCloseTo(0); // la cabeza no se ladea
   });
 
+  it('al caminar la cabeza sube y baja un poco, y al parar vuelve a la altura de los ojos', () => {
+    const { camera, mode } = walker();
+    mode.key('KeyW', true);
+    const heights: number[] = [];
+    for (let i = 0; i < 60; i++) {
+      mode.update(1 / 60);
+      heights.push(camera.position.y);
+    }
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(BOB_M);
+    expect(Math.max(...heights.map((h) => Math.abs(h - WALKER.eyeHeightM)))).toBeLessThanOrEqual(BOB_M + 1e-9);
+    mode.key('KeyW', false);
+    run(mode, 0.3);
+    expect(camera.position.y).toBeCloseTo(WALKER.eyeHeightM, 6);
+    expect(run(mode, 0.2)).toBe(false);
+  });
+
   it('ir a un punto camina hasta él, y una tecla lo cancela', () => {
     const { camera, mode } = walker();
     mode.goTo({ x: 3.2, z: 1.2 });
     run(mode, 2);
     expect(camera.position.x).toBeCloseTo(3.2, 1);
     expect(camera.position.z).toBeCloseTo(1.2, 1);
+    run(mode, 0.2);
     expect(run(mode, 0.2)).toBe(false);
 
     mode.goTo({ x: 0.5, z: 0.5 });
@@ -219,6 +238,7 @@ describe('WalkMode', () => {
     mode.key('KeyS', true);
     run(mode, 0.1);
     mode.key('KeyS', false);
+    run(mode, 0.2); // la cabeza termina su medio paso
     const stopped = camera.position.clone();
     run(mode, 0.5);
     expect(camera.position.distanceTo(stopped)).toBeLessThan(1e-6);

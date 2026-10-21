@@ -6,6 +6,11 @@ export const WALK_FOV = 68;
 /** Radianes de giro por píxel arrastrado. */
 const LOOK_SPEED = 0.005;
 const MAX_PITCH = 1.2;
+/** Largo de un paso y cuánto sube y baja la cabeza en él: lo justo para sentir que se camina. */
+export const STRIDE_M = 0.7;
+export const BOB_M = 0.016;
+/** Al parar, la cabeza termina el medio paso a esta velocidad (m/s) y queda a la altura de los ojos. */
+const BOB_SETTLE_MPS = 3;
 
 /** Teclas de movimiento (por posición en el teclado, no por letra: sirve en cualquier distribución). */
 const MOVE_KEYS: Record<string, Partial<WalkInput>> = {
@@ -35,6 +40,8 @@ export class WalkMode implements CameraMode {
   private goal: Point2 | null = null;
   /** Hay que redibujar aunque no haya movimiento (se arrastró para mirar). */
   private dirty = false;
+  /** Metros caminados: la fase del paso que marca el balanceo de la cabeza. */
+  private walked = 0;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -57,7 +64,13 @@ export class WalkMode implements CameraMode {
     this.pitch = 0;
     this.goal = null;
     this.keys.clear();
+    this.walked = 0;
     this.apply();
+  }
+
+  /** Cuánto se separa la cabeza de la altura de los ojos ahora mismo. */
+  get bob(): number {
+    return Math.sin((this.walked / STRIDE_M) * Math.PI * 2) * BOB_M;
   }
 
   exit(): void {
@@ -115,14 +128,25 @@ export class WalkMode implements CameraMode {
     } else {
       this.state = stepWalker(this.state, input, dt, this.world());
     }
-    const changed = this.dirty || this.goal !== null || before.x !== this.state.x || before.z !== this.state.z || before.yaw !== this.state.yaw;
+    const step = Math.hypot(this.state.x - before.x, this.state.z - before.z);
+    const walkedBefore = this.walked;
+    if (step > 0) this.walked += step;
+    else this.walked = Math.min(this.restingPhase(), this.walked + BOB_SETTLE_MPS * dt);
+    const changed = this.dirty || this.goal !== null || step > 0 || before.yaw !== this.state.yaw || this.walked !== walkedBefore;
     this.dirty = false;
     if (changed) this.apply();
     return changed;
   }
 
+  /** Siguiente punto del paso con la cabeza a la altura de los ojos (cada medio paso). */
+  private restingPhase(): number {
+    const half = STRIDE_M / 2;
+    const n = this.walked / half;
+    return Math.abs(n - Math.round(n)) < 1e-9 ? this.walked : Math.ceil(n) * half;
+  }
+
   private apply(): void {
-    this.camera.position.set(this.state.x, WALKER.eyeHeightM, this.state.z);
+    this.camera.position.set(this.state.x, WALKER.eyeHeightM + this.bob, this.state.z);
     // Primero el giro (Y) y luego la inclinación (X): así la cabeza nunca se ladea.
     this.camera.rotation.set(this.pitch, this.state.yaw, 0, 'YXZ');
   }

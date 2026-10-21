@@ -11,12 +11,16 @@ export interface QualitySettings {
   ao: boolean;
   /** Lado del mapa de sombras del sol. */
   shadowMap: number;
+  /** Lámparas que proyectan sombra (mapa cúbico cada una). */
+  lampShadows: number;
+  /** Halo de lo que brilla (pantallas encendidas, ventanas a pleno sol). */
+  bloom: boolean;
 }
 
 export const QUALITY: Record<QualityLevel, QualitySettings> = {
-  high: { maxPixelRatio: 2, postFx: true, ao: true, shadowMap: 2048 },
-  medium: { maxPixelRatio: 1.25, postFx: true, ao: false, shadowMap: 1024 },
-  low: { maxPixelRatio: 1, postFx: false, ao: false, shadowMap: 1024 },
+  high: { maxPixelRatio: 2, postFx: true, ao: true, shadowMap: 2048, lampShadows: 2, bloom: true },
+  medium: { maxPixelRatio: 1.25, postFx: true, ao: false, shadowMap: 1024, lampShadows: 0, bloom: true },
+  low: { maxPixelRatio: 1, postFx: false, ao: false, shadowMap: 1024, lampShadows: 0, bloom: false },
 };
 
 export const QUALITY_CHOICES: readonly { id: QualityChoice; label: string }[] = [

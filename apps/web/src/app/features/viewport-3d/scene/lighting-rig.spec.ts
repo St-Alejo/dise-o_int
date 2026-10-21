@@ -1,7 +1,7 @@
 import { createRectangularShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { FILL_HEIGHT, LIGHTING_PRESETS, LightingRig, MAX_LAMPS, MAX_WINDOW_LIGHTS, sunHeading, windowSpots } from './lighting-rig';
+import { FILL_HEIGHT, LEVEL_FACTOR, LIGHTING_PRESETS, LightingRig, MAX_LAMPS, MAX_WINDOW_LIGHTS, MOOD_COLORS, keepOffWalls, LAMP_WALL_GAP, sunHeading, windowSpots } from './lighting-rig';
 
 const lights = <T extends THREE.Light>(scene: THREE.Scene, type: new (...args: never[]) => T): T[] => {
   const found: T[] = [];
@@ -27,7 +27,7 @@ describe('LightingRig', () => {
 
     rig.setTimeOfDay('night');
     expect(sun.intensity).toBeLessThan(0.2);
-    expect(lamp.intensity).toBeGreaterThan(LIGHTING_PRESETS.day.lamp * 4);
+    expect(lamp.intensity).toBeGreaterThan(LIGHTING_PRESETS.day.lamp * 2.5);
     expect((scene.background as THREE.Color).getHexString()).toBe('1b1f2a');
     // Una lámpara añadida de noche nace ya encendida a esa intensidad.
     rig.syncLamps([spot('a'), spot('b')]);
@@ -134,5 +134,66 @@ describe('LightingRig', () => {
     const ceiling = scene.getObjectByName('ceiling-light') as THREE.PointLight;
     expect(ceiling.position.toArray()).toEqual([2, 2.6 * FILL_HEIGHT, 1.5]);
     expect(ceiling.intensity).toBe(LIGHTING_PRESETS.day.ceiling);
+  });
+
+  it('el ambiente del diseño cambia el tono y la fuerza de lámparas y techo', () => {
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.syncLamps([spot('a')]);
+    const lamp = scene.getObjectByName('lamp-a') as THREE.PointLight;
+    const ceiling = scene.getObjectByName('ceiling-light') as THREE.PointLight;
+
+    rig.setMood({ mood: 'calida', level: 'alta' });
+    expect(lamp.color.getHexString()).toBe(new THREE.Color(MOOD_COLORS.calida.lamp).getHexString());
+    expect(lamp.intensity).toBeCloseTo(LIGHTING_PRESETS.day.lamp * LEVEL_FACTOR.alta);
+    expect(ceiling.intensity).toBeCloseTo(LIGHTING_PRESETS.day.ceiling * LEVEL_FACTOR.alta);
+
+    rig.setMood({ mood: 'fria', level: 'tenue' });
+    expect(lamp.color.b).toBeGreaterThan(lamp.color.r * 0.95);
+    expect(lamp.intensity).toBeLessThan(LIGHTING_PRESETS.day.lamp);
+    // Una lámpara nueva nace con el ambiente vigente.
+    rig.syncLamps([spot('a'), spot('b')]);
+    expect((scene.getObjectByName('lamp-b') as THREE.PointLight).intensity).toBeCloseTo(lamp.intensity);
+    rig.setMood(null);
+    expect(rig.lighting).toEqual({ mood: 'neutra', level: 'media' });
+  });
+
+  it('solo las primeras lámparas proyectan sombra, según la calidad', () => {
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.syncLamps([spot('a'), spot('b'), spot('c')]);
+    const casting = () => lights(scene, THREE.PointLight).filter((l) => l.name.startsWith('lamp-') && l.castShadow).length;
+    expect(casting()).toBe(0);
+    rig.setLampShadows(2);
+    expect(casting()).toBe(2);
+    rig.syncLamps([spot('c')]);
+    expect(casting()).toBe(1);
+    rig.setLampShadows(0);
+    expect(casting()).toBe(0);
+  });
+
+  it('la cámara de sombras del sol abarca el cuarto y poco más', () => {
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.fitToRoom(createRectangularShell(4, 3, 2.6));
+    const camera = (scene.getObjectByName('sun') as THREE.DirectionalLight).shadow.camera;
+    const reach = Math.hypot(4, 3, 2.6) / 2;
+    expect(camera.right).toBeGreaterThanOrEqual(reach);
+    expect(camera.right).toBeLessThan(4);
+    expect(camera.top).toBe(camera.right);
+  });
+
+  it('la luz de una lámpara pegada a la pared se aparta un poco de ella', () => {
+    const shell = createRectangularShell(4, 3, 2.6);
+    const corner = keepOffWalls(shell, { x: 0.1, z: 0.05 });
+    expect(corner.x).toBeCloseTo(LAMP_WALL_GAP);
+    expect(corner.z).toBeCloseTo(LAMP_WALL_GAP);
+    expect(keepOffWalls(shell, { x: 2, z: 1.5 })).toEqual({ x: 2, z: 1.5 });
+
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    rig.syncLamps([{ id: 'mesa', x: 3.95, y: 0.6, z: 1.5 }]);
+    rig.fitToRoom(shell); // el cuarto llega después: igual se aparta
+    expect((scene.getObjectByName('lamp-mesa') as THREE.PointLight).position.x).toBeCloseTo(4 - LAMP_WALL_GAP);
   });
 });

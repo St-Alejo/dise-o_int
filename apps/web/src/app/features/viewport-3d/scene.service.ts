@@ -103,8 +103,8 @@ export class SceneService implements SceneContext {
   frameCapture: ((scale?: number) => Promise<Blob | null>) | null = null;
 
   private readonly lighting = new LightingRig(this.scene);
-  private readonly room = new RoomView(this);
-  private readonly furniture = new FurnitureView(this, () => this.refreshSelection());
+  private readonly room = new RoomView(this, () => this.furniture.refreshTextures());
+  private readonly furniture = new FurnitureView(this, () => this.refreshSelection(), this.room.textureLibrary);
   private readonly selection = new SelectionView(this);
   private readonly actions = new SelectionActions(this.store, () => this.readOnly());
   private readonly dragController = new DragController(this, this.store, this.furniture, {
@@ -233,7 +233,11 @@ export class SceneService implements SceneContext {
     effect(() => {
       const finishes = this.store.finishes() ?? finishesForStyle(this.store.project()?.selectedStyleId ?? null);
       this.store.shell(); // reaplicar al reconstruir el cuarto
-      untracked(() => this.room.applyFinishes(finishes));
+      untracked(() => {
+        this.room.applyFinishes(finishes);
+        this.lighting.setMood(finishes.lighting);
+        this.invalidate();
+      });
     });
   }
 
@@ -257,6 +261,15 @@ export class SceneService implements SceneContext {
   setShadowSize(size: number): void {
     this.lighting.setShadowSize(size);
     this.invalidate();
+  }
+
+  setLampShadows(count: number): void {
+    this.lighting.setLampShadows(count);
+    this.invalidate();
+  }
+
+  setAmbientOcclusion(on: boolean): void {
+    this.room.setPaintedShades(!on);
   }
 
   /** El posprocesado ya cargó (o se quitó, con null): desde ahora el contorno lo dibuja él. */

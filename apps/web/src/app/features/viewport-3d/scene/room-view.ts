@@ -11,14 +11,26 @@ export class RoomView {
   private cutaway = true;
   private readonly textures: TextureLibrary;
   private finishes: RoomFinishes | null = null;
+  /** Penumbras pintadas junto a paredes y rincones: sobran cuando la oclusión ambiental ya las calcula. */
+  private paintedShades = true;
 
-  constructor(private readonly ctx: SceneContext) {
+  /** `onTextures` avisa a quien más use la biblioteca (los muebles) de que llegó algo nuevo. */
+  constructor(
+    private readonly ctx: SceneContext,
+    onTextures: () => void = () => undefined,
+  ) {
     // Cuando llega el manifiesto o una imagen, se vuelve a pintar con lo que ya hay.
     this.textures = new TextureLibrary(() => {
       if (this.room && this.finishes) applyFinishes(this.room, this.finishes, this.textures);
+      onTextures();
       this.ctx.invalidate();
     });
     void this.textures.load();
+  }
+
+  /** La biblioteca de texturas, compartida con los muebles. */
+  get textureLibrary(): TextureLibrary {
+    return this.textures;
   }
 
   get wallCount(): number {
@@ -35,6 +47,7 @@ export class RoomView {
     if (!shell) return;
     this.room = buildRoom(shell);
     this.ctx.scene.add(this.room.group);
+    this.showPaintedShades();
     this.updateCutaway();
   }
 
@@ -43,6 +56,19 @@ export class RoomView {
     if (!this.room) return;
     applyFinishes(this.room, finishes, this.textures);
     this.ctx.invalidate();
+  }
+
+  setPaintedShades(visible: boolean): void {
+    if (this.paintedShades === visible) return;
+    this.paintedShades = visible;
+    this.showPaintedShades();
+    this.ctx.invalidate();
+  }
+
+  private showPaintedShades(): void {
+    this.room?.group.traverse((o) => {
+      if (o.name === 'corner-shade' || o.name === 'edge-shade') o.visible = this.paintedShades;
+    });
   }
 
   /** Activa o desactiva el recorte de paredes y lo aplica de inmediato. */

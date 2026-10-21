@@ -1,4 +1,4 @@
-import { wallFrames, type RoomShell } from '@interiores/shared-types';
+import { alongOf, distanceFromWall, wallFrames, type Lighting, type RoomShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
@@ -38,6 +38,8 @@ export interface LightingPreset {
   readonly lamp: number;
   /** Cuánto brilla la pantalla de una lámpara (0 = apagada). */
   readonly glow: number;
+  /** Fuerza del halo de lo que brilla (bombillas, pantallas): solo cuando hay lámparas encendidas. */
+  readonly bloom: number;
 }
 
 export const LIGHTING_PRESETS: Record<TimeOfDay, LightingPreset> = {
@@ -55,6 +57,7 @@ export const LIGHTING_PRESETS: Record<TimeOfDay, LightingPreset> = {
     ceiling: 1.1,
     lamp: 3,
     glow: 0.12,
+    bloom: 0,
   },
   // Por la tarde el sol entra bajo y cálido: sombras largas y lámparas que empiezan a notarse.
   evening: {
@@ -67,8 +70,9 @@ export const LIGHTING_PRESETS: Record<TimeOfDay, LightingPreset> = {
     sky: { color: '#ffe6cc', ground: '#7a6250', intensity: 0.24 },
     environment: 0.32,
     ceiling: 0.7,
-    lamp: 7,
+    lamp: 5,
     glow: 0.7,
+    bloom: 0.06,
   },
   // De noche casi no hay luz de fuera: el cuarto lo alumbran sus lámparas, con tono cálido.
   night: {
@@ -81,14 +85,45 @@ export const LIGHTING_PRESETS: Record<TimeOfDay, LightingPreset> = {
     sky: { color: '#3b4660', ground: '#1a1614', intensity: 0.22 },
     environment: 0.1,
     ceiling: 3.5,
-    lamp: 16,
+    lamp: 9,
     glow: 1.6,
+    bloom: 0.12,
   },
 };
 
 /** Tope de lámparas que alumbran: cada luz puntual cuesta en todos los materiales de la escena. */
 export const MAX_LAMPS = 6;
-const LAMP_COLOR = '#ffd9a8';
+/**
+ * Distancia mínima de la luz de una lámpara a una pared. La pantalla tapa la bombilla por los
+ * lados; sin eso, una lámpara de mesa pegada a la pared la quema de blanco.
+ */
+export const LAMP_WALL_GAP = 0.4;
+
+/** Aparta un punto de las paredes que tenga a menos de `gap` (sin sacarlo del tramo de pared). */
+export function keepOffWalls(shell: RoomShell, p: { x: number; z: number }, gap = LAMP_WALL_GAP): { x: number; z: number } {
+  let q = { ...p };
+  for (const wall of wallFrames(shell)) {
+    const along = alongOf(wall, q);
+    if (along < 0 || along > wall.length) continue;
+    const d = distanceFromWall(wall, q);
+    if (d >= gap || d < -0.05) continue;
+    q = { x: q.x + wall.normal.x * (gap - d), z: q.z + wall.normal.z * (gap - d) };
+  }
+  return q;
+}
+
+/** Lado del mapa de sombras (cúbico) de cada lámpara que proyecta sombra. */
+export const LAMP_SHADOW_MAP = 512;
+
+/** Ambiente guardado con el diseño: el tono de las lámparas y del techo, y cuánto alumbran. */
+export const MOOD_COLORS: Record<Lighting['mood'], { lamp: string; ceiling: string }> = {
+  calida: { lamp: '#ffc98f', ceiling: '#ffe7c7' },
+  neutra: { lamp: '#ffd9a8', ceiling: '#fff1dc' },
+  fria: { lamp: '#eef3ff', ceiling: '#e8f0ff' },
+};
+export const LEVEL_FACTOR: Record<Lighting['level'], number> = { tenue: 0.6, media: 1, alta: 1.45 };
+/** Sin ambiente elegido, el de siempre: tono neutro y a media luz. */
+export const DEFAULT_LIGHTING: Lighting = { mood: 'neutra', level: 'media' };
 /** A qué altura del cuarto (fracción de su alto) va la luz general. */
 export const FILL_HEIGHT = 0.72;
 const DEG = Math.PI / 180;
@@ -183,6 +218,11 @@ export class LightingRig {
   /** Se mira desde dentro del cuarto (recorrido): el sol baja y entra por la ventana. */
   private interior = false;
   private shell: RoomShell | null = null;
+  private mood: Lighting = DEFAULT_LIGHTING;
+  /** Cuántas lámparas proyectan sombra (según la calidad del visor). */
+  private lampShadows = 0;
+  /** Las últimas lámparas pedidas: al cambiar el cuarto se vuelven a apartar de sus paredes. */
+  private spots: readonly LampSpot[] = [];
 
   constructor(private readonly scene: THREE.Scene) {
     this.sun.position.set(-3, 6, -2);
@@ -250,6 +290,7 @@ export class LightingRig {
     this.ceiling.position.set(shell.widthM / 2, shell.heightM * FILL_HEIGHT, shell.depthM / 2);
     this.ceiling.distance = span * 2.5;
     this.syncWindows(shell, span);
+    this.syncLamps(this.spots);
     this.aimSun();
     this.apply();
   }
@@ -265,6 +306,28 @@ export class LightingRig {
       light.target.position.set(spot.x + spot.normal.x * span * 0.55, 0.2, spot.z + spot.normal.z * span * 0.55);
       this.windowRoot.add(light, light.target);
     }
+  }
+
+  /** Ambiente de luz del diseño (cálida/neutra/fría y tenue/media/alta). */
+  setMood(lighting: Lighting | null | undefined): void {
+    const next = lighting ?? DEFAULT_LIGHTING;
+    if (next.mood === this.mood.mood && next.level === this.mood.level) return;
+    this.mood = next;
+    this.apply();
+  }
+
+  get lighting(): Lighting {
+    return this.mood;
+  }
+
+  /**
+   * Las primeras `count` lámparas proyectan sombra. Cada una es un mapa cúbico (seis vistas
+   * por cuadro), así que solo en calidad alta y con pocas.
+   */
+  setLampShadows(count: number): void {
+    if (count === this.lampShadows) return;
+    this.lampShadows = count;
+    this.syncLampShadows();
   }
 
   /** Dentro del cuarto el sol entra por la ventana; desde fuera alumbra desde arriba. */
@@ -283,6 +346,7 @@ export class LightingRig {
 
   /** Una luz por lámpara del cuarto, hasta el tope; las que ya no están se apagan y se quitan. */
   syncLamps(spots: readonly LampSpot[]): void {
+    this.spots = spots;
     const wanted = spots.slice(0, MAX_LAMPS);
     const ids = new Set(wanted.map((s) => s.id));
     for (const [id, light] of this.lamps) {
@@ -295,13 +359,38 @@ export class LightingRig {
       let light = this.lamps.get(spot.id);
       if (!light) {
         // Sin sombra propia: seis mapas de sombra cúbicos serían demasiado para un portátil.
-        light = new THREE.PointLight(LAMP_COLOR, LIGHTING_PRESETS[this.time].lamp, 7, 2);
+        light = new THREE.PointLight(MOOD_COLORS[this.mood.mood].lamp, this.lampIntensity(), 7, 2);
         light.name = `lamp-${spot.id}`;
+        light.shadow.mapSize.set(LAMP_SHADOW_MAP, LAMP_SHADOW_MAP);
+        light.shadow.bias = -0.002;
+        light.shadow.normalBias = 0.03;
+        light.shadow.radius = 4;
+        // La bombilla está dentro de su pantalla: lo que quede a menos de esto no tapa la luz.
+        light.shadow.camera.near = 0.12;
         this.lamps.set(spot.id, light);
         this.lampRoot.add(light);
       }
-      light.position.set(spot.x, spot.y, spot.z);
+      const at = this.shell ? keepOffWalls(this.shell, spot) : spot;
+      light.position.set(at.x, spot.y, at.z);
     }
+    this.syncLampShadows();
+  }
+
+  private syncLampShadows(): void {
+    let i = 0;
+    for (const light of this.lamps.values()) {
+      const cast = i++ < this.lampShadows;
+      if (light.castShadow === cast) continue;
+      light.castShadow = cast;
+      if (!cast) {
+        light.shadow.map?.dispose();
+        light.shadow.map = null;
+      }
+    }
+  }
+
+  private lampIntensity(): number {
+    return LIGHTING_PRESETS[this.time].lamp * LEVEL_FACTOR[this.mood.level];
   }
 
   dispose(): void {
@@ -331,7 +420,10 @@ export class LightingRig {
       centre.z - heading.z * Math.cos(elevation) * distance,
     );
     this.sun.target.position.set(centre.x, 0, centre.z);
-    Object.assign(this.sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.5, far: distance + span * 2 });
+    // La cámara de sombras abarca justo el cuarto (su diagonal, con alto y un margen): cuanto más
+    // ajustada, más fina la sombra con el mismo mapa.
+    const reach = Math.hypot(shell.widthM, shell.depthM, shell.heightM) / 2 + 0.3;
+    Object.assign(this.sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: Math.max(0.5, distance - reach * 1.5), far: distance + reach * 1.5 });
     this.sun.shadow.camera.updateProjectionMatrix();
   }
 
@@ -339,18 +431,26 @@ export class LightingRig {
     const preset = LIGHTING_PRESETS[this.time];
     this.scene.background = this.skies[this.time] ?? new THREE.Color(preset.background);
     this.scene.environmentIntensity = preset.environment;
+    // El posprocesado lo lee de aquí: el halo depende de la hora, no de la calidad.
+    this.scene.userData['bloom'] = preset.bloom;
     this.sun.color.set(preset.sun.color);
     this.sun.intensity = preset.sun.intensity;
     this.sky.color.set(preset.sky.color);
     this.sky.groundColor.set(preset.sky.ground);
     this.sky.intensity = preset.sky.intensity;
-    this.ceiling.intensity = preset.ceiling;
+    const colors = MOOD_COLORS[this.mood.mood];
+    const level = LEVEL_FACTOR[this.mood.level];
+    this.ceiling.color.set(colors.ceiling);
+    this.ceiling.intensity = preset.ceiling * level;
     if (this.renderer) this.renderer.toneMappingExposure = preset.exposure;
     for (const child of this.windowRoot.children) {
       if (!(child instanceof THREE.SpotLight)) continue;
       child.color.set(preset.window.color);
       child.intensity = preset.window.intensity;
     }
-    for (const light of this.lamps.values()) light.intensity = preset.lamp;
+    for (const light of this.lamps.values()) {
+      light.color.set(colors.lamp);
+      light.intensity = this.lampIntensity();
+    }
   }
 }

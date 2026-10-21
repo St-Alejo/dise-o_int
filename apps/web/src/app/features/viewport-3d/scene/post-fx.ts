@@ -4,11 +4,14 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import type { Highlighter } from './render-loop';
 
 export interface PostFxSettings {
   /** Oclusión ambiental: oscurece rincones y el piso bajo los muebles. */
   ao: boolean;
+  /** Halo suave alrededor de lo que pasa del blanco (bombillas, pantallas, ventana al sol). */
+  bloom: boolean;
   /** Píxeles por punto de pantalla con los que se dibuja. */
   pixelRatio: number;
 }
@@ -86,13 +89,15 @@ function outlinePass(size: THREE.Vector2, scene: THREE.Scene, camera: THREE.Came
 export class PostFx implements Highlighter {
   private readonly composer: EffectComposer;
   private readonly ao: RoomAoPass;
+  private readonly bloom: UnrealBloomPass;
+  private bloomAllowed = false;
   private readonly selected: OutlinePass;
   private readonly hovered: OutlinePass;
   private orthographic = false;
 
   constructor(
     renderer: THREE.WebGLRenderer,
-    scene: THREE.Scene,
+    private readonly scene: THREE.Scene,
     private readonly camera: THREE.Camera,
     settings: PostFxSettings,
   ) {
@@ -107,6 +112,17 @@ export class PostFx implements Highlighter {
     this.ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
     this.ao.blendIntensity = 0.9;
     this.composer.addPass(this.ao);
+    // Umbral muy por encima del blanco (la imagen aún es HDR aquí): solo brilla lo que de verdad
+    // emite, y con radio corto para que el halo no lave el cuarto entero.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0, 0.1, 2.5);
+    this.bloom.enabled = false;
+    // Lo que pasa al halo se acota: un punto de luz muy intenso no debe teñir media imagen.
+    const highPass = this.bloom.materialHighPassFilter;
+    highPass.fragmentShader = highPass.fragmentShader.replace(
+      'gl_FragColor = mix( outputColor, texel, alpha );',
+      'gl_FragColor = mix( outputColor, vec4( min( texel.rgb, vec3( 3.0 ) ), texel.a ), alpha );',
+    );
+    this.composer.addPass(this.bloom);
     this.hovered = outlinePass(size, scene, camera, COLOR.hover, 2.2);
     this.selected = outlinePass(size, scene, camera, COLOR.select, 4);
     this.composer.addPass(this.hovered);
@@ -121,6 +137,7 @@ export class PostFx implements Highlighter {
 
   configure(settings: PostFxSettings): void {
     this.ao.enabled = settings.ao;
+    this.bloomAllowed = settings.bloom;
     this.composer.setPixelRatio(settings.pixelRatio);
   }
 
@@ -144,6 +161,9 @@ export class PostFx implements Highlighter {
   render(): void {
     const orthographic = !!(this.camera as { isOrthographicCamera?: boolean }).isOrthographicCamera;
     if (orthographic !== this.orthographic) this.setProjection(orthographic);
+    const strength = Number(this.scene.userData['bloom'] ?? 0);
+    this.bloom.enabled = this.bloomAllowed && strength > 0;
+    this.bloom.strength = strength;
     this.composer.render();
   }
 

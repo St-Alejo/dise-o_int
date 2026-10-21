@@ -474,7 +474,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       const showHelpers = this.scene.hideHelpers();
       renderer.setPixelRatio(ratio);
       renderer.setSize(size.x, size.y, false);
-      this.postFx?.configure({ ao: this.settings().ao, pixelRatio: ratio });
+      this.postFx?.configure({ ao: this.settings().ao, bloom: this.settings().bloom, pixelRatio: ratio });
       this.postFx?.setSize(size.x, size.y);
       paint();
       return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')).finally(() => {
@@ -536,7 +536,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     try {
       const { PostFx } = await import('./scene/post-fx');
       if (this.renderer !== renderer) return;
-      this.postFx = new PostFx(renderer, this.scene.scene, this.scene.camera, { ao: this.settings().ao, pixelRatio: renderer.getPixelRatio() });
+      this.postFx = new PostFx(renderer, this.scene.scene, this.scene.camera, { ao: this.settings().ao, bloom: this.settings().bloom, pixelRatio: renderer.getPixelRatio() });
       this.applyQuality();
     } catch {
       // Sin posprocesado el visor sigue funcionando con el contorno en planta.
@@ -581,10 +581,13 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     const size = renderer.getSize(new THREE.Vector2());
     renderer.setPixelRatio(this.pixelRatio());
     renderer.setSize(size.x, size.y, false);
-    this.postFx?.configure({ ao: settings.ao, pixelRatio: renderer.getPixelRatio() });
+    this.postFx?.configure({ ao: settings.ao, bloom: settings.bloom, pixelRatio: renderer.getPixelRatio() });
     this.postFx?.setSize(size.x, size.y);
     this.scene.attachHighlighter(settings.postFx ? this.postFx : null);
     this.scene.setShadowSize(settings.shadowMap);
+    this.scene.setLampShadows(settings.lampShadows);
+    // Con oclusión de verdad, las penumbras pintadas la duplicarían.
+    this.scene.setAmbientOcclusion(!!this.postFx && settings.postFx && settings.ao);
   }
 
   /** Entra o sale del recorrido a pie; al entrar, el canvas toma el foco para que respondan las teclas. */
