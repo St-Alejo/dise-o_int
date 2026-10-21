@@ -7,6 +7,10 @@ import type {
   CatalogQuery,
   ChatRequest,
   ChatResponse,
+  DesignBrief,
+  RecommendationFeedbackRequest,
+  RecommendRequest,
+  RecommendResponse,
   DesignProject,
   GenerateStylesRequest,
   JobAccepted,
@@ -118,6 +122,20 @@ export class ProjectsApi {
   /** Tope de gasto del cuarto (null lo quita). */
   setBudget(id: string, cap: number | null): Promise<DesignProject> {
     return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/budget`, { cap }));
+  }
+
+  /** Brief de diseño: lo que la persona pidió y quiere conservar entre recomendaciones. */
+  setBrief(id: string, brief: DesignBrief | null): Promise<DesignProject> {
+    return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/brief`, { brief }));
+  }
+
+  /** Una propuesta entera que respeta lo fijado (con intensidad total, también otra distribución). */
+  recommend(id: string, body: RecommendRequest): Promise<RecommendResponse> {
+    return firstValueFrom(this.http.post<RecommendResponse>(`${this.base}/${id}/recommend`, body));
+  }
+
+  recommendationFeedback(id: string, recommendationId: string, body: RecommendationFeedbackRequest): Promise<void> {
+    return firstValueFrom(this.http.post<void>(`${this.base}/${id}/recommendations/${recommendationId}/feedback`, body));
   }
 
   /** Convierte un cuarto hecho sin cuenta (la demo) en un proyecto propio. */

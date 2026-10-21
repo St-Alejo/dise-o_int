@@ -6,6 +6,7 @@ import {
   fitPlacementsToRoom,
   furnishedTemplateInfo,
   resizeRoomShell,
+  type DesignBrief,
   type DesignProject,
   type FurnishedScene,
   type StyleId,
@@ -91,6 +92,10 @@ export class LocalPersistence extends ProjectPersistence {
 
   async setBudget(id: string, cap: number | null): Promise<DesignProject> {
     return this.write({ ...(await this.get(id)), budgetCap: cap }, false);
+  }
+
+  async setBrief(id: string, brief: DesignBrief | null): Promise<DesignProject> {
+    return this.write({ ...(await this.get(id)), brief }, false);
   }
 
   /** Olvida lo guardado: la próxima vez se abre la plantilla tal como viene. */

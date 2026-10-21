@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import type { DesignProject, StyleId, UpdateRoomRequest, UpdateSceneRequest } from '@interiores/shared-types';
+import type { DesignBrief, DesignProject, StyleId, UpdateRoomRequest, UpdateSceneRequest } from '@interiores/shared-types';
 import { ProjectsApi } from '../../core/api/projects.api';
 
 /**
@@ -14,6 +14,8 @@ export abstract class ProjectPersistence {
   abstract selectStyle(id: string, styleId: StyleId | null): Promise<DesignProject>;
   /** Tope de gasto del cuarto: no es parte de la escena y no cambia su revisión. */
   abstract setBudget(id: string, cap: number | null): Promise<DesignProject>;
+  /** Brief de diseño (lo pedido y fijado): tampoco cambia la revisión. */
+  abstract setBrief(id: string, brief: DesignBrief | null): Promise<DesignProject>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -34,5 +36,8 @@ export class ApiPersistence extends ProjectPersistence {
   }
   setBudget(id: string, cap: number | null): Promise<DesignProject> {
     return this.api.setBudget(id, cap);
+  }
+  setBrief(id: string, brief: DesignBrief | null): Promise<DesignProject> {
+    return this.api.setBrief(id, brief);
   }
 }

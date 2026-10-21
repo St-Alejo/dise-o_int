@@ -22,6 +22,7 @@ import { DialogComponent } from '../../shared/ui/dialog.component';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { StyleGalleryComponent } from '../style-gallery/style-gallery.component';
 import { EditorComponent } from '../viewport-3d/editor.component';
+import { RecommendService } from '../brief/recommend.service';
 import { DesignProjectStore } from './design-project.store';
 import { ProcessingPanelComponent } from './processing-panel.component';
 import { ProjectFactsComponent } from './project-facts.component';
@@ -32,7 +33,7 @@ type View = 'estilos' | '3d';
 @Component({
   selector: 'app-project-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [DesignProjectStore],
+  providers: [DesignProjectStore, RecommendService],
   imports: [RouterLink, DatePipe, ProcessingPanelComponent, ProjectFactsComponent, VersionCompareComponent, StyleGalleryComponent, EditorComponent, IconComponent, DialogComponent],
   template: `
     <section class="container page">
@@ -295,6 +296,7 @@ type View = 'estilos' | '3d';
 })
 export class ProjectPage implements OnInit {
   protected readonly store = inject(DesignProjectStore);
+  private readonly recommender = inject(RecommendService);
   /** Versión que se está comparando con el diseño actual. */
   protected readonly compared = signal<DesignProjectVersion | null>(null);
   private readonly api = inject(ProjectsApi);
@@ -344,10 +346,12 @@ export class ProjectPage implements OnInit {
     this.finishedAt.set(e.jobId, e.at);
     this.job.set(null);
     const relayout = live && e.status === 'completed' && e.kind === 'build-scene';
+    // La distribución de una recomendación va al historial con ella (un solo Ctrl+Z la deshace).
+    const recommended = e.kind === 'build-scene' ? this.recommender.claimJob(e.jobId) : undefined;
     // Una distribución nueva se puede deshacer; el resto de jobs solo refrescan el proyecto.
-    void this.store.reload(relayout ? 'Otra distribución' : undefined);
+    void this.store.reload(relayout ? (recommended ?? 'Otra distribución') : recommended);
     if (e.status === 'failed') this.toast.error(e.error ?? e.message);
-    if (relayout) this.toast.success('Lista otra distribución');
+    if (relayout && !recommended) this.toast.success('Lista otra distribución');
   }
 
   setView(v: View): void {

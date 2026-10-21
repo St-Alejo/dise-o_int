@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output, si
 import { clampToRoom, type CatalogItem } from '@interiores/shared-types';
 import { ToastService } from '../../core/ui/toast.service';
 import { IconComponent } from '../../shared/ui/icon.component';
+import { BriefPanelComponent } from '../brief/brief-panel.component';
 import { BudgetPanelComponent } from '../budget/budget-panel.component';
 import { CatalogPanelComponent } from '../catalog/catalog-panel.component';
 import { ChatPanelComponent } from '../chat/chat-panel.component';
@@ -29,6 +30,7 @@ import { SceneService } from './scene.service';
     GroupPanelComponent,
     InspectorComponent,
     BudgetPanelComponent,
+    BriefPanelComponent,
     ChatPanelComponent,
     OutlinerComponent,
     FinishesPanelComponent,
@@ -69,10 +71,15 @@ import { SceneService } from './scene.service';
           <button type="button" role="tab" id="tab-objects" aria-controls="panel-objects" [attr.aria-selected]="panelTab() === 'objects'" (click)="panelTab.set('objects')">Objetos</button>
           <button type="button" role="tab" id="tab-room" aria-controls="panel-room" [attr.aria-selected]="panelTab() === 'room'" (click)="panelTab.set('room')">Cuarto y acabados</button>
           @if (!demo()) {
+            <button type="button" role="tab" id="tab-brief" aria-controls="panel-brief" [attr.aria-selected]="panelTab() === 'brief'" (click)="panelTab.set('brief')">Lo que pediste</button>
             <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
           }
         </div>
-        @if (panelTab() === 'chat') {
+        @if (panelTab() === 'brief') {
+          <div role="tabpanel" id="panel-brief" aria-labelledby="tab-brief">
+            <app-brief-panel />
+          </div>
+        } @else if (panelTab() === 'chat') {
           <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat">
             <app-chat-panel />
           </div>
@@ -210,7 +217,7 @@ export class EditorPanelComponent {
   /** En pantallas angostas el panel es una hoja inferior que se sube y se baja. */
   protected readonly sheetOpen = signal(false);
   protected readonly swapMode = signal(false);
-  protected readonly panelTab = signal<'add' | 'objects' | 'room' | 'chat'>('add');
+  protected readonly panelTab = signal<'add' | 'objects' | 'room' | 'brief' | 'chat'>('add');
   protected readonly selectedItem = this.store.selectedItem;
   protected readonly catalogItems = computed(() => [...this.store.catalog().values()]);
   protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);

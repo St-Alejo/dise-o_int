@@ -6,6 +6,7 @@ import { IconComponent } from '../../shared/ui/icon.component';
 import { SegmentedComponent } from '../../shared/ui/segmented.component';
 import { TooltipDirective } from '../../shared/ui/tooltip.directive';
 import { planSvg } from '../floor-plan/floor-plan-model';
+import { RecommendService } from '../brief/recommend.service';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { SceneService } from './scene.service';
@@ -35,6 +36,9 @@ export const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = 
       <app-segmented label="Vista del editor" [options]="views" [value]="viewMode()" (valueChange)="viewChange.emit($event)" />
       <button type="button" class="btn btn-sm" (click)="scene.frameRoom()" [disabled]="viewMode() === 'plan'">Centrar vista</button>
       <button type="button" class="btn btn-sm" (click)="roomDims.emit()" appTooltip="Ancho, largo, alto, puertas y ventanas"><app-icon name="ruler" /> Medidas del cuarto</button>
+      @if (!demo() && rec) {
+        <button type="button" class="btn btn-sm btn-primary" (click)="rec.recommend('total')" [disabled]="busy() || rec.working()" appTooltip="Una propuesta entera (estilo, colores, acabados, luz y muebles) que respeta lo que fijaste"><app-icon name="wand" /> Recomendar</button>
+      }
       @if (!demo()) {
         <button type="button" class="btn btn-sm" (click)="autoLayout.emit()" [disabled]="busy()" appTooltip="Prueba otra distribución de los muebles; los que moviste a mano se quedan donde están"><app-icon name="shuffle" /> Otra distribución</button>
       }
@@ -198,6 +202,8 @@ export const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = 
 })
 export class EditorToolbarComponent {
   protected readonly store = inject(DesignProjectStore);
+  /** Solo en un proyecto con cuenta (la demo no tiene servidor que recomiende). */
+  protected readonly rec = inject(RecommendService, { optional: true });
   protected readonly scene = inject(SceneService);
   protected readonly edits = inject(SceneEditsService);
   private readonly toast = inject(ToastService);

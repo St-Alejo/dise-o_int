@@ -12,6 +12,7 @@ import { SceneService } from './scene.service';
 import { EditorPanelComponent } from './editor-panel.component';
 import { EditorToolbarComponent, type ViewMode } from './editor-toolbar.component';
 import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
+import { RecommendationCardComponent } from '../brief/recommendation-card.component';
 import { EditorTourComponent } from '../onboarding/editor-tour.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
 import { ThreeViewportComponent } from './three-viewport.component';
@@ -52,6 +53,7 @@ function initialView(): ViewMode {
     EditorTourComponent,
     EditorToolbarComponent,
     EditorPanelComponent,
+    RecommendationCardComponent,
   ],
   host: { '(document:keydown)': 'onGlobalKey($event)' },
   template: `
@@ -102,6 +104,9 @@ function initialView(): ViewMode {
           }
           <!-- El visor 3D no se destruye al pasar al plano: solo se oculta (conserva la cámara y la GPU). -->
           <app-three-viewport class="pane" [class.off]="viewMode() === 'plan'" [class.bare]="presenting()" (swap)="panel.startSwap()" />
+          @if (!presenting() && !demo()) {
+            <app-recommendation-card />
+          }
           <app-presentation-overlay #presentation (started)="onPresenting(true)" (stopped)="onPresenting(false)" />
         </div>
         <p class="help muted">En el 3D: arrastra un mueble, gira su aro o estira sus tiradores · Paredes (W), Pintar (B) y Medir (M) cambian de herramienta · clic derecho o dos dedos mueven la cámara</p>

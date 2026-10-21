@@ -8,6 +8,7 @@ import {
   effectiveDimensions,
   mountY,
   type CatalogItem,
+  type DesignBrief,
   type DesignProject,
   type FurniturePlacement,
   type RoomFinishes,
@@ -250,6 +251,24 @@ export class DesignProjectStore {
     apply(cap);
     try {
       await this.api.setBudget(project.id, cap);
+    } catch (err) {
+      apply(previous);
+      throw err;
+    }
+  }
+
+  /** Brief de diseño: lo pedido y lo fijado con candado. */
+  readonly brief = computed(() => this.project()?.brief ?? null);
+
+  /** Guarda el Brief. Como el tope, va aparte de la escena: se ve al momento y, si falla, vuelve. */
+  async setBrief(brief: DesignBrief | null): Promise<void> {
+    const project = this.project();
+    if (!project) return;
+    const previous = project.brief ?? null;
+    const apply = (value: DesignBrief | null) => this.project.update((p) => (p && p.id === project.id ? { ...p, brief: value } : p));
+    apply(brief);
+    try {
+      await this.api.setBrief(project.id, brief);
     } catch (err) {
       apply(previous);
       throw err;
