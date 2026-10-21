@@ -50,6 +50,14 @@ export const SUBCATEGORY_TERMS: Record<string, { tags: string[]; synonyms: strin
   vanity: { tags: ['lavamanos', 'lavabo'], synonyms: ['vanity', 'sink'] },
   bathtub: { tags: ['banera', 'tina'], synonyms: ['bathtub'] },
   shower: { tags: ['ducha', 'regadera'], synonyms: ['shower'] },
+  bidet: { tags: ['bide'], synonyms: ['bidet'] },
+  'towel-rail': { tags: ['toallero', 'colgador de toallas'], synonyms: ['towel rail', 'towel bar'] },
+  'shower-screen': { tags: ['mampara', 'mampara de bañera', 'mampara de ducha'], synonyms: ['shower screen', 'bath screen'] },
+  'dressing-table': { tags: ['tocador', 'mesa de maquillaje', 'maquillador', 'peinador', 'coqueta'], synonyms: ['dressing table', 'makeup table', 'vanity table'] },
+  'vanity-stool': { tags: ['banqueta', 'taburete de tocador', 'puf de tocador'], synonyms: ['vanity stool', 'vanity bench'] },
+  'led-strip': { tags: ['tira led', 'luz indirecta', 'led', 'lampara'], synonyms: ['led strip', 'light strip'] },
+  'recessed-spot': { tags: ['foco empotrado', 'spot', 'ojo de buey', 'foco', 'lampara'], synonyms: ['recessed light', 'downlight', 'spotlight'] },
+  'flush-light': { tags: ['plafon', 'luz de techo', 'lampara de techo', 'lampara'], synonyms: ['flush mount', 'ceiling light'] },
 };
 
 /** Términos por categoría para entradas sin subcategoría (sofás, camas). */

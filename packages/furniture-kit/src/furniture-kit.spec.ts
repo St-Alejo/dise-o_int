@@ -104,6 +104,9 @@ describe('recetas', () => {
     'table-lamp': [{ base: 'disc' }],
     bed: [{ headboard: 'wood' }],
     curtains: [{ open: 0 }, { open: 0.9 }],
+    'led-mirror': [{ shape: 'round' }],
+    'towel-rail': [{ bars: 2 }, { bars: 3, towel: false }],
+    'walk-in-shower': [{ panel: 0.4 }, { panel: 1 }],
   };
 
   // Generador determinista (pruebas reproducibles).

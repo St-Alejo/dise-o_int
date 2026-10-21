@@ -80,6 +80,8 @@ export const MATERIALS: readonly MaterialDefinition[] = [
   // Vidrio, plástico, plantas
   m('glass-clear', 'Vidrio', 'glass', '#dfe9ec', 0.05),
   m('glass-smoked', 'Vidrio ahumado', 'glass', '#5d5e5c', 0.05),
+  // Espejo: vidrio con plata detrás (metal pulido para el render, vidrio para la persona).
+  m('glass-mirror', 'Espejo', 'glass', '#e8eceb', 0.03, 1),
   m('plastic-white', 'Plástico blanco', 'plastic', '#f2f2f0', 0.5),
   m('plastic-black', 'Plástico negro', 'plastic', '#1d1d1d', 0.5),
   m('plant-green', 'Follaje', 'plant', '#4f7a3a', 0.85),

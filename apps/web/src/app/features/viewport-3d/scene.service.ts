@@ -38,6 +38,9 @@ import { SelectionActions } from './scene/selection-actions';
 import { SelectionView } from './scene/selection-view';
 import { MeasureTool, PaintTool, RoomTool, SelectTool, ToolManager, type PaintTarget, type ToolEvent, type ViewportToolId } from './tools/tools';
 
+/** Luces que van pegadas al techo, sin colgar. */
+const FLUSH_LIGHTS = new Set(['flush-light', 'recessed-spot']);
+
 /** Vistas rápidas de la cámara de órbita. */
 export type ViewPreset = 'corner' | 'top' | 'plan' | 'front' | 'left' | 'right';
 export const VIEW_PRESETS: readonly { id: ViewPreset; label: string }[] = [
@@ -690,8 +693,10 @@ export class SceneService implements SceneContext {
         const item = catalog.get(p.catalogItemId);
         if (!item || item.category !== 'lighting') return [];
         const dims = effectiveDimensions(item.dimensionsM, p);
-        // Las colgantes alumbran por abajo; las de pie y de mesa, cerca de su parte alta.
-        const y = item.mount === 'ceiling' ? p.position.y + 0.1 : p.position.y + dims.y * 0.85;
+        // Las colgantes alumbran por abajo; las de pie y de mesa, cerca de su parte alta. Las que van
+        // pegadas al techo (plafón, foco empotrado), un poco por debajo: si no, queman el techo.
+        const flush = item.mount === 'ceiling' && FLUSH_LIGHTS.has(item.subcategory ?? '');
+        const y = flush ? p.position.y - 0.12 : item.mount === 'ceiling' ? p.position.y + 0.1 : p.position.y + dims.y * 0.85;
         return [{ id: p.id, x: p.position.x, y, z: p.position.z }];
       }),
     );

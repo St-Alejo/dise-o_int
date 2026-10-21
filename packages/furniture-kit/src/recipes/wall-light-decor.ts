@@ -8,20 +8,20 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export const mirror: FurnitureRecipe = {
   kind: 'mirror',
   label: 'Espejo',
-  slots: [SLOTS.frame, SLOTS.glass],
+  slots: [SLOTS.frame, SLOTS.mirror],
   defaultDims: { x: 0.7, y: 0.9, z: 0.03 },
   build: (ctx) => {
     const { w, h, d, b } = ctx;
     if (ctx.str('shape', 'rect') === 'round') {
       b.disc(SLOTS.frame.slot, w / 2, d * 0.7, [0, h / 2, -d / 2], 48, h / w);
-      b.disc(SLOTS.glass.slot, w / 2 - 0.03, d, [0, h / 2, -d / 2], 48, (h - 0.06) / (w - 0.06));
+      b.disc(SLOTS.mirror.slot, w / 2 - 0.03, d, [0, h / 2, -d / 2], 48, (h - 0.06) / (w - 0.06));
       return;
     }
     const f = clamp(Math.min(w, h) * 0.05, 0.015, 0.05);
     b.box(SLOTS.frame.slot, w, f, d, [0, 0, 0]);
     b.box(SLOTS.frame.slot, w, f, d, [0, h - f, 0]);
     for (const sx of [-1, 1]) b.box(SLOTS.frame.slot, f, h - 2 * f, d, [sx * (w / 2 - f / 2), f, 0]);
-    b.box(SLOTS.glass.slot, w - 2 * f, h - 2 * f, d * 0.6, [0, f, -d / 2 + d * 0.3]);
+    b.box(SLOTS.mirror.slot, w - 2 * f, h - 2 * f, d * 0.6, [0, f, -d / 2 + d * 0.3]);
   },
 };
 

@@ -78,6 +78,10 @@ describe('ParametricRenderer (adapter three.js del kit)', () => {
     const r = new ParametricRenderer();
     expect((r.material('glass-clear', 'vidrio') as THREE.MeshPhysicalMaterial).transmission).toBe(1);
     expect(r.material('fabric-linen-white', 'pantalla').side).toBe(THREE.DoubleSide);
+    // El espejo refleja (metal pulido) y nunca queda negro del todo.
+    const mirror = r.material('glass-mirror', 'espejo') as THREE.MeshStandardMaterial;
+    expect(mirror.metalness).toBe(1);
+    expect(mirror.emissiveIntensity).toBeGreaterThan(0);
   });
 
   it('las UV de caja van en metros y siguen la cara a la que mira cada vértice', () => {

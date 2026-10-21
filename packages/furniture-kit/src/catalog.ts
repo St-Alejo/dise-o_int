@@ -4,6 +4,7 @@
  */
 import type { Vector3 } from '@interiores/shared-types';
 import type { FurnitureModel } from './builder.js';
+import { BATH_VANITY_LIGHT } from './recipes/bath-vanity-light.js';
 import { KITCHEN_BATH } from './recipes/kitchen-bath.js';
 import { SEATING } from './recipes/seating.js';
 import { STORAGE } from './recipes/storage.js';
@@ -11,7 +12,7 @@ import { TABLES } from './recipes/tables.js';
 import { WALL_LIGHT_DECOR } from './recipes/wall-light-decor.js';
 import { RecipeRegistry, buildCached, type FurnitureRecipe, type Params } from './registry.js';
 
-export const FURNITURE = new RecipeRegistry().register(...SEATING, ...TABLES, ...STORAGE, ...KITCHEN_BATH, ...WALL_LIGHT_DECOR);
+export const FURNITURE = new RecipeRegistry().register(...SEATING, ...TABLES, ...STORAGE, ...KITCHEN_BATH, ...WALL_LIGHT_DECOR, ...BATH_VANITY_LIGHT);
 
 /** Construye (con caché Flyweight) el mueble `kind` a las medidas dadas. */
 export function buildFurniture(kind: string, dims: Vector3, params: Params = {}): FurnitureModel {

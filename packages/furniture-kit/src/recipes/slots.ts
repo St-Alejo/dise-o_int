@@ -25,6 +25,7 @@ export const SLOTS = {
   metal: slot('metal', 'Metal', 'metal-chrome', ['metal']),
   ceramic: slot('ceramica', 'Cerámica', 'ceramic-white', ['ceramic', 'stone']),
   glass: slot('vidrio', 'Vidrio', 'glass-clear', ['glass']),
+  mirror: slot('espejo', 'Espejo', 'glass-mirror', ['glass']),
   shade: slot('pantalla', 'Pantalla', 'fabric-linen-white', ['fabric', 'glass', 'metal', 'plastic']),
   base: slot('base', 'Base', 'metal-black', ['metal', 'wood', 'ceramic', 'stone']),
   textile: slot('tejido', 'Tejido', 'fabric-wool-grey', ['fabric']),

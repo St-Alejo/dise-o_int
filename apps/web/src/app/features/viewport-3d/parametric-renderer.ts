@@ -100,7 +100,11 @@ export class ParametricRenderer {
     const color = new THREE.Color(def?.color ?? '#999999');
     const roughness = def?.roughness ?? 0.8;
     const metalness = def?.metalness ?? 0;
-    if (def?.kind === 'glass') {
+    if (def?.kind === 'glass' && def.metalness >= 0.9) {
+      // Espejo: refleja el entorno y no deja ver lo de atrás. Sin reflejo real del cuarto, un brillo
+      // propio tenue evita que de noche (entorno casi apagado) se vea como un agujero negro.
+      mat = new THREE.MeshStandardMaterial({ color, roughness, metalness: 1, envMapIntensity: 1.4, emissive: new THREE.Color('#8e979b'), emissiveIntensity: 0.22 });
+    } else if (def?.kind === 'glass') {
       // Vidrio de verdad: deja ver lo de atrás algo desenfocado y refleja el cuarto.
       mat = new THREE.MeshPhysicalMaterial({ color, roughness: Math.min(roughness, 0.08), metalness: 0, transmission: 1, thickness: 0.01, ior: 1.5, specularIntensity: 1 });
     } else if (def?.kind === 'fabric' && !glows) {
