@@ -3,6 +3,7 @@
  * lista de compras). Los acabados del cuarto y los slots de cada mueble guardan solo el `id`.
  */
 import type { MaterialKind, RoomFinishes, StyleId, WallSegment } from './domain.js';
+import { SPEC_SURFACES, type FinishSpec, type FinishSpecKind } from './finish-spec.js';
 
 export interface MaterialDefinition {
   id: string;
@@ -16,6 +17,8 @@ export interface MaterialDefinition {
   texture?: string;
   /** ¿Sirve como acabado de piso, pared o techo? */
   surfaces?: readonly ('floor' | 'wall' | 'ceiling')[];
+  /** Acabado propio del que sale este material (colores, dibujo, brillo); sin él, uno de la biblioteca. */
+  spec?: FinishSpec;
 }
 
 const m = (
@@ -90,6 +93,41 @@ const BY_ID = new Map(MATERIALS.map((mat) => [mat.id, mat]));
 
 export function getMaterial(id: string): MaterialDefinition | undefined {
   return BY_ID.get(id);
+}
+
+/** Material de la biblioteca que da textura y familia a cada tipo de acabado propio. */
+const SPEC_BASE: Record<FinishSpecKind, { base: string; kind: MaterialKind }> = {
+  tile: { base: 'ceramic-white', kind: 'ceramic' },
+  wood: { base: 'wood-oak', kind: 'wood' },
+  stone: { base: 'stone-marble-white', kind: 'stone' },
+  paint: { base: 'paint-white', kind: 'paint' },
+  carpet: { base: 'fabric-wool-grey', kind: 'fabric' },
+  brick: { base: 'paint-brick', kind: 'paint' },
+  concrete: { base: 'stone-microcement', kind: 'stone' },
+};
+
+/** Un acabado propio visto como material: color principal, rugosidad según el brillo y su textura base. */
+export function materialFromSpec(id: string, spec: FinishSpec): MaterialDefinition {
+  const { base, kind } = SPEC_BASE[spec.kind];
+  return {
+    id,
+    name: spec.name,
+    kind,
+    color: spec.colors[0]!,
+    roughness: Math.round((0.95 - spec.gloss * 0.85) * 100) / 100,
+    metalness: 0,
+    texture: spec.base ?? base,
+    surfaces: SPEC_SURFACES[spec.kind],
+    spec,
+  };
+}
+
+/** Material de un acabado del cuarto: de la biblioteca o uno propio definido en `finishes.custom`. */
+export function resolveFinishMaterial(finishes: Pick<RoomFinishes, 'custom'> | null | undefined, id: string): MaterialDefinition | undefined {
+  const lib = BY_ID.get(id);
+  if (lib) return lib;
+  const spec = finishes?.custom?.[id];
+  return spec ? materialFromSpec(id, spec) : undefined;
 }
 
 export function materialsOfKinds(kinds: readonly MaterialKind[]): MaterialDefinition[] {
@@ -176,9 +214,9 @@ const SURFACE_LABELS = { floor: 'piso', wall: 'pared', ceiling: 'techo' } as con
  * Valida que todos los ids existan y que cada superficie use un material apto para ella.
  * Lanza `UnknownMaterialError` con un mensaje para el usuario.
  */
-export function assertValidFinishes(finishes: RoomFinishes): void {
+export function assertValidFinishes(finishes: RoomFinishes, zoneIds?: readonly string[]): void {
   const check = (id: string, surface: 'floor' | 'wall' | 'ceiling') => {
-    const mat = getMaterial(id);
+    const mat = resolveFinishMaterial(finishes, id);
     if (!mat) throw new UnknownMaterialError(`Material desconocido: ${id}`);
     if (!mat.surfaces?.includes(surface)) {
       throw new UnknownMaterialError(`"${mat.name}" no sirve como acabado de ${SURFACE_LABELS[surface]}`);
@@ -187,4 +225,11 @@ export function assertValidFinishes(finishes: RoomFinishes): void {
   check(finishes.floor, 'floor');
   check(finishes.ceiling, 'ceiling');
   for (const id of Object.values(finishes.walls)) check(id, 'wall');
+  if (finishes.wallTiles) check(finishes.wallTiles.material, 'wall');
+  for (const [zoneId, zone] of Object.entries(finishes.zones ?? {})) {
+    if (zoneIds && !zoneIds.includes(zoneId)) throw new UnknownMaterialError(`Acabados de una zona que no existe: ${zoneId}`);
+    check(zone.floor, 'floor');
+    if (zone.walls) check(zone.walls, 'wall');
+    if (zone.wallTiles) check(zone.wallTiles.material, 'wall');
+  }
 }

@@ -26,6 +26,7 @@ import {
   quadInsidePolygon,
   type Point2,
 } from './polygon.js';
+import { validateZones } from './zones.js';
 
 export interface Footprint {
   /** Esquinas en orden (sentido horario visto desde arriba). */
@@ -608,6 +609,7 @@ export function validateRoomShell(shell: RoomShell): void {
     throw new RoomGeometryError('Las medidas del cuarto no coinciden con sus paredes');
   }
   validateOpenings(shell);
+  if (shell.zones?.length) validateZones(shell);
 }
 
 /**

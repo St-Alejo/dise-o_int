@@ -1,4 +1,6 @@
 export * from './domain.js';
+export * from './finish-spec.js';
+export * from './zones.js';
 export * from './api.js';
 export * from './ai-contract.js';
 export * from './progress.js';

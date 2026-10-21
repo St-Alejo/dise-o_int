@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   CatalogCategorySchema,
   CatalogItemSchema,
+  DesignBriefSchema,
   DesignProjectSchema,
   FurniturePlacementSchema,
   MountSchema,
@@ -178,6 +179,10 @@ export const BUDGET_CAP_MAX = 10_000_000;
 /** `PUT /projects/:id/budget`: tope de gasto del cuarto; null lo quita. */
 export const SetBudgetRequestSchema = z.object({ cap: z.number().positive().max(BUDGET_CAP_MAX).nullable() });
 export type SetBudgetRequest = z.infer<typeof SetBudgetRequestSchema>;
+
+/** `PUT /projects/:id/brief`: lo que la persona fijó para que "Recomendar" lo respete; null lo borra. */
+export const SetBriefRequestSchema = z.object({ brief: DesignBriefSchema.nullable() });
+export type SetBriefRequest = z.infer<typeof SetBriefRequestSchema>;
 
 export const ImportProjectRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),

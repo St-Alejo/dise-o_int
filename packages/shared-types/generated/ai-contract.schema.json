@@ -187,6 +187,88 @@
             },
             "needsCalibration": {
               "type": "boolean"
+            },
+            "zones": {
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "bathroom",
+                      "closet",
+                      "vanity",
+                      "office-nook"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "outline": {
+                    "minItems": 3,
+                    "maxItems": 16,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "z"
+                      ]
+                    }
+                  },
+                  "open": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "door": {
+                    "type": "object",
+                    "properties": {
+                      "edge": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 15
+                      },
+                      "offsetM": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "widthM": {
+                        "type": "number",
+                        "minimum": 0.5,
+                        "maximum": 2
+                      }
+                    },
+                    "required": [
+                      "edge",
+                      "offsetM",
+                      "widthM"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "outline"
+                ]
+              }
             }
           },
           "required": [
@@ -557,6 +639,88 @@
             },
             "needsCalibration": {
               "type": "boolean"
+            },
+            "zones": {
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "bathroom",
+                      "closet",
+                      "vanity",
+                      "office-nook"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "outline": {
+                    "minItems": 3,
+                    "maxItems": 16,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "z"
+                      ]
+                    }
+                  },
+                  "open": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "door": {
+                    "type": "object",
+                    "properties": {
+                      "edge": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 15
+                      },
+                      "offsetM": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "widthM": {
+                        "type": "number",
+                        "minimum": 0.5,
+                        "maximum": 2
+                      }
+                    },
+                    "required": [
+                      "edge",
+                      "offsetM",
+                      "widthM"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "outline"
+                ]
+              }
             }
           },
           "required": [

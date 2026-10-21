@@ -71,6 +71,24 @@ def test_peticiones_de_typescript_se_aceptan_en_python(schemas, catalog):
         model.model_validate(payload)  # …y para Pydantic
 
 
+def test_cuarto_con_bano_privado_viaja_igual(schemas, catalog):
+    shell = rectangular_shell(4.5, 4, 2.6).model_dump(mode="json", exclude_none=True)
+    shell["zones"] = [
+        {
+            "id": "z-bath",
+            "kind": "bathroom",
+            "name": "Baño privado",
+            "outline": [{"x": 2.5, "z": 2.2}, {"x": 4.5, "z": 2.2}, {"x": 4.5, "z": 4}, {"x": 2.5, "z": 4}],
+            "open": False,
+            "door": {"edge": 3, "offsetM": 0.9, "widthM": 0.75},
+        }
+    ]
+    payload = {"roomShell": shell, "roomType": "bedroom", "styleId": None, "candidates": [c.model_dump(mode="json", exclude_none=True) for c in catalog[:2]], "locked": []}
+    check(schemas, "PlaceFurnitureRequest", payload)
+    parsed = PlaceFurnitureRequest.model_validate(payload)
+    assert parsed.roomShell.zones is not None and parsed.roomShell.zones[0].door is not None
+
+
 def test_enums_coinciden(schemas):
     style_enum = schemas["GenerateStyleRequest"]["properties"]["styleId"]["enum"]
     room_enum = schemas["GenerateStyleRequest"]["properties"]["roomType"]["enum"]

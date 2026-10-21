@@ -58,6 +58,30 @@ class Opening(Model):
 
 
 RoomShape = Literal["rect", "L", "T", "U", "free"]
+ZoneKind = Literal["bathroom", "closet", "vanity", "office-nook"]
+
+
+class Point2(Model):
+    x: float
+    z: float
+
+
+class ZoneDoor(Model):
+    # Lado del contorno (outline[edge] -> outline[edge + 1]) donde va la puerta: siempre un tabique.
+    edge: int = Field(ge=0, le=15)
+    offsetM: float = Field(ge=0, le=100)
+    widthM: float = Field(ge=0.5, le=2)
+
+
+class Zone(Model):
+    """Zona interior del cuarto (baño privado, vestidor, rincón del tocador)."""
+
+    id: str = Field(min_length=1, max_length=64)
+    kind: ZoneKind
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    outline: list[Point2] = Field(min_length=3, max_length=16)
+    open: bool = False
+    door: ZoneDoor | None = None
 
 
 class RoomShell(Model):
@@ -71,6 +95,8 @@ class RoomShell(Model):
     openings: list[Opening] = Field(max_length=64)
     scaleConfidence: float = Field(ge=0, le=1)
     needsCalibration: bool
+    # Zonas interiores; sin valor = el cuarto es un solo espacio.
+    zones: list[Zone] | None = Field(default=None, max_length=4)
 
 
 class Dimensions(Model):

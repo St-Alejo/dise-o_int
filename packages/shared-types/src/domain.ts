@@ -7,6 +7,7 @@
  * el cuarto ocupa x ∈ [0, widthM], z ∈ [0, depthM].
  */
 import { z } from 'zod';
+import { CustomFinishIdSchema, FinishSpecSchema, HexColorSchema } from './finish-spec.js';
 
 const finite = z.number().finite();
 const positiveMeters = finite.positive().max(100);
@@ -55,6 +56,37 @@ export const ROOM_SHAPES = ['rect', 'L', 'T', 'U', 'free'] as const;
 export const RoomShapeSchema = z.enum(ROOM_SHAPES);
 export type RoomShape = z.infer<typeof RoomShapeSchema>;
 
+export const Point2Schema = z.object({ x: finite, z: finite });
+
+/**
+ * Zona dentro del cuarto: un baño privado, un vestidor o el rincón del tocador. Su planta es un
+ * polígono dentro del cuarto; los lados que no caen sobre una pared del cuarto son tabiques nuevos
+ * (salvo en una zona `open`, que solo delimita el área para distribuir y pintar).
+ */
+export const ZONE_KINDS = ['bathroom', 'closet', 'vanity', 'office-nook'] as const;
+export const ZoneKindSchema = z.enum(ZONE_KINDS);
+export type ZoneKind = z.infer<typeof ZoneKindSchema>;
+
+export const ZoneDoorSchema = z.object({
+  /** Lado del contorno (de `outline[edge]` a `outline[edge + 1]`) donde va la puerta: debe ser un tabique. */
+  edge: z.number().int().min(0).max(15),
+  /** Distancia desde el inicio del lado hasta el centro de la puerta. */
+  offsetM: finite.min(0).max(100),
+  widthM: finite.min(0.5).max(2),
+});
+export type ZoneDoor = z.infer<typeof ZoneDoorSchema>;
+
+export const ZoneSchema = z.object({
+  id: z.string().min(1).max(64),
+  kind: ZoneKindSchema,
+  name: z.string().trim().min(1).max(60).optional(),
+  outline: z.array(Point2Schema).min(3).max(16),
+  open: z.boolean().default(false),
+  door: ZoneDoorSchema.optional(),
+});
+export type Zone = z.infer<typeof ZoneSchema>;
+export type ZoneInput = z.input<typeof ZoneSchema>;
+
 export const RoomShellSchema = z.object({
   id: z.string().min(1).max(64),
   /** Caja que envuelve al cuarto; la planta real son las paredes, en orden y cerrando. */
@@ -66,6 +98,8 @@ export const RoomShellSchema = z.object({
   openings: z.array(OpeningSchema).max(64),
   scaleConfidence: finite.min(0).max(1),
   needsCalibration: z.boolean(),
+  /** Zonas interiores (baño privado...). Sin valor = el cuarto es un solo espacio. */
+  zones: z.array(ZoneSchema).max(4).optional(),
 });
 export type RoomShell = z.infer<typeof RoomShellSchema>;
 
@@ -213,13 +247,97 @@ export const FurniturePlacementSchema = z.object({
 });
 export type FurniturePlacement = z.infer<typeof FurniturePlacementSchema>;
 
-/** Acabados del cuarto: material del piso, de cada pared (o 'all') y del techo. */
+/** Revestimiento de pared desde el piso (baldosa de baño, salpicadero de cocina, zócalo alto). */
+export const WallTilesSchema = z.object({
+  material: MaterialIdSchema,
+  heightM: finite.min(0.1).max(10),
+  /** Paredes revestidas; sin valor = todas. */
+  walls: z.array(z.string().min(1).max(64)).max(64).optional(),
+});
+export type WallTiles = z.infer<typeof WallTilesSchema>;
+
+/** Ambiente de luz que se guarda con el diseño (la hora del día sigue siendo solo de la vista). */
+export const LIGHT_MOODS = ['calida', 'neutra', 'fria'] as const;
+export const LIGHT_LEVELS = ['tenue', 'media', 'alta'] as const;
+export const LightingSchema = z.object({
+  mood: z.enum(LIGHT_MOODS),
+  level: z.enum(LIGHT_LEVELS),
+});
+export type Lighting = z.infer<typeof LightingSchema>;
+
+/** Acabados de una zona interior: su piso y, opcionalmente, pared y revestimiento propios. */
+export const ZoneFinishesSchema = z.object({
+  floor: MaterialIdSchema,
+  walls: MaterialIdSchema.optional(),
+  wallTiles: WallTilesSchema.omit({ walls: true }).optional(),
+});
+export type ZoneFinishes = z.infer<typeof ZoneFinishesSchema>;
+
+/**
+ * Acabados del cuarto: material del piso, de cada pared (o 'all') y del techo. Los ids pueden ser
+ * de la biblioteca o `custom-…`, definidos en `custom` (acabados descritos por la persona).
+ */
 export const RoomFinishesSchema = z.object({
   floor: MaterialIdSchema,
   walls: z.record(z.string().min(1).max(64), MaterialIdSchema),
   ceiling: MaterialIdSchema,
+  custom: z.record(CustomFinishIdSchema, FinishSpecSchema).optional(),
+  wallTiles: WallTilesSchema.optional(),
+  zones: z.record(z.string().min(1).max(64), ZoneFinishesSchema).optional(),
+  lighting: LightingSchema.optional(),
 });
 export type RoomFinishes = z.infer<typeof RoomFinishesSchema>;
+export type RoomFinishesInput = z.input<typeof RoomFinishesSchema>;
+
+/**
+ * Brief de diseño: lo que la persona pidió y quiere conservar. "Recomendar" y el chat lo respetan:
+ * lo `locked` no cambia entre propuestas; lo demás es una preferencia que orienta.
+ */
+export const FinishPinSchema = z
+  .object({
+    material: MaterialIdSchema.optional(),
+    spec: FinishSpecSchema.optional(),
+    locked: z.boolean().default(true),
+  })
+  .refine((p) => Boolean(p.material) !== Boolean(p.spec), 'Un acabado fijado lleva material o descripción, no ambos');
+export type FinishPin = z.infer<typeof FinishPinSchema>;
+
+export const BriefItemSchema = z.object({
+  /** Subcategoría del catálogo: 'dressing-table', 'rug', 'floor-lamp'... */
+  subcategory: z.string().min(1).max(40),
+  zoneKind: ZoneKindSchema.optional(),
+  note: z.string().trim().max(120).optional(),
+});
+export type BriefItem = z.infer<typeof BriefItemSchema>;
+
+export const ZoneBriefSchema = z.object({
+  kind: ZoneKindSchema,
+  /** Preset de la zona: 'ducha-obra', 'banera-mampara', 'spa-marmol', 'industrial'... */
+  preset: z.string().min(1).max(40).optional(),
+  floor: FinishPinSchema.optional(),
+  wallTiles: FinishPinSchema.optional(),
+});
+export type ZoneBrief = z.infer<typeof ZoneBriefSchema>;
+
+export const DesignBriefSchema = z.object({
+  style: z.object({ id: StyleIdSchema, locked: z.boolean().default(true) }).optional(),
+  surfaces: z
+    .object({
+      floor: FinishPinSchema.optional(),
+      walls: FinishPinSchema.optional(),
+      ceiling: FinishPinSchema.optional(),
+      wallTiles: FinishPinSchema.optional(),
+    })
+    .default({}),
+  palette: z.object({ colors: z.array(HexColorSchema).min(1).max(5), locked: z.boolean().default(false) }).optional(),
+  lighting: LightingSchema.extend({ locked: z.boolean().default(true) }).optional(),
+  mustHave: z.array(BriefItemSchema).max(20).default([]),
+  /** Subcategorías que no quiere ver. */
+  avoid: z.array(z.string().min(1).max(40)).max(20).default([]),
+  zones: z.array(ZoneBriefSchema).max(4).default([]),
+});
+export type DesignBrief = z.infer<typeof DesignBriefSchema>;
+export type DesignBriefInput = z.input<typeof DesignBriefSchema>;
 
 export const StylePreviewStatusSchema = z.enum(['pending', 'ready', 'failed']);
 export const StylePreviewSchema = z.object({
@@ -284,6 +402,8 @@ export const DesignProjectSchema = z.object({
     .optional(),
   /** Tope de gasto que se puso la persona para este cuarto (null o ausente = sin tope). */
   budgetCap: z.number().positive().nullable().optional(),
+  /** Lo que pidió y quiere conservar (null o ausente = nada fijado). */
+  brief: DesignBriefSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
