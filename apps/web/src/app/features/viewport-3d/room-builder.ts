@@ -19,6 +19,7 @@ import {
 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { cornerShade, edgeShade } from './scene/shade-textures';
+import type { SurfaceKind, SurfaceMaps } from './scene/texture-library';
 
 export const WALL_THICKNESS = 0.12;
 /** Ancho de la penumbra que el piso y el techo llevan junto a cada pared. */
@@ -46,6 +47,10 @@ export interface WallInfo {
   stubMaterial: THREE.MeshStandardMaterial;
   /** Si ahora mismo se dibuja en corte. */
   cut: boolean;
+  /** Revestimiento de la pared: se oculta con ella cuando va en corte. */
+  tiles: THREE.Group;
+  /** Pone (o quita, con null) el revestimiento desde el piso: baldosa de baño, salpicadero. */
+  setTiles(tiles: { heightM: number; material: THREE.Material } | null): void;
 }
 
 export interface BuiltRoom {
@@ -92,6 +97,25 @@ export function wallPieces(
   }
   if (cursor < length) pieces.push({ x0: cursor, x1: length, y0: 0, y1: height });
   return pieces.filter((p) => p.x1 - p.x0 > 0.001 && p.y1 - p.y0 > 0.001);
+}
+
+/**
+ * Coordenadas de textura en metros para una caja que vive dentro del grupo de una pared: la
+ * textura sigue de un tramo al siguiente (alrededor de puertas y ventanas) sin cortes ni saltos.
+ */
+export function metricBoxUVs(geometry: THREE.BufferGeometry, offset: THREE.Vector3): void {
+  const pos = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
+  const uv = geometry.getAttribute('uv');
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + offset.x;
+    const y = pos.getY(i) + offset.y;
+    const z = pos.getZ(i) + offset.z;
+    if (Math.abs(normal.getZ(i)) > 0.5) uv.setXY(i, x, y);
+    else if (Math.abs(normal.getX(i)) > 0.5) uv.setXY(i, z, y);
+    else uv.setXY(i, x, z);
+  }
+  uv.needsUpdate = true;
 }
 
 /** Plano horizontal con la forma de la planta, a la altura `y`, mirando hacia arriba o hacia abajo. */
@@ -210,7 +234,9 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     // Caras de una caja: +x, -x, +y (la tapa), -y, +z, -z.
     const stubFaces = [stubMaterial, stubMaterial, capMaterial, stubMaterial, stubMaterial, stubMaterial];
     const box = (w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Group = wallGroup) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      const geometry = new THREE.BoxGeometry(w, h, d);
+      metricBoxUVs(geometry, new THREE.Vector3(x, y, z));
+      const mesh = new THREE.Mesh(geometry, mat);
       mesh.position.set(x, y, z);
       parent.add(mesh);
       return mesh;
@@ -229,7 +255,9 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       if (piece.y0 === 0) {
-        const low = new THREE.Mesh(new THREE.BoxGeometry(w, CUT_HEIGHT, WALL_THICKNESS), stubFaces);
+        const lowGeometry = new THREE.BoxGeometry(w, CUT_HEIGHT, WALL_THICKNESS);
+        metricBoxUVs(lowGeometry, new THREE.Vector3(piece.x0 - extendStart + w / 2, CUT_HEIGHT / 2, inWall));
+        const low = new THREE.Mesh(lowGeometry, stubFaces);
         low.position.set(piece.x0 - extendStart + w / 2, CUT_HEIGHT / 2, inWall);
         low.receiveShadow = true;
         low.raycast = () => undefined;
@@ -261,6 +289,27 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
       }
     }
 
+    // Revestimiento: una lámina de 6 mm sobre la cara interior, con los mismos huecos que la pared.
+    const tilesGroup = new THREE.Group();
+    tilesGroup.name = `tiles-${wall.id}`;
+    trimGroup.add(tilesGroup);
+    const setTiles = (tiles: { heightM: number; material: THREE.Material } | null) => {
+      for (const child of [...tilesGroup.children]) {
+        tilesGroup.remove(child);
+        (child as THREE.Mesh).geometry.dispose();
+      }
+      if (!tiles) return;
+      const top = Math.min(tiles.heightM, shell.heightM);
+      const depth = 0.006;
+      for (const piece of wallPieces(length, top, openings)) {
+        const w = piece.x1 - piece.x0;
+        const h = piece.y1 - piece.y0;
+        const mesh = box(w, h, depth, tiles.material, piece.x0 + w / 2, piece.y0 + h / 2, inwardSign * (depth / 2 + 0.001), tilesGroup);
+        mesh.name = 'wall-tiles';
+        mesh.receiveShadow = true;
+      }
+    };
+
     group.add(wallGroup, trimGroup, stub);
     walls.push({
       wallId: wall.id,
@@ -271,43 +320,65 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
       stub,
       stubMaterial,
       cut: false,
+      tiles: tilesGroup,
+      setTiles,
     });
   });
 
   return { group, walls, floor, ceiling };
 }
 
-/**
- * Pinta el cuarto con sus acabados: material del piso, del techo y de cada pared (o el de 'all').
- * Cambia color y rugosidad de los materiales existentes: no reconstruye geometría.
- */
-/** Quien da la textura de un material de piso (la biblioteca de texturas; en las pruebas, nadie). */
-export interface FloorTextures {
-  floor(material: MaterialDefinition): THREE.Texture | null;
+/** Quien da las texturas de cada acabado (la biblioteca de texturas; en las pruebas, nadie). */
+export interface SurfaceTextures {
+  surface(material: MaterialDefinition, where: SurfaceKind): SurfaceMaps;
 }
 
-export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?: FloorTextures): void {
-  const paint = (mat: THREE.MeshStandardMaterial, id: string, floor = false) => {
+/** Material propio del revestimiento de cada cuarto (se crea al primer uso y se reutiliza). */
+const tilesMaterials = new WeakMap<BuiltRoom, THREE.MeshStandardMaterial>();
+
+/**
+ * Pinta el cuarto con sus acabados: material del piso, del techo y de cada pared (o el de 'all'),
+ * y el revestimiento de pared si lo hay. Cambia los materiales existentes: no reconstruye el cuarto.
+ */
+export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?: SurfaceTextures): void {
+  const paint = (mat: THREE.MeshStandardMaterial, id: string, where: SurfaceKind) => {
     const def = resolveFinishMaterial(finishes, id);
     if (!def) return;
-    mat.color.set(def.color);
-    mat.roughness = def.roughness;
+    const maps = textures?.surface(def, where);
+    if (maps?.tint) mat.color.copy(maps.tint);
+    else mat.color.set(def.color);
     mat.metalness = def.metalness;
-    // La textura multiplica el color: da el relieve (vetas, juntas) sin cambiar el tono. La misma
-    // sirve de relieve: las juntas quedan hundidas y el brillo del piso se rompe en ellas.
-    if (floor) {
-      mat.map = textures?.floor(def) ?? null;
-      mat.bumpMap = mat.map;
-      mat.bumpScale = 1.2;
-    }
+    mat.map = maps?.map ?? null;
+    mat.normalMap = maps?.normalMap ?? null;
+    mat.normalScale.setScalar(maps?.normalScale ?? 1);
+    mat.aoMap = maps?.armMap ?? null;
+    mat.aoMapIntensity = 0.8;
+    mat.roughnessMap = maps?.armMap ?? null;
+    // La rugosidad del mapa se multiplica por la del material: se compensa para que el brillo
+    // medio siga siendo el del material (el canal G de estas texturas ronda 0.7).
+    mat.roughness = maps?.armMap ? Math.min(1, def.roughness / 0.7) : def.roughness;
+    // Lo de canvas no trae normal: la propia textura sirve de relieve (juntas hundidas).
+    mat.bumpMap = maps?.bumpMap ?? null;
+    mat.bumpScale = 1.2;
     mat.needsUpdate = true;
   };
-  paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor, true);
-  paint(room.ceiling.material as THREE.MeshStandardMaterial, finishes.ceiling);
+  paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor, 'floor');
+  paint(room.ceiling.material as THREE.MeshStandardMaterial, finishes.ceiling, 'ceiling');
   for (const wall of room.walls) {
     const wallMat = wall.materials[0] as THREE.MeshStandardMaterial | undefined;
-    if (wallMat) paint(wallMat, wallMaterialId(finishes, { id: wall.wallId }));
-    paint(wall.stubMaterial, wallMaterialId(finishes, { id: wall.wallId }));
+    if (wallMat) paint(wallMat, wallMaterialId(finishes, { id: wall.wallId }), 'wall');
+    paint(wall.stubMaterial, wallMaterialId(finishes, { id: wall.wallId }), 'wall');
+  }
+  const tiles = finishes.wallTiles;
+  let tilesMat = tilesMaterials.get(room);
+  if (tiles && !tilesMat) {
+    tilesMat = new THREE.MeshStandardMaterial();
+    tilesMaterials.set(room, tilesMat);
+  }
+  if (tiles && tilesMat) paint(tilesMat, tiles.material, 'wall');
+  for (const wall of room.walls) {
+    const on = tiles && tilesMat && (!tiles.walls || tiles.walls.includes(wall.wallId));
+    wall.setTiles(on ? { heightM: tiles.heightM, material: tilesMat! } : null);
   }
 }
 

@@ -9,9 +9,17 @@ export class RoomView {
   private room: BuiltRoom | null = null;
   /** El recorte solo tiene sentido mirando desde fuera; al recorrer el cuarto las paredes van enteras. */
   private cutaway = true;
-  private readonly textures = new TextureLibrary();
+  private readonly textures: TextureLibrary;
+  private finishes: RoomFinishes | null = null;
 
-  constructor(private readonly ctx: SceneContext) {}
+  constructor(private readonly ctx: SceneContext) {
+    // Cuando llega el manifiesto o una imagen, se vuelve a pintar con lo que ya hay.
+    this.textures = new TextureLibrary(() => {
+      if (this.room && this.finishes) applyFinishes(this.room, this.finishes, this.textures);
+      this.ctx.invalidate();
+    });
+    void this.textures.load();
+  }
 
   get wallCount(): number {
     return this.room?.walls.length ?? 0;
@@ -31,6 +39,7 @@ export class RoomView {
   }
 
   applyFinishes(finishes: RoomFinishes): void {
+    this.finishes = finishes;
     if (!this.room) return;
     applyFinishes(this.room, finishes, this.textures);
     this.ctx.invalidate();
@@ -66,6 +75,7 @@ export class RoomView {
       if (wall.cut === cut) continue;
       wall.cut = cut;
       wall.stub.visible = cut;
+      wall.tiles.visible = !cut;
       for (const m of wall.materials) {
         m.colorWrite = !cut;
         m.depthWrite = !cut && m.userData['baseDepthWrite'] !== false;

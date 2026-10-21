@@ -1,7 +1,7 @@
-import { buildRoomShape, createRectangularShell, getMaterial } from '@interiores/shared-types';
+import { buildRoomShape, createRectangularShell, DEFAULT_FINISHES, getMaterial } from '@interiores/shared-types';
 import * as THREE from 'three';
-import { applyFinishes, buildRoom, disposeObject, wallPieces } from './room-builder';
-import { floorTextureSpec } from './scene/texture-library';
+import { applyFinishes, buildRoom, disposeObject, metricBoxUVs, wallPieces } from './room-builder';
+import { floorTextureSpec, tintFor } from './scene/texture-library';
 
 describe('wallPieces', () => {
   it('pared sin aberturas = un solo tramo', () => {
@@ -69,7 +69,7 @@ describe('buildRoom', () => {
     const room = buildRoom(createRectangularShell(4, 3, 2.5, { window: false }));
     expect(room.group.getObjectByName('door-leaf')).toBeDefined();
     expect(room.group.getObjectByName('door-handle')).toBeDefined();
-    const baseboards = (id: string) => room.group.getObjectByName(`trim-${id}`)!.children.length;
+    const baseboards = (id: string) => room.group.getObjectByName(`trim-${id}`)!.children.filter((c) => c.name === 'baseboard').length;
     expect(baseboards('w-back')).toBe(1);
     expect(baseboards('w-front')).toBe(2); // a cada lado de la puerta
   });
@@ -140,15 +140,55 @@ describe('texturas del piso', () => {
     const room = buildRoom(createRectangularShell(4, 3, 2.6));
     const texture = new THREE.Texture();
     const asked: string[] = [];
-    const textures = { floor: (m: { id: string; kind: string }) => (asked.push(m.id), m.kind === 'wood' ? texture : null) };
+    const none = { map: null, normalMap: null, normalScale: 1, armMap: null, bumpMap: null, tint: null };
+    const textures = {
+      surface: (m: { id: string; kind: string }, where: string) => (asked.push(`${where}:${m.id}`), m.kind === 'wood' ? { ...none, map: texture, bumpMap: texture } : none),
+    };
     applyFinishes(room, { floor: 'wood-oak', walls: { all: 'paint-white' }, ceiling: 'paint-white' }, textures);
     const floor = room.floor.material as THREE.MeshStandardMaterial;
     expect(floor.map).toBe(texture);
-    expect(asked).toEqual(['wood-oak']);
+    expect(asked).toContain('floor:wood-oak');
+    expect(asked).toContain('wall:paint-white');
     applyFinishes(room, { floor: 'stone-microcement', walls: { all: 'paint-white' }, ceiling: 'paint-white' }, textures);
     expect(floor.map).toBeNull();
     // Sin biblioteca de texturas (pruebas, entornos sin canvas) todo sigue funcionando liso.
     applyFinishes(room, { floor: 'wood-oak', walls: { all: 'paint-white' }, ceiling: 'paint-white' });
     expect(floor.map).toBeNull();
+  });
+
+  it('una textura PBR lleva normal, oclusión y rugosidad, y se tiñe al color del material', () => {
+    const room = buildRoom(createRectangularShell(4, 3, 2.6));
+    const [albedo, normal, arm] = [new THREE.Texture(), new THREE.Texture(), new THREE.Texture()];
+    const tint = tintFor('#c8a97e', '#a08060');
+    applyFinishes(room, DEFAULT_FINISHES, { surface: () => ({ map: albedo, normalMap: normal, normalScale: 1, armMap: arm, bumpMap: null, tint }) });
+    const floor = room.floor.material as THREE.MeshStandardMaterial;
+    expect([floor.map, floor.normalMap, floor.aoMap, floor.roughnessMap]).toEqual([albedo, normal, arm, arm]);
+    expect(floor.color.equals(tint)).toBe(true);
+    // Un tinte que lleva el color medio de la textura al del material.
+    const avg = new THREE.Color('#a08060');
+    const mixed = new THREE.Color(avg.r * tint.r, avg.g * tint.g, avg.b * tint.b);
+    expect(`#${mixed.getHexString()}`).toBe('#c8a97e');
+  });
+
+  it('el revestimiento de pared sigue los huecos y se quita al volver a pintura', () => {
+    const shell = createRectangularShell(4, 3, 2.6);
+    const room = buildRoom({ ...shell, openings: [{ id: 'd', type: 'door', wallId: shell.walls[0]!.id, widthM: 0.9, heightM: 2.1, offsetM: 2, sillHeightM: 0 }] });
+    const tiles = (r: typeof room) => r.walls.flatMap((w) => w.tiles.children);
+    applyFinishes(room, { ...DEFAULT_FINISHES, wallTiles: { material: 'ceramic-subway-white', heightM: 1.2 } });
+    // 4 paredes; la de la puerta queda en dos tramos a los lados del hueco.
+    expect(tiles(room)).toHaveLength(5);
+    applyFinishes(room, { ...DEFAULT_FINISHES, wallTiles: { material: 'ceramic-subway-white', heightM: 1.2, walls: [shell.walls[1]!.id] } });
+    expect(tiles(room)).toHaveLength(1);
+    applyFinishes(room, DEFAULT_FINISHES);
+    expect(tiles(room)).toHaveLength(0);
+  });
+
+  it('las paredes llevan coordenadas de textura en metros, continuas entre tramos', () => {
+    const geometry = new THREE.BoxGeometry(2, 1, 0.1);
+    metricBoxUVs(geometry, new THREE.Vector3(3, 0.5, 0));
+    const uv = geometry.getAttribute('uv');
+    const us = Array.from({ length: uv.count }, (_, i) => uv.getX(i));
+    expect(Math.min(...us)).toBeCloseTo(-0.05);
+    expect(Math.max(...us)).toBeCloseTo(4);
   });
 });
