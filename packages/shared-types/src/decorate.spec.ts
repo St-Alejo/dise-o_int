@@ -168,3 +168,55 @@ describe('decorate', () => {
     expect(decorate({ shell, roomType: 'living', styleId: null, placements: [against(shell, freeWall, 'sofa')], items: floorOnly })).toEqual([]);
   });
 });
+
+describe('decorate: baño y tocador', () => {
+  const room = noWindows(createRectangularShell(4, 3, 2.6));
+  const wallId = room.walls[0]!.id;
+  const frame = wallFrames(room)[0]!;
+  const EXTRA: DecorItem[] = [
+    ...CATALOG,
+    item('suspendido', 'bathroom', 'vanity', [0.8, 0.62, 0.46], 'wall', { elevationDefaultM: 0.38 }),
+    item('ducha', 'bathroom', 'shower', [0.9, 2, 0.9]),
+    item('toallero', 'bathroom', 'towel-rail', [0.6, 0.5, 0.1], 'wall', { elevationDefaultM: 0.95 }),
+    item('alfombrilla', 'decor', 'rug', [0.8, 0.015, 0.5], 'floor', { roomTypes: ['bathroom'] }),
+    item('tocador', 'table', 'dressing-table', [1, 1.45, 0.45]),
+    item('banqueta', 'chair', 'vanity-stool', [0.45, 0.45, 0.35]),
+  ];
+  const ids = new Map(EXTRA.map((i) => [i.id, i]));
+  const sub = (p: FurniturePlacement) => ids.get(p.catalogItemId)!.subcategory;
+
+  it('espejo sobre el lavabo suspendido, alfombrilla delante y toallero junto a la ducha', () => {
+    const hung: FurniturePlacement = {
+      id: 'lav',
+      catalogItemId: 'suspendido',
+      position: positionOnWall(frame, 1, 0.38, 0.46),
+      rotationY: frame.rotationY,
+      lockedByUser: false,
+      wallId,
+      elevationM: 0.38,
+    };
+    const shower: FurniturePlacement = { ...against(room, wallId, 'lavamanos', 0.75, 'ducha'), catalogItemId: 'ducha', position: positionOnWall(frame, 3, 0, 0.94) };
+    const added = decorate({ shell: room, roomType: 'bathroom', styleId: null, placements: [hung, shower], items: EXTRA });
+    const mirror = added.find((p) => sub(p) === 'mirror')!;
+    expect(mirror.elevationM).toBeCloseTo(0.38 + 0.62 + 0.2);
+    const mat = added.find((p) => sub(p) === 'rug')!;
+    // La alfombrilla queda delante del lavabo, en el piso y sin pisar la pared.
+    expect(mat.position.y).toBe(0);
+    expect(alongOf(frame, mat.position)).toBeCloseTo(1, 2);
+    const rail = added.find((p) => sub(p) === 'towel-rail')!;
+    expect(Math.abs(alongOf(frame, rail.position) - 3)).toBeCloseTo(0.45 + 0.3 + 0.15, 2);
+    for (const a of added) {
+      for (const b of [hung, shower, ...added]) {
+        if (a !== b) expect(bodiesCollide(bodyOf(a, ids.get(a.catalogItemId)!), bodyOf(b, ids.get(b.catalogItemId)!))).toBe(false);
+      }
+    }
+  });
+
+  it('el tocador lleva su banqueta delante', () => {
+    const table = { ...against(room, wallId, 'lavamanos', 0.5, 'toc'), catalogItemId: 'tocador', position: positionOnWall(frame, 2, 0, 0.49) };
+    const added = decorate({ shell: room, roomType: 'bedroom', styleId: null, placements: [table], items: EXTRA });
+    const stool = added.find((p) => sub(p) === 'vanity-stool')!;
+    expect(alongOf(frame, stool.position)).toBeCloseTo(2, 2);
+    expect(stool.rotationY).toBe(table.rotationY);
+  });
+});

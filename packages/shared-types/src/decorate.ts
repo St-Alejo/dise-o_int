@@ -8,7 +8,7 @@
  */
 import { bodyOf, firstCollision, type Body } from './collision.js';
 import type { FurniturePlacement, Mount, ResizeRanges, RoomShell, RoomType, StyleId, Vector3 } from './domain.js';
-import { clampDimensions, defaultResizeRanges, effectiveDimensions, footprint, footprintsOverlap, rotateXZ } from './geometry.js';
+import { clampDimensions, defaultResizeRanges, effectiveDimensions, footprint, footprintsOverlap, isInsideRoom, rotateXZ } from './geometry.js';
 import { alongOf, distanceFromWall, overlapsOpening, positionOnWall, wallFrames, type WallFrame } from './walls.js';
 
 /** Lo que la decoración necesita saber de un mueble del catálogo. */
@@ -141,6 +141,15 @@ export function decorate(input: DecorateInput): FurniturePlacement[] {
     return firstCollision(bodyOf(placement, item), bodies) ? null : register(placement, item);
   };
 
+  /** Pone `item` en el piso, delante de `anchor` (su +Z) y mirando igual; null si choca con algo. */
+  const inFront = (item: DecorItem, anchor: Entry, gap: number): FurniturePlacement | null => {
+    const offset = rotateXZ(0, anchor.dims.z / 2 + item.dimensionsM.z / 2 + gap, anchor.p.rotationY);
+    const position = { x: anchor.p.position.x + offset.x, y: 0, z: anchor.p.position.z + offset.z };
+    const placement: FurniturePlacement = { id: nextId(), catalogItemId: item.id, position, rotationY: anchor.p.rotationY, lockedByUser: false, origin: 'layout' };
+    if (!isInsideRoom(footprint(position, item.dimensionsM, anchor.p.rotationY), shell) || firstCollision(bodyOf(placement, item), bodies)) return null;
+    return register(placement, item);
+  };
+
   /** Pared contra la que está un mueble de piso y dónde queda su centro a lo largo de ella. */
   const wallBehind = (e: Entry): { wall: WallFrame; along: number } | null => {
     const corners = footprint(e.p.position, e.dims, e.p.rotationY).corners;
@@ -213,12 +222,35 @@ export function decorate(input: DecorateInput): FurniturePlacement[] {
     }
   }
 
-  // 4. El espejo del baño, sobre el lavamanos.
-  const vanity = scene.find((e) => subOf(e) === 'vanity' && onFloor(e));
+  // 4. El espejo del baño, sobre el lavamanos (de pie o suspendido), y una alfombrilla delante.
+  const vanity = scene.find((e) => subOf(e) === 'vanity' && (onFloor(e) || e.item.mount === 'wall'));
   if (vanity && !present('mirror')) {
     const at = wallBehind(vanity);
+    const top = (vanity.item.mount === 'wall' ? (vanity.p.elevationM ?? 0) : 0) + vanity.dims.y;
     const mirror = pick('mirror', 'wall', (i) => i.dimensionsM.y <= 1 && i.dimensionsM.x <= vanity.dims.x + 0.2);
-    if (at && mirror) hang(mirror, at.wall, at.along, vanity.dims.y + 0.2);
+    if (at && mirror) hang(mirror, at.wall, at.along, top + 0.2);
+  }
+  if (vanity && roomType === 'bathroom' && !present('rug')) {
+    const mat = pick('rug', 'floor', (i) => i.dimensionsM.x <= Math.max(1, vanity.dims.x + 0.2));
+    if (mat) inFront(mat, vanity, 0.06);
+  }
+
+  // 4b. Toallero junto a la ducha o la bañera, a un lado o al otro según haya sitio.
+  const wet = scene.find((e) => ['shower', 'bathtub'].includes(subOf(e)) && onFloor(e));
+  if (wet && !present('towel-rail')) {
+    const at = wallBehind(wet);
+    const rail = pick('towel-rail', 'wall');
+    if (at && rail) {
+      const offset = wet.dims.x / 2 + rail.dimensionsM.x / 2 + 0.15;
+      if (!hang(rail, at.wall, at.along + offset, rail.elevationDefaultM ?? 0.95)) hang(rail, at.wall, at.along - offset, rail.elevationDefaultM ?? 0.95);
+    }
+  }
+
+  // 4c. El tocador lleva su banqueta delante.
+  const dressing = scene.find((e) => subOf(e) === 'dressing-table' && onFloor(e));
+  if (dressing && !present('vanity-stool')) {
+    const stool = pick('vanity-stool', 'floor');
+    if (stool) inFront(stool, dressing, 0.04);
   }
 
   // 5. Un cuadro sobre la pieza principal (cama, sofá, aparador) y una repisa sobre el escritorio.

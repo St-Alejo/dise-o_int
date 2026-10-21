@@ -182,13 +182,15 @@ describe('medidas de un cuarto de forma libre', () => {
 
 describe('acabados a partir de los colores de la foto', () => {
   it('elige la pintura y el piso de la biblioteca más parecidos', () => {
-    // Los colores que el modelo de visión vio en las fotos de prueba (docs/pruebas-vision).
-    expect(nearestMaterial('wall', '#4a6fa5').id).toBe('paint-steel-blue');
-    expect(nearestMaterial('wall', '#f0f0f0').id).toBe('paint-white');
-    expect(nearestMaterial('wall', '#3d1c1c').id).toBe('paint-wine');
-    expect(nearestMaterial('wall', '#d3d3d3').id).toBe('paint-pearl');
+    // Los colores que el modelo de visión vio en las fotos de prueba (docs/pruebas-vision). La pared
+    // de la foto se pinta: las baldosas de pared también valen para 'wall', pero no se eligen aquí.
+    const PAINT = ['paint'] as const;
+    expect(nearestMaterial('wall', '#4a6fa5', PAINT).id).toBe('paint-steel-blue');
+    expect(nearestMaterial('wall', '#f0f0f0', PAINT).id).toBe('paint-white');
+    expect(nearestMaterial('wall', '#3d1c1c', PAINT).id).toBe('paint-wine');
+    expect(nearestMaterial('wall', '#d3d3d3', PAINT).id).toBe('paint-pearl');
     // El tono manda sobre la luminosidad: un azul oscuro es marino, no gris carbón.
-    expect(nearestMaterial('wall', '#26364f').id).toBe('paint-navy');
+    expect(nearestMaterial('wall', '#26364f', PAINT).id).toBe('paint-navy');
     // El tipo de piso acota la búsqueda: un gris claro en baldosa no acaba siendo madera.
     expect(nearestMaterial('floor', '#e8dcc8', ['wood']).id).toBe('wood-ash-white');
     expect(nearestMaterial('floor', '#e8dcc8', ['ceramic', 'stone']).kind).not.toBe('wood');
