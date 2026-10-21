@@ -9,7 +9,7 @@
  * - Si alguna orden no la entiende con confianza (o faltan parámetros), no hace nada y lanza
  *   AgentDeclinedError: responde el siguiente de la cascada (Groq), con la escena intacta.
  */
-import type { DesignToolbox, FinishSpecInput, NluParseResponse, NluSlots, ToolOutcome } from '@interiores/shared-types';
+import { colorDistance, nearestMaterial, type DesignToolbox, type FinishSpecInput, type NluParseResponse, type NluSlots, type ToolOutcome } from '@interiores/shared-types';
 import type { IAiClient } from '../../ports/index.js';
 import { AgentDeclinedError, type DesignAgent, type DesignAgentInput, type DesignAgentResult } from './design-agent.js';
 import { RuleSession, splitClauses } from './rule-based.agent.js';
@@ -34,6 +34,10 @@ const KIND_LABEL: Record<SpecKind, string> = {
 /** Lo que va bien en cada superficie cuando la persona solo dice colores ("piso azul"). */
 const DEFAULT_KIND: Record<Surface, SpecKind> = { floor: 'tile', walls: 'paint', ceiling: 'paint', wallTiles: 'tile' };
 const FURNITURE_INTENTS = new Set(['add_item', 'remove_item', 'move_item', 'room_size']);
+/** ΔE por debajo del cual un color pedido "es" la pintura de la biblioteca (verde salvia = Verde salvia). */
+const SAME_PAINT_DELTA_E = 15;
+/** "paredes verdes y el piso de nogal": dos órdenes aunque la segunda no empiece con verbo. */
+const SURFACE_SPLIT = /\s+y\s+(?=(?:(?:el|la|los|las)\s+)?(?:piso|suelo|paredes?|techo|luz|iluminacion|revestimiento)\b)/;
 
 export class LocalNluDesignAgent implements DesignAgent {
   readonly kind = 'local' as const;
@@ -45,7 +49,7 @@ export class LocalNluDesignAgent implements DesignAgent {
   ) {}
 
   async run({ message, toolbox, context, signal }: DesignAgentInput): Promise<DesignAgentResult> {
-    const clauses = splitClauses(message, { commas: false });
+    const clauses = splitClauses(message, { commas: false }).flatMap((c) => c.text.split(SURFACE_SPLIT).map((text) => ({ text: text.trim() })));
     if (clauses.length === 0) throw new AgentDeclinedError('Mensaje vacío');
     let parsed: NluParseResponse[];
     try {
@@ -90,7 +94,8 @@ export class LocalNluDesignAgent implements DesignAgent {
         if (!s.style) return null;
         return [tb.run('pin', { target: 'style', styleId: s.style }), tb.run('recommend', { intensity: 'total' })];
       case 'recommend':
-        return [tb.run('recommend', { intensity: s.intensity ?? 'total' })];
+        // "Recomiéndame algo bohemio": ese estilo queda fijado para la propuesta.
+        return [...(s.style ? [tb.run('pin', { target: 'style', styleId: s.style })] : []), tb.run('recommend', { intensity: s.intensity ?? 'total' })];
       case 'pin': {
         const target = s.pinTarget;
         if (!target || target === 'palette') return null;
@@ -125,6 +130,14 @@ export class LocalNluDesignAgent implements DesignAgent {
       return out.ok ? [out, tb.run('pin', { target: surface })] : [out];
     }
     const kind = s.finishKind ?? DEFAULT_KIND[surface];
+    // Una pintura lisa de un color que ya está en la biblioteca: mejor esa (tiene nombre y textura).
+    if (kind === 'paint' && colors.length === 1 && !s.pattern && s.gloss === undefined && surface !== 'floor' && surface !== 'wallTiles') {
+      const paint = nearestMaterial(surface === 'walls' ? 'wall' : 'ceiling', colors[0]!, ['paint']);
+      if (colorDistance(paint.color, colors[0]!) < SAME_PAINT_DELTA_E) {
+        const out = tb.run('set_finishes', { [surface]: paint.id });
+        return out.ok ? [out, tb.run('pin', { target: surface })] : [out];
+      }
+    }
     const gloss = s.gloss ?? (kind === 'tile' ? 0.5 : undefined);
     const spec: FinishSpecInput = {
       name: specName(kind, gloss, s.colors.map((c) => c.name)),

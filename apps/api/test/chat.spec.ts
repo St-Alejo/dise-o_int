@@ -401,6 +401,18 @@ describe('LocalNluDesignAgent (modelo propio)', () => {
     await expect(run(ai, 'quita la alfombra')).rejects.toBeInstanceOf(AgentDeclinedError);
   });
 
+  it('frase compuesta de acabados: dos órdenes; un color de la biblioteca usa esa pintura', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('paredes', nluHit('set_walls', { surface: 'walls', colors: [{ name: 'verde salvia', hex: '#9caf88' }] }));
+    ai.nlu.set('piso', nluHit('set_floor', { surface: 'floor', finishKind: 'wood', base: 'wood-walnut' }));
+    const tb = toolbox();
+    await run(ai, 'pinta las paredes de verde salvia y el piso de nogal', tb);
+    expect(ai.calls.filter((c) => c.startsWith('nlu:'))).toEqual(['nlu:pinta las paredes de verde salvia', 'nlu:el piso de nogal']);
+    const fin = tb.operations().find((o) => o.op === 'finishes');
+    expect(fin).toMatchObject({ finishes: { floor: 'wood-walnut', walls: { all: 'paint-sage' } } });
+    expect(fin?.op === 'finishes' && fin.finishes.custom).toBeFalsy();
+  });
+
   it('nombre del acabado', () => {
     expect(specName('tile', 0.85, ['azul claro', 'verde'])).toBe('Baldosa brillante azul claro y verde');
     expect(specName('wood', 0.1, ['roble'])).toBe('Madera mate roble');

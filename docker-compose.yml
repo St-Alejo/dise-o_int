@@ -37,6 +37,8 @@ x-api-env: &api-env
   # Chat: primero el modelo propio; si no está seguro, Groq (texto) con la misma cuota.
   GROQ_API_KEY: ${GROQ_API_KEY:-}
   GROQ_CHAT_MODEL: ${GROQ_CHAT_MODEL:-llama-3.3-70b-versatile}
+  # off = solo modelo propio y reglas (las pruebas E2E lo usan: respuestas deterministas).
+  CHAT_LLM: ${CHAT_LLM:-groq}
   RETENTION_HOURS: ${RETENTION_HOURS:-24}
   THROTTLE_LIMIT_PER_MIN: ${THROTTLE_LIMIT_PER_MIN:-240}
   RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-1}

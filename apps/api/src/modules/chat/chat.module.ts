@@ -23,8 +23,8 @@ import { RuleBasedDesignAgent } from './rule-based.agent.js';
       inject: [APP_CONFIG, AI_CLIENT],
       useFactory: (c: AppConfig, ai: IAiClient): ChatAgents => ({
         local: new LocalNluDesignAgent(ai, { minConfidence: c.NLU_MIN_CONFIDENCE }),
-        groq: new GroqDesignAgent({ apiKey: c.GROQ_API_KEY, model: c.GROQ_CHAT_MODEL, maxToolTurns: Math.min(c.CHAT_MAX_TOOL_TURNS, 6) }),
-        claude: new ClaudeDesignAgent({ apiKey: c.ANTHROPIC_API_KEY, model: c.CHAT_MODEL, maxToolTurns: c.CHAT_MAX_TOOL_TURNS }),
+        groq: new GroqDesignAgent({ apiKey: c.CHAT_LLM === 'off' ? undefined : c.GROQ_API_KEY, model: c.GROQ_CHAT_MODEL, maxToolTurns: Math.min(c.CHAT_MAX_TOOL_TURNS, 6) }),
+        claude: new ClaudeDesignAgent({ apiKey: c.CHAT_LLM === 'off' ? undefined : c.ANTHROPIC_API_KEY, model: c.CHAT_MODEL, maxToolTurns: c.CHAT_MAX_TOOL_TURNS }),
         rules: new RuleBasedDesignAgent(),
       }),
     },

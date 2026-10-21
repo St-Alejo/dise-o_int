@@ -171,7 +171,7 @@ function labOf(hex: string): [number, number, number] {
  * Diferencia de color percibida (ΔE en Lab). En RGB, un azul medio queda "más cerca" de un gris
  * oscuro que de un azul marino; en Lab el tono pesa como debe.
  */
-function colorDistance(a: string, b: string): number {
+export function colorDistance(a: string, b: string): number {
   const [l1, a1, b1] = labOf(a);
   const [l2, a2, b2] = labOf(b);
   return Math.hypot(l1 - l2, a1 - a2, b1 - b2);

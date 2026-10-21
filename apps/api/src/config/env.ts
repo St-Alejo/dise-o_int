@@ -57,6 +57,8 @@ export const EnvSchema = z
     /** Groq: segundo paso del chat (si el modelo local no está seguro). Sin clave, se salta. */
     GROQ_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
     GROQ_CHAT_MODEL: z.string().min(1).default('llama-3.3-70b-versatile'),
+    /** off = el chat solo usa el modelo propio y las reglas (deterministas: pruebas E2E). */
+    CHAT_LLM: z.enum(['groq', 'off']).default('groq'),
     /** Confianza mínima del modelo local para actuar sin LLM. */
     NLU_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.75),
     THROTTLE_LIMIT_PER_MIN: z.coerce.number().int().min(10).default(240),

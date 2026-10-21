@@ -31,7 +31,3 @@ export class AgentUnavailableError extends Error {}
 /** El agente no está seguro de haber entendido (el modelo local): responde el siguiente, sin aviso. */
 export class AgentDeclinedError extends Error {}
 
-export const LOCAL_AGENT = Symbol('LocalNluDesignAgent');
-export const GROQ_AGENT = Symbol('GroqDesignAgent');
-export const CLAUDE_AGENT = Symbol('ClaudeDesignAgent');
-export const RULES_AGENT = Symbol('RuleBasedDesignAgent');

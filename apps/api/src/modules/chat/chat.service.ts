@@ -163,11 +163,11 @@ export function applyReference(tb: DesignToolbox, ref: AnalyzeReferenceResponse)
   if (ref.floor) {
     const out = tb.run('set_finish_spec', {
       surface: 'floor',
-      spec: { name: `Piso de ${SURFACE_LABEL[ref.floor.kind]} de la referencia`, kind: ref.floor.kind, colors: ref.floor.colors, pattern: ref.floor.pattern, gloss: ref.floor.gloss },
+      spec: { name: `${capitalize(SURFACE_LABEL[ref.floor.kind])} de la foto`, kind: ref.floor.kind, colors: ref.floor.colors, pattern: ref.floor.pattern, gloss: ref.floor.gloss },
     });
     if (out.ok) said.push(`piso de ${SURFACE_LABEL[ref.floor.kind]}`);
   }
-  if (ref.wallColor && tb.run('set_finish_spec', { surface: 'walls', spec: { name: 'Paredes de la referencia', kind: 'paint', colors: [ref.wallColor], pattern: 'plain', gloss: 0.1 } }).ok) {
+  if (ref.wallColor && tb.run('set_finish_spec', { surface: 'walls', spec: { name: 'Pintura de la foto', kind: 'paint', colors: [ref.wallColor], pattern: 'plain', gloss: 0.1 } }).ok) {
     said.push('color de paredes');
   }
   if (ref.style && tb.run('pin', { target: 'style', styleId: ref.style }).ok) said.push(`estilo ${STYLES[ref.style].label.toLowerCase()}`);
@@ -176,4 +176,8 @@ export function applyReference(tb: DesignToolbox, ref: AnalyzeReferenceResponse)
   }
   tb.run('recommend', { intensity: 'total' });
   return said.length ? said : ['su paleta'];
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
