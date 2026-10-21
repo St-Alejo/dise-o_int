@@ -286,7 +286,9 @@ export class PipelineService {
   ): Promise<FurniturePlacement[]> {
     // Con inventario de la foto pueden hacer falta piezas de otro tipo de cuarto (el comedor de
     // una sala abierta), así que se ofrece el catálogo entero; sin él, solo lo propio del cuarto.
-    const catalog = await this.catalog.search(inventory.length ? {} : { roomType: project.roomType });
+    // Lo mismo si hay zonas interiores: el baño privado de un dormitorio necesita piezas de baño.
+    const wholeCatalog = inventory.length > 0 || (shell.zones?.length ?? 0) > 0;
+    const catalog = await this.catalog.search(wholeCatalog ? {} : { roomType: project.roomType });
     const candidates: LayoutCandidate[] = catalog.map((c) => ({
       id: c.id,
       category: c.category,
@@ -296,12 +298,23 @@ export class PipelineService {
       mount: c.mount,
       ...(c.price !== null ? { price: c.price } : {}),
     }));
+    // Lo que la persona pidió para el espacio común (lo de una zona lo pone la plantilla de la zona).
+    const mustHave = [...new Set((project.brief?.mustHave ?? []).filter((m) => !m.zoneKind).map((m) => m.subcategory))];
     if (candidates.length === 0) {
       this.logger.warn({ projectId: project.id }, 'Catálogo vacío: la escena queda sin muebles (¿se ejecutó el seed?)');
       return locked;
     }
     const res = await this.ai.placeFurniture(
-      { roomShell: shell, roomType: project.roomType, styleId, candidates, locked, ...(inventory.length ? { inventory } : {}), ...(seed !== undefined ? { seed } : {}) },
+      {
+        roomShell: shell,
+        roomType: project.roomType,
+        styleId,
+        candidates,
+        locked,
+        ...(inventory.length ? { inventory } : {}),
+        ...(seed !== undefined ? { seed } : {}),
+        ...(mustHave.length ? { mustHave } : {}),
+      },
       this.aiCtx(ctx),
     );
     const lockedIds = new Set(locked.map((p) => p.id));

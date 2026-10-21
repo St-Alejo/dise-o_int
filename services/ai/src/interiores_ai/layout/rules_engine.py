@@ -32,9 +32,18 @@ from ..contracts import (
     Vector3,
     WallSegment,
 )
-from .geometry import Footprint, angle_facing, forward, normalize_angle, overlaps, right
+from .geometry import Footprint, Point, angle_facing, forward, normalize_angle, overlaps, right
 from .polygon import RoomGeometry
 from .scoring import layout_quality
+from .zones import (
+    ZONE_ROOM_TYPE,
+    closed_zones,
+    door_clearance_outside,
+    touches_zone,
+    zone_of,
+    zone_poly,
+    zone_shell,
+)
 
 # "wall" y "surface" no compiten por el piso: un cuadro o una lámpara de mesa no bloquean muebles.
 Layer = Literal["floor", "rug", "ceiling", "wall", "surface"]
@@ -148,6 +157,21 @@ for _roles in TEMPLATES.values():
     for _role in _roles:
         ROLE_LIBRARY.setdefault(_role.name, _role)
 
+# Piezas que no están en ninguna plantilla y solo van si la persona las pide (Brief `mustHave`).
+EXTRA_ROLES: dict[str, Role] = {
+    "dressing-table": Role("dressing-table", is_("table", "dressing-table"), "wall"),
+}
+for _name, _extra in EXTRA_ROLES.items():
+    ROLE_LIBRARY.setdefault(_name, _extra)
+
+# Qué se pone en cada clase de zona interior (el baño privado usa la plantilla del baño).
+ZONE_TEMPLATES: dict[str, list[Role]] = {
+    "bathroom": TEMPLATES["bathroom"],
+    "closet": [replace(ROLE_LIBRARY["wardrobe"], required=True, count=2), ROLE_LIBRARY["dresser"]],
+    "vanity": [replace(EXTRA_ROLES["dressing-table"], required=True), ROLE_LIBRARY["plant"]],
+    "office-nook": [ROLE_LIBRARY["desk"], ROLE_LIBRARY["desk-chair"], ROLE_LIBRARY["shelf"]],
+}
+
 # Cómo llama un modelo de visión a cada rol. Lo que no está aquí (un microondas, un espejo) no
 # tiene rol todavía y se ignora.
 INVENTORY_ROLES: dict[str, str] = {
@@ -244,13 +268,25 @@ def inventory_role(category: str, room_type: RoomType) -> str | None:
     return None
 
 
-def roles_for(room_type: RoomType, inventory: list[InventoryItem] | None) -> list[Role]:
+def roles_for(room_type: RoomType, inventory: list[InventoryItem] | None, must_have: list[str] | None = None) -> list[Role]:
     """Qué se coloca y cuántos.
 
     Sin inventario, la plantilla completa del tipo de cuarto. Con inventario (lo que se vio en la
     foto), los roles imprescindibles más los que estaban en la foto, incluidos los que no son
-    típicos de ese cuarto: dos fotos distintas dan dos distribuciones distintas.
+    típicos de ese cuarto: dos fotos distintas dan dos distribuciones distintas. Lo que la persona
+    pidió expresamente (un tocador) se suma, obligatorio, aunque la plantilla no lo traiga.
     """
+    roles = list(_template_roles(room_type, inventory))
+    names = {r.name for r in roles}
+    for sub in must_have or []:
+        extra = ROLE_LIBRARY.get(sub)
+        if extra is not None and sub not in names:
+            roles.append(replace(extra, required=True))
+            names.add(sub)
+    return roles
+
+
+def _template_roles(room_type: RoomType, inventory: list[InventoryItem] | None) -> list[Role]:
     template = TEMPLATES[room_type]
     if not inventory:
         return template
@@ -315,6 +351,8 @@ class Scene:
     shell: RoomShell
     placed: list[Placed] = field(default_factory=list)
     room: RoomGeometry = field(init=False)
+    # Contornos de zonas interiores que esta distribución no puede pisar (las distribuye otra).
+    forbidden: list[list[Point]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.room = RoomGeometry(self.shell)
@@ -349,21 +387,62 @@ class RulesLayoutEngine:
     name = "rules-greedy-v1"
 
     def place(self, req: PlaceFurnitureRequest) -> PlaceFurnitureResponse:
+        """Un cuarto con zonas interiores se distribuye por partes: cada zona con su plantilla
+        dentro de sus tabiques, y el resto del cuarto con la suya sin pisar las zonas ni el paso
+        de sus puertas. Las piezas fijadas van con la parte en la que están.
+        """
+        zones = closed_zones(req.roomShell)
+        if not zones:
+            return self._place_variants(req, None, [], [])
+        shell = req.roomShell
+        in_zone = {lp.id: zone_of(shell, lp.position.x, lp.position.z) for lp in req.locked}
+        keep_out = [fp for fp in (door_clearance_outside(shell, z) for z in zones) if fp is not None]
+        common_req = req.model_copy(update={"locked": [lp for lp in req.locked if in_zone[lp.id] is None]})
+        parts = [self._place_variants(common_req, None, keep_out, [zone_poly(z) for z in zones])]
+        for zone in zones:
+            mine = [lp for lp in req.locked if (found := in_zone[lp.id]) is not None and found.id == zone.id]
+            sub = req.model_copy(
+                update={
+                    "roomShell": zone_shell(shell, zone),
+                    "roomType": ZONE_ROOM_TYPE[zone.kind],
+                    "locked": mine,
+                    "inventory": None,
+                    "mustHave": None,
+                }
+            )
+            parts.append(self._place_variants(sub, ZONE_TEMPLATES[zone.kind], [], []))
+        return PlaceFurnitureResponse(
+            placements=[p for part in parts for p in part.placements],
+            unplaced=[u for part in parts for u in part.unplaced],
+            score=round(sum(part.score for part in parts) / len(parts), 3),
+            engine=self.name,
+        )
+
+    def _place_variants(
+        self, req: PlaceFurnitureRequest, roles: list[Role] | None, keep_out: list[Footprint], forbidden: list[list[Point]]
+    ) -> PlaceFurnitureResponse:
         """Sin semilla, la distribución de siempre. Con semilla ("otra distribución"), se generan
         varias variantes y se devuelve la de la semilla pedida salvo que sea claramente peor que
         otra: así cada semilla sigue dando algo distinto, pero nunca una mala habiendo una buena.
         """
         if req.seed is None:
-            return self._place_once(req)
+            return self._place_once(req, roles, keep_out, forbidden)
         catalog = {c.id: c for c in req.candidates}
         variants = [
-            self._place_once(req.model_copy(update={"seed": (req.seed + step * 7919) % 2_147_483_647})) for step in range(VARIANTS)
+            self._place_once(req.model_copy(update={"seed": (req.seed + step * 7919) % 2_147_483_647}), roles, keep_out, forbidden)
+            for step in range(VARIANTS)
         ]
         qualities = [layout_quality(req.roomShell, v.placements, catalog, v.score) for v in variants]
         good_enough = max(qualities) - QUALITY_TOLERANCE
         return next(v for v, q in zip(variants, qualities, strict=True) if q >= good_enough)
 
-    def _place_once(self, req: PlaceFurnitureRequest) -> PlaceFurnitureResponse:
+    def _place_once(
+        self,
+        req: PlaceFurnitureRequest,
+        roles: list[Role] | None = None,
+        keep_out: list[Footprint] | None = None,
+        forbidden: list[list[Point]] | None = None,
+    ) -> PlaceFurnitureResponse:
         rng = random.Random(req.seed if req.seed is not None else 7)
         # Sin semilla se devuelve siempre la mejor distribución; con semilla, una variante válida
         # distinta para cada valor ("otra distribución").
@@ -383,13 +462,14 @@ class RulesLayoutEngine:
                 Placed(lp.id, item, lp.position.x, lp.position.z, lp.rotationY, layer_of(item), self._role_of(item, req.roomType), locked=True)
             )
 
-        blocked = self._door_zones(shell)
+        blocked = self._door_zones(shell) + (keep_out or [])
+        scene.forbidden = forbidden or []
         new: list[Placed] = []
         unplaced: list[str] = []
         required_total = 0
         required_ok = 0
 
-        for role in roles_for(req.roomType, req.inventory):
+        for role in roles if roles is not None else roles_for(req.roomType, req.inventory, req.mustHave):
             if role.required:
                 required_total += 1
             already = len(scene.by_role(role.name))
@@ -490,6 +570,8 @@ class RulesLayoutEngine:
             if not scene.room.inside(fp, INSIDE_TOLERANCE_M):
                 continue
             if layer == "floor" and any(overlaps(fp, zone, 0.0) for zone in blocked):
+                continue
+            if any(touches_zone(fp, poly) for poly in scene.forbidden):
                 continue
             if any(p.layer == layer and overlaps(fp, p.fp) for p in scene.placed):
                 continue

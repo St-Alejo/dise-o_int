@@ -99,6 +99,8 @@ export const PlaceFurnitureRequestSchema = z.object({
   seed: z.number().int().optional(),
   /** Lo que había en la foto: si viene, la distribución coloca eso en vez de la plantilla completa. */
   inventory: z.array(InventoryItemSchema).max(40).optional(),
+  /** Subcategorías que la persona pidió (Brief): se colocan aunque la plantilla no las traiga. */
+  mustHave: z.array(z.string().min(1).max(40)).max(20).optional(),
 });
 export type PlaceFurnitureRequest = z.infer<typeof PlaceFurnitureRequestSchema>;
 

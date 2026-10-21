@@ -199,6 +199,8 @@ class PlaceFurnitureRequest(Model):
     seed: int | None = None
     # Lo que había en la foto: si viene, la distribución coloca eso en vez de la plantilla completa.
     inventory: list[InventoryItem] | None = Field(default=None, max_length=40)
+    # Subcategorías que la persona pidió (Brief): se colocan aunque la plantilla no las traiga.
+    mustHave: list[str] | None = Field(default=None, max_length=20)
 
 
 class PlaceFurnitureResponse(Model):

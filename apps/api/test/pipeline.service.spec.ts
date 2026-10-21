@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRoomFromSpec } from '@interiores/shared-types';
+import { buildRoomFromSpec, cornerZone, createRectangularShell } from '@interiores/shared-types';
 import { AiServiceError } from '../src/common/errors.js';
 import { PipelineService, type JobContext } from '../src/modules/jobs/pipeline.service.js';
 import { FakeAi, FakeBroker, FakeQuota, InMemoryCatalogRepository, InMemoryProjectRepository, catalogItem } from './fakes.js';
@@ -101,6 +101,25 @@ describe('PipelineService', () => {
     await pipeline.analyzeRoom({ projectId: 'p1', styles: ['moderno'], promptStrength: 0.6 }, ctx());
     await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true, seed: 1234 }, { ...ctx(), kind: 'build-scene' });
     expect(ai.layoutRequests.map((r) => r.seed)).toEqual([undefined, 1234]);
+  });
+
+  it('con un baño privado ofrece también las piezas de baño, y lo que pide el Brief llega al motor', async () => {
+    const catalog = new InMemoryCatalogRepository();
+    await catalog.upsert(catalogItem({ id: 'inodoro', name: 'Inodoro', category: 'bathroom', subcategory: 'toilet', roomTypes: ['bathroom'] }));
+    pipeline = new PipelineService(repo, catalog, ai, broker, new FakeQuota(100));
+    const base = createRectangularShell(4.5, 4, 2.6);
+    const shell = { ...base, zones: [cornerZone(base, { id: 'bano', kind: 'bathroom', widthM: 2, depthM: 1.6 })!] };
+    await repo.update('p1', {
+      roomShell: shell,
+      status: 'ready',
+      brief: { surfaces: {}, mustHave: [{ subcategory: 'dressing-table' }, { subcategory: 'towel-rail', zoneKind: 'bathroom' }], avoid: [], zones: [] },
+    });
+    await pipeline.buildScene({ projectId: 'p1', styleId: 'moderno', keepLocked: true }, { ...ctx(), kind: 'build-scene' });
+    const req = ai.layoutRequests.at(-1)!;
+    expect(req.candidates.map((c) => c.id)).toContain('inodoro');
+    expect(req.roomShell.zones).toHaveLength(1);
+    // Lo de la zona lo pone la plantilla de la zona: al motor solo va lo del espacio común.
+    expect(req.mustHave).toEqual(['dressing-table']);
   });
 
   it('markFailed deja el proyecto en estado fallido con un mensaje entendible', async () => {
