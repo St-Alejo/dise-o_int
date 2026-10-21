@@ -19,9 +19,10 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
 import { clearancesOf, metres } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
 import { CameraDirector } from './camera/camera-director';
-import type { CameraModeId, CameraPose } from './camera/camera-mode';
+import { CameraFraming, type ViewPreset } from './camera/camera-framing';
+import type { CameraModeId } from './camera/camera-mode';
 import { ORBIT_FOV, OrbitMode } from './camera/orbit-mode';
-import { RoomCamera, planViewSpan } from './camera/room-camera';
+import { RoomCamera } from './camera/room-camera';
 import { WalkMode } from './camera/walk-mode';
 import type { GizmoHandleKind } from './mounts/gizmo-math';
 import type { Ray } from './mounts/mount-strategies';
@@ -41,8 +42,7 @@ import { MeasureTool, PaintTool, RoomTool, SelectTool, ToolManager, type PaintTa
 /** Luces que van pegadas al techo, sin colgar. */
 const FLUSH_LIGHTS = new Set(['flush-light', 'recessed-spot']);
 
-/** Vistas rápidas de la cámara de órbita. */
-export type ViewPreset = 'corner' | 'top' | 'plan' | 'front' | 'left' | 'right';
+export type { ViewPreset };
 export const VIEW_PRESETS: readonly { id: ViewPreset; label: string }[] = [
   { id: 'corner', label: 'Esquina' },
   { id: 'top', label: 'Desde arriba' },
@@ -168,10 +168,20 @@ export class SceneService implements SceneContext {
   /** Superficie que se está pintando y dónde mostrar su paleta (píxeles dentro del visor). */
   readonly paintTarget = signal<{ target: PaintTarget; x: number; y: number } | null>(null);
 
+  private readonly framing: CameraFraming = new CameraFraming({
+    camera: this.camera,
+    controls: () => this.controls,
+    walking: (): boolean => this.cameraMode() === 'walk',
+    resetOrbit: (): void => this.orbit.reset(),
+    cameraMoved: (): void => {
+      this.room.updateCutaway();
+      this.invalidate();
+    },
+  });
   private readonly orbit = new OrbitMode(
     this.camera,
     () => this.controls,
-    () => this.homePose(),
+    () => this.framing.homePose(this.store.shell()),
   );
   private readonly walk = new WalkMode(
     this.camera,
@@ -379,69 +389,13 @@ export class SceneService implements SceneContext {
     this.invalidate();
   }
 
-  /** Vista de órbita por defecto: el cuarto entero, desde el frente y algo por encima. */
-  private homePose(shell = this.store.shell()): CameraPose {
-    if (!shell) return { position: this.camera.position.clone(), target: new THREE.Vector3(), fov: ORBIT_FOV };
-    const cx = shell.widthM / 2;
-    const cz = shell.depthM / 2;
-    const span = Math.max(shell.widthM, shell.depthM);
-    return {
-      position: new THREE.Vector3(cx + span * 0.1, shell.heightM * 1.6 + span * 0.2, shell.depthM + span * 0.55),
-      target: new THREE.Vector3(cx, 0.4, cz),
-      fov: ORBIT_FOV,
-    };
-  }
-
   frameRoom(shell = this.store.shell()): void {
-    if (!shell || this.cameraMode() === 'walk') return;
-    this.orbit.reset();
-    this.camera.setOrthographic(null);
-    this.setFov(ORBIT_FOV);
-    const home = this.homePose(shell);
-    this.camera.position.copy(home.position);
-    this.camera.lookAt(home.target);
-    if (this.controls) {
-      this.controls.target.copy(home.target);
-      this.controls.maxDistance = Math.max(shell.widthM, shell.depthM) * 3;
-      this.controls.update();
-    }
-    this.room.updateCutaway();
-    this.invalidate();
+    this.framing.frameRoom(shell);
   }
 
   /** Lleva la cámara de órbita a una vista conocida del cuarto. */
   viewFrom(preset: ViewPreset): void {
-    const shell = this.store.shell();
-    if (!shell || this.cameraMode() === 'walk') return;
-    if (preset === 'corner') return this.frameRoom(shell);
-    const centre = roomCenter(shell);
-    const span = Math.max(shell.widthM, shell.depthM);
-    if (this.controls) this.controls.maxDistance = span * 3;
-    // Casi vertical: justo encima, los controles de órbita pierden la referencia del "arriba".
-    const above = new THREE.Vector3(centre.x, span * 1.9 + 2, centre.z + 0.01);
-    if (preset === 'plan') {
-      // Sin perspectiva: lo que se ve es el plano a escala, y se sigue pudiendo editar.
-      this.setFov(ORBIT_FOV);
-      this.camera.setOrthographic(planViewSpan(shell.widthM, shell.depthM, this.camera.aspect));
-      return this.lookFromPose(above, new THREE.Vector3(centre.x, 0, centre.z));
-    }
-    this.camera.setOrthographic(null);
-    this.setFov(ORBIT_FOV);
-    const target = new THREE.Vector3(centre.x, 0.6, centre.z);
-    const away = span * 1.5 + 1.5;
-    const position: Record<Exclude<ViewPreset, 'corner' | 'plan'>, THREE.Vector3> = {
-      top: above,
-      front: new THREE.Vector3(centre.x, shell.heightM * 0.7, shell.depthM + away),
-      left: new THREE.Vector3(-away, shell.heightM * 0.7, centre.z),
-      right: new THREE.Vector3(shell.widthM + away, shell.heightM * 0.7, centre.z),
-    };
-    this.lookFromPose(position[preset], preset === 'top' ? new THREE.Vector3(centre.x, 0, centre.z) : target);
-  }
-
-  private setFov(fov: number): void {
-    if (this.camera.fov === fov) return;
-    this.camera.fov = fov;
-    this.camera.updateProjectionMatrix();
+    this.framing.viewFrom(this.store.shell(), preset);
   }
 
   /** Acerca la cámara a la pieza seleccionada (o encuadra el cuarto si no hay ninguna). Tecla F. */
@@ -449,24 +403,7 @@ export class SceneService implements SceneContext {
     const placement = this.store.selected();
     const item = placement ? this.store.catalog().get(placement.catalogItemId) : null;
     if (!placement || !item) return this.frameRoom();
-    if (this.cameraMode() === 'walk') return;
-    const dims = effectiveDimensions(item.dimensionsM, placement);
-    const target = new THREE.Vector3(placement.position.x, placement.position.y + dims.y / 2, placement.position.z);
-    // Se conserva la dirección desde la que se mira; solo cambia a dónde y desde qué distancia.
-    const from = this.camera.position.clone().sub(this.controls?.target ?? target);
-    const distance = Math.max(1.6, Math.hypot(dims.x, dims.y, dims.z) * 2.2);
-    this.lookFromPose(target.clone().add(from.normalize().multiplyScalar(distance)), target);
-  }
-
-  private lookFromPose(position: THREE.Vector3, target: THREE.Vector3): void {
-    this.camera.position.copy(position);
-    this.camera.lookAt(target);
-    if (this.controls) {
-      this.controls.target.copy(target);
-      this.controls.update();
-    }
-    this.room.updateCutaway();
-    this.invalidate();
+    this.framing.frameItem(placement, item);
   }
 
   /**
