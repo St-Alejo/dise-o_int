@@ -8,6 +8,7 @@
  */
 import { z } from 'zod';
 import { CustomFinishIdSchema, FinishSpecSchema, HexColorSchema } from './finish-spec.js';
+import { TechnicalSpecSchema } from './pro/technical.js';
 
 const finite = z.number().finite();
 const positiveMeters = finite.positive().max(100);
@@ -404,6 +405,8 @@ export const DesignProjectSchema = z.object({
   budgetCap: z.number().positive().nullable().optional(),
   /** Lo que pidió y quiere conservar (null o ausente = nada fijado). */
   brief: DesignBriefSchema.nullable().optional(),
+  /** Ficha técnica del Modo Pro (null o ausente = valores por defecto). */
+  technical: TechnicalSpecSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

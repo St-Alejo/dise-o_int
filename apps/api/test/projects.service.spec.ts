@@ -1,7 +1,7 @@
 import { renderHomeDossierPdf, renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { createRectangularShell, moveWall } from '@interiores/shared-types';
+import { createRectangularShell, moveWall, technicalOf } from '@interiores/shared-types';
 import {
   NotFoundError,
   QuotaExceededError,
@@ -334,6 +334,21 @@ describe('ProjectsService', () => {
       // La copia hereda el tope; quitarlo lo deja sin él.
       expect((await service.duplicate(alice, p.id)).budgetCap).toBe(1500);
       expect((await service.setBudget(alice, p.id, null)).budgetCap).toBeNull();
+    });
+  });
+
+  describe('ficha técnica (Modo Pro)', () => {
+    it('se guarda sin cambiar la revisión, completa lo que falta, se copia al duplicar y se borra con null', async () => {
+      const p = await readyProject();
+      expect(p.technical).toBeNull();
+      const technical = technicalOf({ walls: { exteriorM: 0.2 }, titleBlock: { client: 'Ana Ruiz' } });
+      const saved = await service.setTechnical(alice, p.id, technical);
+      expect(saved.technical?.walls.exteriorM).toBe(0.2);
+      expect(saved.technical?.sheet.scale).toBe(50);
+      expect(saved.revision).toBe(p.revision);
+      await expect(service.setTechnical(bob, p.id, null)).rejects.toBeInstanceOf(NotFoundError);
+      expect((await service.duplicate(alice, p.id)).technical?.titleBlock.client).toBe('Ana Ruiz');
+      expect((await service.setTechnical(alice, p.id, null)).technical).toBeNull();
     });
   });
 

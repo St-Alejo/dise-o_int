@@ -100,6 +100,7 @@ export function toDesignProject(
       : null,
     budgetCap: project.budgetCap ?? null,
     brief: project.brief ?? null,
+    technical: project.technical ?? null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   };
@@ -110,7 +111,7 @@ export function toPublicProject(
   previews: PreviewRecord[],
   signer: MediaUrlSigner,
 ): PublicProject {
-  const { ownerId: _o, versions: _v, saved: _s, lastError: _l, ...rest } = toDesignProject(
+  const { ownerId: _o, versions: _v, saved: _s, lastError: _l, technical: _t, ...rest } = toDesignProject(
     project,
     previews.filter((p) => p.status === 'ready'),
     [],

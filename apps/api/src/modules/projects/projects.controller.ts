@@ -30,6 +30,7 @@ import {
   ImportProjectRequestSchema,
   SetBudgetRequestSchema,
   SetBriefRequestSchema,
+  SetTechnicalRequestSchema,
   SetHomePositionRequestSchema,
   SetHomeRequestSchema,
   UpdateProjectRequestSchema,
@@ -57,6 +58,7 @@ import {
   type ImportProjectRequest,
   type SetBudgetRequest,
   type SetBriefRequest,
+  type TechnicalSpec,
   type SetHomePositionRequest,
   type SetHomeRequest,
   type UpdateSceneRequest,
@@ -164,6 +166,16 @@ export class ProjectsController {
     @Body(new ZodPipe(SetBriefRequestSchema)) body: SetBriefRequest,
   ): Promise<DesignProject> {
     return this.service.setBrief(this.actor(user), id, body.brief);
+  }
+
+  @Put(':id/technical')
+  @ApiBody({ schema: openApiSchema(SetTechnicalRequestSchema) })
+  setTechnical(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(SetTechnicalRequestSchema)) body: { technical: TechnicalSpec | null },
+  ): Promise<DesignProject> {
+    return this.service.setTechnical(this.actor(user), id, body.technical);
   }
 
   @Post(':id/duplicate')

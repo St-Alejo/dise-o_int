@@ -9,6 +9,7 @@ import {
   DEFAULT_PROMPT_STRENGTH,
   DEFAULT_STYLES,
   type DesignBrief,
+  type TechnicalSpec,
   type DesignProject,
   type DesignProjectVersion,
   type GenerateStylesRequest,
@@ -153,6 +154,12 @@ export class ProjectsService {
 
   recommendationFeedback(actor: Actor, id: string, recommendationId: string, req: RecommendationFeedbackRequest): Promise<void> {
     return this.recommendations.feedback(actor, id, recommendationId, req);
+  }
+
+  /** Ficha técnica del Modo Pro: datos de obra y de las láminas; no cambian la escena ni su revisión. */
+  async setTechnical(actor: Actor, id: string, technical: TechnicalSpec | null): Promise<DesignProject> {
+    await this.access.own(actor, id);
+    return this.toDto(await this.projects.update(id, { technical }));
   }
 
   saveVersion(actor: Actor, id: string, note?: string): Promise<DesignProject> {
@@ -316,6 +323,7 @@ export class ProjectsService {
       homeName: source.homeName ?? null,
       budgetCap: source.budgetCap ?? null,
       brief: source.brief ?? null,
+      technical: source.technical ?? null,
       selectedStyleId: source.selectedStyleId,
       requestedStyles: source.requestedStyles,
       saved: false,

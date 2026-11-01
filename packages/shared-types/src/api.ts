@@ -15,6 +15,7 @@ import {
   StyleIdSchema,
 } from './domain.js';
 import { RoomSpecSchema } from './room-templates.js';
+import { TechnicalSpecSchema } from './pro/technical.js';
 
 // ---------- Medidas del cuarto ----------
 // (límites duplicados de geometry.ts:ROOM_LIMITS para no crear un ciclo de imports)
@@ -54,6 +55,8 @@ export const AuthUserSchema = z.object({
   id: z.string(),
   email: z.string(),
   displayName: z.string(),
+  /** Modo profesional: muestra planos técnicos, normativa, cantidades e instalaciones. */
+  proMode: z.boolean().optional(),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 
@@ -184,6 +187,14 @@ export type SetBudgetRequest = z.infer<typeof SetBudgetRequestSchema>;
 export const SetBriefRequestSchema = z.object({ brief: DesignBriefSchema.nullable() });
 export type SetBriefRequest = z.infer<typeof SetBriefRequestSchema>;
 
+/** `PUT /projects/:id/technical`: la ficha técnica del Modo Pro; null vuelve a los valores por defecto. */
+export const SetTechnicalRequestSchema = z.object({ technical: TechnicalSpecSchema.nullable() });
+export type SetTechnicalRequest = z.input<typeof SetTechnicalRequestSchema>;
+
+/** `PATCH /auth/me`: preferencias de la cuenta. */
+export const UpdatePreferencesRequestSchema = z.object({ proMode: z.boolean() });
+export type UpdatePreferencesRequest = z.infer<typeof UpdatePreferencesRequestSchema>;
+
 export const ImportProjectRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   roomType: RoomTypeSchema,
@@ -305,6 +316,8 @@ export const PublicProjectSchema = DesignProjectSchema.omit({
   versions: true,
   saved: true,
   lastError: true,
+  /** La ficha técnica lleva datos del cliente (nombre, dirección): no sale en el enlace público. */
+  technical: true,
 });
 export type PublicProject = z.infer<typeof PublicProjectSchema>;
 

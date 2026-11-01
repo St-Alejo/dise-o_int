@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import type { AuthResponse, AuthUser, LoginRequest, RegisterRequest } from '@interiores/shared-types';
+import type { AuthResponse, AuthUser, LoginRequest, RegisterRequest, UpdatePreferencesRequest } from '@interiores/shared-types';
 import argon2 from 'argon2';
 import { ConflictError, UnauthorizedError } from '../../common/errors.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { TokenService } from './token.service.js';
 
+type SessionUser = { id: string; email: string; displayName: string; proMode?: boolean };
+
+function toAuthUser(user: SessionUser): AuthUser {
+  return { id: user.id, email: user.email, displayName: user.displayName, proMode: user.proMode ?? false };
+}
 
 export interface SessionResult {
   response: AuthResponse;
@@ -65,22 +70,31 @@ export class AuthService {
   async me(userId: string): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedError('La cuenta ya no existe');
-    return { id: user.id, email: user.email, displayName: user.displayName };
+    return toAuthUser(user);
+  }
+
+  /** Preferencias de la cuenta (por ahora, el Modo Pro). */
+  async updatePreferences(userId: string, prefs: UpdatePreferencesRequest): Promise<AuthUser> {
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { proMode: prefs.proMode } }).catch((err: unknown) => {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') throw new UnauthorizedError('La cuenta ya no existe');
+      throw err;
+    });
+    return toAuthUser(user);
   }
 
   private async startSession(
-    user: { id: string; email: string; displayName: string },
+    user: SessionUser,
     userAgent?: string,
   ): Promise<SessionResult> {
     const refreshToken = await this.tokens.issueRefresh(user.id, undefined, userAgent);
     return { response: this.buildResponse(user), refreshToken };
   }
 
-  private buildResponse(user: { id: string; email: string; displayName: string }): AuthResponse {
+  private buildResponse(user: SessionUser): AuthResponse {
     return {
       accessToken: this.tokens.signAccess(user),
       expiresIn: this.tokens.accessTtlSeconds,
-      user: { id: user.id, email: user.email, displayName: user.displayName },
+      user: toAuthUser(user),
     };
   }
 }

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   DesignBriefSchema,
+  TechnicalSpecSchema,
+  type TechnicalSpec,
   type DesignBrief,
   FurniturePlacementSchema,
   InventoryItemSchema,
@@ -55,6 +57,9 @@ function parseRoomDims(value: unknown): RoomDimensions | null {
 function parseInventory(value: unknown): InventoryItem[] | null {
   return value === null || value === undefined ? null : z.array(InventoryItemSchema).parse(value);
 }
+function parseTechnical(value: unknown): TechnicalSpec | null {
+  return value === null || value === undefined ? null : TechnicalSpecSchema.parse(value);
+}
 function parseBrief(value: unknown): DesignBrief | null {
   return value === null || value === undefined ? null : DesignBriefSchema.parse(value);
 }
@@ -90,6 +95,7 @@ function toProject(row: ProjectRow): ProjectRecord {
     homePosition: parsePosition(row.homePosition),
     budgetCap: row.budgetCap,
     brief: parseBrief(row.brief),
+    technical: parseTechnical(row.technical),
     selectedStyleId: row.selectedStyleId as StyleId | null,
     requestedStyles: row.requestedStyles as StyleId[],
     saved: row.saved,
@@ -146,6 +152,7 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.homePosition !== undefined) data.homePosition = nullableJson(patch.homePosition);
   if (patch.budgetCap !== undefined) data.budgetCap = patch.budgetCap;
   if (patch.brief !== undefined) data.brief = nullableJson(patch.brief);
+  if (patch.technical !== undefined) data.technical = nullableJson(patch.technical);
   if (patch.selectedStyleId !== undefined) data.selectedStyleId = patch.selectedStyleId;
   if (patch.requestedStyles !== undefined) data.requestedStyles = patch.requestedStyles;
   if (patch.saved !== undefined) data.saved = patch.saved;
@@ -177,6 +184,7 @@ export class PrismaProjectRepository implements IProjectRepository {
         homePosition: nullableJson(data.homePosition),
         budgetCap: data.budgetCap ?? null,
         brief: nullableJson(data.brief),
+        technical: nullableJson(data.technical),
         selectedStyleId: data.selectedStyleId,
         requestedStyles: data.requestedStyles,
         saved: data.saved,

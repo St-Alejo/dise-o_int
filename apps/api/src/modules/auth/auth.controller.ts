@@ -1,14 +1,16 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Patch, Post, Req, Res } from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { perMinute } from '../../common/rate-limit.js';
 import {
   LoginRequestSchema,
   RegisterRequestSchema,
+  UpdatePreferencesRequestSchema,
   type AuthResponse,
   type AuthUser,
   type LoginRequest,
   type RegisterRequest,
+  type UpdatePreferencesRequest,
 } from '@interiores/shared-types';
 import type { Request, Response } from 'express';
 import type { AppConfig } from '../../config/env.js';
@@ -77,6 +79,15 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthPrincipal): Promise<AuthUser> {
     return this.auth.me(user.userId);
+  }
+
+  @Patch('me')
+  @ApiBody({ schema: openApiSchema(UpdatePreferencesRequestSchema) })
+  updatePreferences(
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodPipe(UpdatePreferencesRequestSchema)) body: UpdatePreferencesRequest,
+  ): Promise<AuthUser> {
+    return this.auth.updatePreferences(user.userId, body);
   }
 
   private withCookie(res: Response, session: SessionResult): AuthResponse {

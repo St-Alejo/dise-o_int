@@ -32,6 +32,8 @@ model User {
   email         String         @unique
   passwordHash  String
   displayName   String
+  /// Modo profesional: planos técnicos, normativa, cantidades e instalaciones.
+  proMode       Boolean        @default(false)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   projects      Project[]
@@ -86,6 +88,8 @@ model Project {
   budgetCap       Float?
   /// Brief de diseño: lo que la persona pidió y quiere conservar entre recomendaciones.
   brief           Json?
+  /// Ficha técnica del Modo Pro (grosores, cajetín, normativa, tarifas, instalaciones); null = por defecto.
+  technical       Json?
   selectedStyleId String?
   /// Estilos pedidos al subir la foto (el worker los genera en el pipeline inicial).
   requestedStyles String[]       @default([])

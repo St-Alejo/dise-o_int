@@ -13,6 +13,7 @@ import type {
   CatalogFilters,
   CatalogSpec,
   DesignBrief,
+  TechnicalSpec,
   FurniturePlacement,
   GenerateStyleRequest,
   GenerateStyleResponse,
@@ -64,6 +65,8 @@ export interface ProjectRecord {
   budgetCap?: number | null;
   /** Lo que la persona fijó (null o ausente = nada). */
   brief?: DesignBrief | null;
+  /** Ficha técnica del Modo Pro (null o ausente = por defecto). */
+  technical?: TechnicalSpec | null;
   selectedStyleId: StyleId | null;
   requestedStyles: StyleId[];
   saved: boolean;
@@ -155,6 +158,7 @@ export type ProjectPatch = Partial<
     | 'homePosition'
     | 'budgetCap'
     | 'brief'
+    | 'technical'
     | 'selectedStyleId'
     | 'requestedStyles'
     | 'saved'
