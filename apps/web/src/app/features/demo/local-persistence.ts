@@ -7,6 +7,7 @@ import {
   furnishedTemplateInfo,
   resizeRoomShell,
   type DesignBrief,
+  type TechnicalSpec,
   type DesignProject,
   type FurnishedScene,
   type StyleId,
@@ -96,6 +97,11 @@ export class LocalPersistence extends ProjectPersistence {
 
   async setBrief(id: string, brief: DesignBrief | null): Promise<DesignProject> {
     return this.write({ ...(await this.get(id)), brief }, false);
+  }
+
+  /** La demo no tiene Modo Pro, pero la ficha se guarda igual que el Brief si llega. */
+  async setTechnical(id: string, technical: TechnicalSpec | null): Promise<DesignProject> {
+    return this.write({ ...(await this.get(id)), technical }, false);
   }
 
   /** Olvida lo guardado: la próxima vez se abre la plantilla tal como viene. */

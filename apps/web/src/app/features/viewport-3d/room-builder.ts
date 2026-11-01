@@ -134,7 +134,15 @@ function slab(poly: Point2[], y: number, facing: 'up' | 'down', material: THREE.
   return mesh;
 }
 
-export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALETTE): BuiltRoom {
+/**
+ * `thicknessOf` da el grosor de cada pared (la ficha técnica del Modo Pro); sin él, todas llevan
+ * `WALL_THICKNESS`. El grosor crece hacia fuera: el cuarto por dentro no cambia.
+ */
+export function buildRoom(
+  shell: RoomShell,
+  palette: RoomPalette = DEFAULT_PALETTE,
+  thicknessOf: (wallId: string) => number = () => WALL_THICKNESS,
+): BuiltRoom {
   const group = new THREE.Group();
   group.name = 'room';
   const poly = roomPolygon(shell);
@@ -176,7 +184,8 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     const localZ = new THREE.Vector2(Math.sin(wallGroup.rotation.y), Math.cos(wallGroup.rotation.y));
     const inwardSign = localZ.dot(normal) >= 0 ? 1 : -1;
     /** z local de algo centrado en el espesor de la pared (que queda por fuera del cuarto). */
-    const inWall = (-inwardSign * WALL_THICKNESS) / 2;
+    const T = thicknessOf(wall.id);
+    const inWall = (-inwardSign * T) / 2;
     // Lo decorativo (zócalos) va en un grupo aparte: la pared en sí no invade el cuarto.
     const trimGroup = new THREE.Group();
     trimGroup.name = `trim-${wall.id}`;
@@ -252,15 +261,15 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
     const convexStart = isConvexVertex(poly, index);
     const convexEnd = isConvexVertex(poly, (index + 1) % poly.length);
     for (const piece of wallPieces(length, shell.heightM, openings)) {
-      const extendStart = piece.x0 === 0 && convexStart ? WALL_THICKNESS : 0;
-      const extendEnd = Math.abs(piece.x1 - length) < 1e-6 && convexEnd ? WALL_THICKNESS : 0;
+      const extendStart = piece.x0 === 0 && convexStart ? T : 0;
+      const extendEnd = Math.abs(piece.x1 - length) < 1e-6 && convexEnd ? T : 0;
       const w = piece.x1 - piece.x0 + extendStart + extendEnd;
       const h = piece.y1 - piece.y0;
-      const mesh = box(w, h, WALL_THICKNESS, material, piece.x0 - extendStart + w / 2, piece.y0 + h / 2, inWall);
+      const mesh = box(w, h, T, material, piece.x0 - extendStart + w / 2, piece.y0 + h / 2, inWall);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       if (piece.y0 === 0) {
-        const lowGeometry = new THREE.BoxGeometry(w, CUT_HEIGHT, WALL_THICKNESS);
+        const lowGeometry = new THREE.BoxGeometry(w, CUT_HEIGHT, T);
         metricBoxUVs(lowGeometry, new THREE.Vector3(piece.x0 - extendStart + w / 2, CUT_HEIGHT / 2, inWall));
         const low = new THREE.Mesh(lowGeometry, stubFaces);
         low.position.set(piece.x0 - extendStart + w / 2, CUT_HEIGHT / 2, inWall);
@@ -274,10 +283,10 @@ export function buildRoom(shell: RoomShell, palette: RoomPalette = DEFAULT_PALET
 
     for (const o of openings) {
       const cx = o.offsetM;
-      const deep = WALL_THICKNESS + 0.02;
+      const deep = T + 0.02;
       if (o.type === 'window') {
         box(o.widthM, o.heightM, 0.02, glassMaterial, cx, o.sillHeightM + o.heightM / 2, inWall).name = 'window-glass';
-        box(o.widthM + 0.1, 0.04, WALL_THICKNESS + 0.06, trimMaterial, cx, o.sillHeightM - 0.02, inWall + inwardSign * 0.03);
+        box(o.widthM + 0.1, 0.04, T + 0.06, trimMaterial, cx, o.sillHeightM - 0.02, inWall + inwardSign * 0.03);
         // Marco: dintel, jambas y, si la ventana es ancha, un parteluz al centro.
         const mid = o.sillHeightM + o.heightM / 2;
         box(o.widthM, FRAME / 2, deep, trimMaterial, cx, o.sillHeightM + o.heightM - FRAME / 4, inWall);

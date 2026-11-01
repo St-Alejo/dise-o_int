@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
+import { ProModeService } from './core/ui/pro-mode.service';
 import { ThemeService } from './core/ui/theme.service';
 import { ToastService } from './core/ui/toast.service';
 import { IconComponent } from './shared/ui/icon.component';
@@ -58,6 +59,16 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
           @if (auth.user(); as user) {
             <a routerLink="/proyectos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-link">Mis proyectos</a>
             <a routerLink="/proyectos/nuevo" class="btn btn-primary btn-sm">Nuevo proyecto</a>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm pro-toggle"
+              [class.on]="pro.enabled()"
+              [attr.aria-pressed]="pro.enabled()"
+              (click)="pro.toggle()"
+              appTooltip="Planos técnicos, normativa, cantidades de obra e instalaciones"
+            >
+              <app-icon name="pro" /> Modo Pro
+            </button>
             <span class="user muted" [appTooltip]="user.email">{{ user.displayName }}</span>
             <button type="button" class="btn btn-ghost btn-sm" (click)="auth.logout()">Salir</button>
           } @else {
@@ -192,6 +203,11 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
     }
     .nav-link.active {
       color: var(--primary);
+    }
+    .pro-toggle.on {
+      background: var(--primary-soft);
+      color: var(--primary-strong);
+      font-weight: 600;
     }
     .user {
       max-width: 160px;
@@ -347,6 +363,7 @@ export class App {
   protected readonly auth = inject(AuthService);
   protected readonly toast = inject(ToastService);
   protected readonly theme = inject(ThemeService);
+  protected readonly pro = inject(ProModeService);
   protected readonly sections = SECTIONS;
   protected readonly repo = REPO_URL;
   /** El menú de la cabecera en pantallas angostas. */

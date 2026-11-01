@@ -35,6 +35,22 @@ describe('wallPieces', () => {
 });
 
 describe('buildRoom', () => {
+  it('cada pared lleva el grosor de la ficha técnica, hacia fuera del cuarto', () => {
+    const shell = createRectangularShell(4, 3, 2.5, { door: false, window: false });
+    const room = buildRoom(shell, undefined, (id) => (id === 'w-back' ? 0.3 : 0.15));
+    room.group.updateMatrixWorld(true);
+    const depthOf = (id: string) => {
+      const mesh = room.group.getObjectByName(`wall-${id}`)!.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh;
+      const box = new THREE.Box3().setFromObject(mesh);
+      return id === 'w-back' ? { size: box.max.z - box.min.z, inner: box.max.z } : { size: box.max.x - box.min.x, inner: box.min.x };
+    };
+    expect(depthOf('w-back').size).toBeCloseTo(0.3);
+    expect(depthOf('w-back').inner).toBeCloseTo(0);
+    expect(depthOf('w-right').size).toBeCloseTo(0.15);
+    expect(depthOf('w-right').inner).toBeCloseTo(4);
+    disposeObject(room.group);
+  });
+
   it('construye piso y 4 paredes con normales hacia el interior', () => {
     const shell = createRectangularShell(4, 3, 2.5);
     const room = buildRoom(shell);

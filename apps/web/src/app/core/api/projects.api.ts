@@ -29,6 +29,7 @@ import type {
   PlanPosition,
   SetHomeRequest,
   UpdateSceneRequest,
+  TechnicalSpec,
 } from '@interiores/shared-types';
 import { Observable, filter, firstValueFrom, map, shareReplay } from 'rxjs';
 
@@ -125,6 +126,10 @@ export class ProjectsApi {
   }
 
   /** Brief de diseño: lo que la persona pidió y quiere conservar entre recomendaciones. */
+  setTechnical(id: string, technical: TechnicalSpec | null): Promise<DesignProject> {
+    return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/technical`, { technical }));
+  }
+
   setBrief(id: string, brief: DesignBrief | null): Promise<DesignProject> {
     return firstValueFrom(this.http.put<DesignProject>(`${this.base}/${id}/brief`, { brief }));
   }

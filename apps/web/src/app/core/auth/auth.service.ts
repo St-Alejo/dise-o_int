@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import type { AuthResponse, AuthUser, LoginRequest, RegisterRequest } from '@interiores/shared-types';
+import type { AuthResponse, AuthUser, LoginRequest, RegisterRequest, UpdatePreferencesRequest } from '@interiores/shared-types';
 import { firstValueFrom } from 'rxjs';
 
 /**
@@ -31,6 +31,19 @@ export class AuthService {
   async validToken(): Promise<string | null> {
     if (this.token() && Date.now() < this.expiresAt - 30_000) return this.token();
     return this.refresh();
+  }
+
+  /** Cambia una preferencia de la cuenta (el Modo Pro); se ve al momento y, si falla, vuelve. */
+  async updatePreferences(prefs: UpdatePreferencesRequest): Promise<void> {
+    const before = this.user();
+    if (!before) return;
+    this.user.set({ ...before, ...prefs });
+    try {
+      this.user.set(await firstValueFrom(this.http.patch<AuthUser>('/api/auth/me', prefs)));
+    } catch (err) {
+      this.user.set(before);
+      throw err;
+    }
   }
 
   async restoreSession(): Promise<void> {

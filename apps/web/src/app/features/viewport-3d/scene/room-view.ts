@@ -1,5 +1,5 @@
-import type { RoomFinishes, RoomShell } from '@interiores/shared-types';
-import { applyFinishes, buildRoom, disposeObject, type BuiltRoom } from '../room-builder';
+import { wallThickness, type RoomFinishes, type RoomShell, type WallSpec } from '@interiores/shared-types';
+import { applyFinishes, buildRoom, DEFAULT_PALETTE, disposeObject, type BuiltRoom } from '../room-builder';
 import { hidesRoom } from './cutaway';
 import type { SceneContext } from './render-loop';
 import { TextureLibrary } from './texture-library';
@@ -41,11 +41,11 @@ export class RoomView {
     return !!this.room?.group.getObjectByName('ceiling');
   }
 
-  /** Reconstruye el cuarto (o lo quita si `shell` es null). */
-  sync(shell: RoomShell | null): void {
+  /** Reconstruye el cuarto (o lo quita si `shell` es null), con el grosor de muros de la ficha. */
+  sync(shell: RoomShell | null, walls?: WallSpec): void {
     this.clear();
     if (!shell) return;
-    this.room = buildRoom(shell);
+    this.room = buildRoom(shell, DEFAULT_PALETTE, walls ? (id) => wallThickness({ walls }, id) : undefined);
     this.ctx.scene.add(this.room.group);
     this.showPaintedShades();
     this.updateCutaway();

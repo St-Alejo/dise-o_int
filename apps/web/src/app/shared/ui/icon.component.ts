@@ -43,6 +43,8 @@ const ICONS = {
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v5l3 2',
   wand: 'M5 19 16 8 M14 6l4 4 M18 3v3 M21 4.5h-3 M6 4v2 M7 5H5 M19 14v2 M20 15h-2',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 11v5 M12 8h.01',
+  /** Escuadra: el Modo profesional. */
+  pro: 'M4 20V4l16 16z M8 16v-4.5l4.5 4.5z M4 8h2 M4 12h2',
   // Cuarto y vistas
   ruler: 'M3 17 17 3l4 4L7 21z M7 13l2 2 M10 10l2 2 M13 7l2 2',
   palette:

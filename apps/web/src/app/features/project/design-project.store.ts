@@ -7,6 +7,9 @@ import {
   isInsideRoom,
   effectiveDimensions,
   mountY,
+  technicalOf,
+  type TechnicalSpec,
+  type WallSpec,
   type CatalogItem,
   type DesignBrief,
   type DesignProject,
@@ -251,6 +254,31 @@ export class DesignProjectStore {
     apply(cap);
     try {
       await this.api.setBudget(project.id, cap);
+    } catch (err) {
+      apply(previous);
+      throw err;
+    }
+  }
+
+  /** Ficha técnica del Modo Pro, con los valores por defecto si el proyecto aún no tiene. */
+  readonly technical = computed(() => technicalOf(this.project()?.technical ?? null));
+  /**
+   * Grosor de los muros para el 3D: solo si el proyecto tiene ficha (sin ella el visor sigue como
+   * siempre). `equal` por valor, para no reconstruir el cuarto al cambiar otro dato de la ficha.
+   */
+  readonly wallSpec = computed<WallSpec | undefined>(() => this.project()?.technical?.walls, {
+    equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  });
+
+  /** Guarda la ficha técnica. Como el Brief, va aparte de la escena: se ve al momento y, si falla, vuelve. */
+  async setTechnical(technical: TechnicalSpec | null): Promise<void> {
+    const project = this.project();
+    if (!project) return;
+    const previous = project.technical ?? null;
+    const apply = (value: TechnicalSpec | null) => this.project.update((p) => (p && p.id === project.id ? { ...p, technical: value } : p));
+    apply(technical);
+    try {
+      await this.api.setTechnical(project.id, technical);
     } catch (err) {
       apply(previous);
       throw err;

@@ -13,6 +13,7 @@ import {
   type SnapGuide,
   type Vector3,
   type WalkWorld,
+  type WallSpec,
 } from '@interiores/shared-types';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -221,7 +222,8 @@ export class SceneService implements SceneContext {
     // Estado → escena (signals). Cada efecto solo depende de lo que lee.
     effect(() => {
       const shell = this.store.shell();
-      untracked(() => this.syncRoom(shell));
+      const walls = this.store.wallSpec();
+      untracked(() => this.syncRoom(shell, walls));
     });
     effect(() => {
       const placements = this.store.placements();
@@ -370,9 +372,9 @@ export class SceneService implements SceneContext {
   }
 
   // ------------------------------------------------------------------ sincronización
-  private syncRoom(shell: RoomShell | null): void {
+  private syncRoom(shell: RoomShell | null, walls?: WallSpec): void {
     this.walkWorld = null;
-    this.room.sync(shell);
+    this.room.sync(shell, walls);
     if (!shell) {
       if (this.cameraMode() === 'walk') this.director.switchTo('orbit', { instant: true });
       this.sceneReady.set(false);

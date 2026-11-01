@@ -11,6 +11,8 @@ import { FinishesPanelComponent } from '../finishes/finishes-panel.component';
 import { GroupPanelComponent } from '../inspector/group-panel.component';
 import { InspectorComponent } from '../inspector/inspector.component';
 import { OutlinerComponent } from '../outliner/outliner.component';
+import { ProPanelComponent } from '../pro/pro-panel.component';
+import { ProModeService } from '../../core/ui/pro-mode.service';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { SwapCommand } from './commands';
@@ -34,6 +36,7 @@ import { SceneService } from './scene.service';
     ChatPanelComponent,
     OutlinerComponent,
     FinishesPanelComponent,
+    ProPanelComponent,
     CurrencyPipe,
   ],
   template: `
@@ -73,9 +76,16 @@ import { SceneService } from './scene.service';
           @if (!demo()) {
             <button type="button" role="tab" id="tab-brief" aria-controls="panel-brief" [attr.aria-selected]="panelTab() === 'brief'" (click)="panelTab.set('brief')">Lo que pediste</button>
             <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" [attr.aria-selected]="panelTab() === 'chat'" (click)="panelTab.set('chat')">Asistente IA</button>
+            @if (pro.enabled()) {
+              <button type="button" role="tab" id="tab-pro" aria-controls="panel-pro" [attr.aria-selected]="panelTab() === 'pro'" (click)="panelTab.set('pro')">Pro</button>
+            }
           }
         </div>
-        @if (panelTab() === 'brief') {
+        @if (panelTab() === 'pro' && pro.enabled() && !demo()) {
+          <div role="tabpanel" id="panel-pro" aria-labelledby="tab-pro">
+            <app-pro-panel />
+          </div>
+        } @else if (panelTab() === 'brief') {
           <div role="tabpanel" id="panel-brief" aria-labelledby="tab-brief">
             <app-brief-panel />
           </div>
@@ -217,7 +227,8 @@ export class EditorPanelComponent {
   /** En pantallas angostas el panel es una hoja inferior que se sube y se baja. */
   protected readonly sheetOpen = signal(false);
   protected readonly swapMode = signal(false);
-  protected readonly panelTab = signal<'add' | 'objects' | 'room' | 'brief' | 'chat'>('add');
+  protected readonly panelTab = signal<'add' | 'objects' | 'room' | 'brief' | 'chat' | 'pro'>('add');
+  protected readonly pro = inject(ProModeService);
   protected readonly selectedItem = this.store.selectedItem;
   protected readonly catalogItems = computed(() => [...this.store.catalog().values()]);
   protected readonly styleId = computed(() => this.store.project()?.selectedStyleId ?? null);
