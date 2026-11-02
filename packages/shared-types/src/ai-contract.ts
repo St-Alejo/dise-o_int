@@ -130,6 +130,10 @@ export const NLU_INTENTS = [
   'avoid_item',
   'replicate_image',
   'room_size',
+  'pro_quantities',
+  'pro_compliance',
+  'pro_drawings',
+  'pro_installations',
   'other',
 ] as const;
 export const NluIntentSchema = z.enum(NLU_INTENTS);

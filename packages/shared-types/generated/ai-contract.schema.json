@@ -1177,6 +1177,10 @@
             "avoid_item",
             "replicate_image",
             "room_size",
+            "pro_quantities",
+            "pro_compliance",
+            "pro_drawings",
+            "pro_installations",
             "other"
           ]
         },
@@ -1209,6 +1213,10 @@
                   "avoid_item",
                   "replicate_image",
                   "room_size",
+                  "pro_quantities",
+                  "pro_compliance",
+                  "pro_drawings",
+                  "pro_installations",
                   "other"
                 ]
               },

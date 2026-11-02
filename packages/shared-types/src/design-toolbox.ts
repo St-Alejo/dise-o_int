@@ -21,6 +21,7 @@ import {
   type FurniturePlacement,
   type RoomFinishes,
   type RoomShell,
+  type RoomType,
   type Vector3,
 } from './domain.js';
 import type { DesignOperation } from './design-operations.js';
@@ -33,6 +34,9 @@ import { zoneAt } from './zones.js';
 import { searchCatalog } from './catalog-search.js';
 import { alongOf, positionOnWall, wallFrames } from './walls.js';
 import { RELATIONS, SpatialResolver, type ResolvedPose } from './spatial-resolver.js';
+import type { DesignPiece } from './design-check.js';
+import { answerCompliance, answerDrawings, answerInstallations, answerTakeoff, type ProAnswer, type ProProject } from './pro/assistant.js';
+import { technicalOf, type TechnicalSpec } from './pro/technical.js';
 
 // --------------------------------------------------------------------------- entradas de las herramientas
 const Id = z.string().min(1).max(64);
@@ -106,6 +110,10 @@ export const TOOL_INPUTS = {
   want_item: z.object({ subcategory: z.string().min(1).max(40), avoid: z.boolean().optional() }),
   add_zone: z.object({ kind: z.literal('bathroom'), preset: z.string().min(1).max(40).optional() }),
   recommend: z.object({ intensity: z.enum(['suave', 'total']).optional() }),
+  estimate_works: z.object({ material: z.string().min(1).max(40).optional() }),
+  check_compliance: z.object({}),
+  suggest_installations: z.object({}),
+  list_drawings: z.object({ wall: z.string().min(1).max(40).optional() }),
 } as const;
 export type ToolName = keyof typeof TOOL_INPUTS;
 export type ToolInput<K extends ToolName> = z.infer<(typeof TOOL_INPUTS)[K]>;
@@ -139,6 +147,11 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   want_item: 'Anota en el Brief una pieza que la persona quiere (subcategoría: dressing-table, rug, floor-lamp...) o, con avoid=true, una que no quiere ver.',
   add_zone: 'Añade un baño privado en una esquina del cuarto, con tabiques, puerta y su tipo (ducha-obra, banera-mampara, spa-marmol, industrial).',
   recommend: 'Pide una propuesta de Recomendar al terminar (suave = solo colores, acabados y luz; total = también estilo y muebles), respetando lo fijado.',
+  estimate_works:
+    'Modo Pro, solo lectura: cómputo y presupuesto de obra del cuarto (total con AIU, días, materiales a comprar en cajas, galones o bultos). Con material ("baldosa", "pintura") filtra esas compras.',
+  check_compliance: 'Modo Pro, solo lectura: revisa la normativa y ergonomía (paso libre, vanos, alturas, luz, holguras, reglas eléctricas) y devuelve lo que falla o avisa.',
+  suggest_installations: 'Modo Pro, solo lectura: qué puntos eléctricos e hidrosanitarios propondría (tomas, interruptores, luces, agua) y en cuántos circuitos. No los guarda.',
+  list_drawings: 'Modo Pro, solo lectura: láminas del juego de planos; con wall ("fondo", "izquierda") dice cuál es el alzado de esa pared.',
 };
 
 export interface ToolOutcome {
@@ -157,6 +170,9 @@ export interface ToolboxInit {
   newId: () => string;
   /** Lo fijado y pedido; las herramientas de candados lo cambian. */
   brief?: DesignBrief | null;
+  /** Para las consultas del Modo Pro (sin ellos: ficha por defecto y sala). */
+  technical?: TechnicalSpec | null;
+  roomType?: RoomType;
 }
 
 const cm = (m: number) => Math.round(m * 100);
@@ -258,7 +274,41 @@ export class DesignToolbox {
         return this.addZone(input as ToolInput<'add_zone'>);
       case 'recommend':
         return this.recommend(input as ToolInput<'recommend'>);
+      case 'estimate_works':
+        return this.pro(answerTakeoff(this.proProject(), (input as ToolInput<'estimate_works'>).material));
+      case 'check_compliance':
+        return this.pro(answerCompliance(this.proProject()));
+      case 'suggest_installations':
+        return this.pro(answerInstallations(this.proProject()));
+      case 'list_drawings':
+        return this.pro(answerDrawings(this.proProject(), (input as ToolInput<'list_drawings'>).wall));
     }
+  }
+
+  /** El cuarto tal como está en la escena virtual, como lo ve el Modo Pro. */
+  private proProject(): ProProject {
+    const pieces = this.placements.flatMap((p): DesignPiece[] => {
+      const item = this.catalogById.get(p.catalogItemId);
+      if (!item) return [];
+      return [
+        {
+          id: p.id,
+          name: item.name,
+          mount: item.mount,
+          category: item.category,
+          ...(item.subcategory ? { subcategory: item.subcategory } : {}),
+          position: p.position,
+          rotationY: p.rotationY,
+          dims: effectiveDimensions(item.dimensionsM, p),
+          ...(p.supportId ? { supportId: p.supportId } : {}),
+        },
+      ];
+    });
+    return { shell: this.shell, finishes: this.finishes, pieces, roomType: this.init.roomType ?? 'living', technical: technicalOf(this.init.technical ?? null) };
+  }
+
+  private pro(answer: ProAnswer): ToolOutcome {
+    return this.success(answer.data, answer.summary);
   }
 
   private error(message: string): ToolOutcome {

@@ -151,6 +151,8 @@ export class ChatService {
         placements: project.placements,
         finishes: project.finishes,
         brief: project.brief ?? null,
+        technical: project.technical ?? null,
+        roomType: project.roomType,
         catalog,
         newId: randomUUID,
       });

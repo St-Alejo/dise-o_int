@@ -228,6 +228,10 @@ NluIntent = Literal[
     "avoid_item",
     "replicate_image",
     "room_size",
+    "pro_quantities",
+    "pro_compliance",
+    "pro_drawings",
+    "pro_installations",
     "other",
 ]
 Hex = Annotated[str, Field(pattern=r"^#[0-9a-f]{6}$")]

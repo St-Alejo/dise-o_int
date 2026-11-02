@@ -27,6 +27,10 @@ INTENTS = (
     "avoid_item",
     "replicate_image",
     "room_size",
+    "pro_quantities",
+    "pro_compliance",
+    "pro_drawings",
+    "pro_installations",
     "other",
 )
 
@@ -206,8 +210,34 @@ _TEMPLATES: dict[str, list[Template]] = {
         lambda r: f"{_pick(r, ['agranda', 'achica', 'amplia', 'reduce'])} el cuarto {_pick(r, ['un metro', 'medio metro', 'a ' + str(r.randint(3, 7)) + ' x ' + str(r.randint(3, 7))])}",
         lambda r: f"las medidas reales son {r.randint(2, 8)} metros de ancho y {r.randint(2, 8)} de largo",
     ],
+    "pro_quantities": [
+        lambda r: f"cuantas {_pick(r, ['cajas', 'piezas', 'm2', 'metros'])} de {_pick(r, ['baldosa', 'porcelanato', 'ceramica', 'piso', 'madera', 'laminado'])} {_pick(r, ['necesito', 'tengo que comprar', 'hay que comprar', 'se necesitan', 'llevo'])}",
+        lambda r: f"cuantos {_pick(r, ['galones', 'litros', 'tarros'])} de pintura {_pick(r, ['necesito', 'compro', 'hacen falta', 'van'])}",
+        lambda r: f"{_pick(r, ['cuanto cuesta', 'cuanto vale', 'cuanto sale', 'en cuanto queda'])} {_pick(r, ['la obra', 'la remodelacion', 'el presupuesto de obra', 'la mano de obra', 'instalar el piso', 'pintar el cuarto', 'enchapar el bano'])}",
+        lambda r: f"{_pick(r, ['haz', 'calcula', 'dame', 'sacame'])} {_pick(r, ['el computo', 'las cantidades', 'el presupuesto de obra', 'el apu', 'el aiu', 'la lista de materiales', 'las cantidades de obra', 'el cronograma'])}{_pick(r, ['', ' del cuarto', ' de la obra'])}",
+        lambda r: f"{_pick(r, ['cuantos dias', 'cuanto tiempo', 'cuantas semanas'])} {_pick(r, ['dura la obra', 'tarda la remodelacion', 'demoran los trabajos', 'toma enchapar'])}",
+        lambda r: f"{_pick(r, ['cuantos bultos de pegante', 'cuanta boquilla', 'cuantos metros de guardaescoba', 'cuanto material'])} {_pick(r, ['necesito', 'hay que comprar', 'llevo'])}",
+    ],
+    "pro_compliance": [
+        lambda r: _pick(r, ["revisa la normativa", "cumple la norma", "esta dentro de la norma", "revisa si cumple", "cumple con el retie", "cumple la nsr 10", "esta bien de accesibilidad", "revisa la ergonomia", "cumple la ntc 6047", "verifica el codigo", "hay algo fuera de norma", "pasa la revision tecnica"]),
+        lambda r: f"{_pick(r, ['revisa', 'verifica', 'chequea', 'valida'])} {_pick(r, ['la normativa', 'la norma', 'la accesibilidad', 'la ergonomia', 'el paso libre', 'las circulaciones', 'la iluminacion natural', 'la ventilacion', 'las holguras', 'la altura libre'])}{_pick(r, ['', ' del cuarto', ' del diseno', ' por favor'])}",
+        lambda r: f"{_pick(r, ['cabe', 'pasa', 'gira'])} una silla de ruedas{_pick(r, ['', ' por la puerta', ' en el cuarto', ' entre los muebles'])}",
+        lambda r: f"{_pick(r, ['tiene suficiente', 'hay suficiente', 'le falta'])} {_pick(r, ['luz', 'iluminacion', 'luz natural', 'ventilacion', 'paso'])} {_pick(r, ['segun la norma', 'para cumplir', 'segun el retilap', 'reglamentaria'])}",
+        lambda r: f"{_pick(r, ['es accesible', 'es reglamentario', 'es legal', 'es normativo'])} {_pick(r, ['este cuarto', 'el diseno', 'el bano', 'el ancho de la puerta'])}",
+    ],
+    "pro_drawings": [
+        lambda r: f"{_pick(r, ['muestra', 'ensename', 'quiero ver', 'abre', 'dame'])} el alzado de la pared {_pick(r, ['del fondo', 'de la izquierda', 'de la derecha', 'del frente', 'de la entrada'])}",
+        lambda r: f"{_pick(r, ['muestra', 'genera', 'exporta', 'descarga', 'saca', 'quiero'])} {_pick(r, ['los planos', 'el plano tecnico', 'el juego de planos', 'el dxf', 'el plano para autocad', 'la planta arquitectonica', 'el corte', 'los alzados', 'la lamina', 'el plano de acabados', 'el plano de cielo raso', 'las cotas'])}",
+        lambda r: _pick(r, ["exporta el plano", "plano a escala", "quiero el plano en pdf", "dame el plano para el maestro", "los planos para el constructor", "plano con cajetin", "planta acotada", "planos de obra", "como veo la fachada interior de esa pared", "el corte a a"]),
+        lambda r: f"{_pick(r, ['como se ve', 'muestrame'])} la pared {_pick(r, ['del fondo', 'de la ventana', 'de la izquierda', 'de la derecha'])} en alzado",
+    ],
+    "pro_installations": [
+        lambda r: f"{_pick(r, ['propon', 'pon', 'dibuja', 'sugiere', 'ubica', 'distribuye'])} {_pick(r, ['los puntos electricos', 'las tomas', 'los enchufes', 'los tomacorrientes', 'los interruptores', 'las instalaciones', 'los puntos de agua', 'las salidas de luz', 'la red electrica', 'los puntos hidrosanitarios'])}",
+        lambda r: f"{_pick(r, ['donde van', 'donde pongo', 'cuantas', 'cuantos'])} {_pick(r, ['las tomas', 'los enchufes', 'tomacorrientes', 'interruptores', 'puntos electricos', 'los desagues', 'los puntos de agua'])}{_pick(r, ['', ' en este cuarto', ' del bano', ' de la cocina'])}",
+        lambda r: _pick(r, ["haz el plano electrico", "plano hidrosanitario", "cuadro de cargas", "cuantos circuitos necesito", "de cuanto es el breaker", "que calibre de cable va", "donde va el gfci", "necesito toma gfci", "el tablero electrico", "instalaciones electricas", "redes hidraulicas", "donde va el interruptor"]),
+    ],
     "other": [
-        lambda r: _pick(r, ["hola", "gracias", "que hora es", "cuanto cuesta todo", "como estas", "quien eres", "ayuda", "que puedes hacer", "jaja", "ok", "cuentame un chiste", "cual es la capital de francia", "buenas noches", "perfecto, gracias", "me encanta", "esta bien asi", "no entiendo", "que tal", "adios", "genial", "eres un robot", "como funciona esto", "guarda el proyecto", "exporta el plano", "cuanto mide el sofa", "donde compro esto", "que es el estilo bohemio", "explicame la revision", "buen trabajo", "no", "si", "vale"]),
+        lambda r: _pick(r, ["hola", "gracias", "que hora es", "cuanto cuesta todo", "como estas", "quien eres", "ayuda", "que puedes hacer", "jaja", "ok", "cuentame un chiste", "cual es la capital de francia", "buenas noches", "perfecto, gracias", "me encanta", "esta bien asi", "no entiendo", "que tal", "adios", "genial", "eres un robot", "como funciona esto", "guarda el proyecto", "cuanto mide el sofa", "donde compro esto", "que es el estilo bohemio", "buen trabajo", "no", "si", "vale"]),
         lambda r: f"{_pick(r, ['que opinas de', 'te gusta', 'que piensas de'])} {_pick(r, ['mi cuarto', 'este diseno', 'el sofa', 'los colores'])}",
         lambda r: f"{_pick(r, ['cuanto cuesta', 'donde compro', 'que medidas tiene'])} {_pick(r, ['el', 'la'])} {_pick(r, _ITEMS_SG)}",
     ],
@@ -235,7 +265,7 @@ def _clean(text: str) -> str:
 
 
 def generate(per_intent: int = 900, seed: int = 7) -> list[tuple[str, str]]:
-    """`per_intent` frases por intención, ya mezcladas. 17 intenciones × 900 ≈ 15 000 frases."""
+    """`per_intent` frases por intención, ya mezcladas. 21 intenciones × 900 ≈ 19 000 frases."""
     r = random.Random(seed)
     rows: list[tuple[str, str]] = []
     for intent in INTENTS:

@@ -37,6 +37,12 @@ const FURNITURE_INTENTS = new Set(['add_item', 'remove_item', 'move_item', 'room
 /** ΔE por debajo del cual un color pedido "es" la pintura de la biblioteca (verde salvia = Verde salvia). */
 const SAME_PAINT_DELTA_E = 15;
 /** "paredes verdes y el piso de nogal": dos órdenes aunque la segunda no empiece con verbo. */
+/** "¿cuántas cajas de baldosa…?": el material por el que se pregunta, para filtrar las compras. */
+const PRO_MATERIAL = /\b(baldosa|porcelanato|ceramica|pintura|pegante|boquilla|guardaescoba|madera|laminado|estuco|masilla|piedra|moqueta|panel)/;
+/** Cómo se llama en la lista de compras lo que la gente nombra distinto. */
+const MATERIAL_NAME: Record<string, string> = { porcelanato: 'baldosa', ceramica: 'baldosa', laminado: 'madera', masilla: 'estuco' };
+const PRO_WALL = /\b(fondo|frente|entrada|izquierda|derecha)\b/;
+const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const SURFACE_SPLIT = /\s+y\s+(?=(?:(?:el|la|los|las)\s+)?(?:piso|suelo|paredes?|techo|luz|iluminacion|revestimiento)\b)/;
 
 export class LocalNluDesignAgent implements DesignAgent {
@@ -68,7 +74,7 @@ export class LocalNluDesignAgent implements DesignAgent {
         if (session.understoodCount === before) throw new AgentDeclinedError(`Las reglas no entendieron "${clauses[i]!.text}"`);
         continue;
       }
-      const outcomes = this.apply(p, toolbox, context.styleId);
+      const outcomes = this.apply(p, toolbox, context.styleId, clauses[i]!.text);
       if (!outcomes) throw new AgentDeclinedError(`Faltan parámetros para ${p.intent}`);
       for (const out of outcomes) session.note(out);
     }
@@ -76,7 +82,7 @@ export class LocalNluDesignAgent implements DesignAgent {
   }
 
   /** Las herramientas que resuelven una orden, o null si faltan datos para hacerlo bien. */
-  private apply({ intent, slots: s }: NluParseResponse, tb: DesignToolbox, styleId: DesignAgentInput['context']['styleId']): ToolOutcome[] | null {
+  private apply({ intent, slots: s }: NluParseResponse, tb: DesignToolbox, styleId: DesignAgentInput['context']['styleId'], text = ''): ToolOutcome[] | null {
     switch (intent) {
       case 'set_floor':
         return this.finish(tb, s.surface === 'wallTiles' ? 'wallTiles' : 'floor', s);
@@ -114,6 +120,18 @@ export class LocalNluDesignAgent implements DesignAgent {
         return s.subcategory ? [tb.run('want_item', { subcategory: s.subcategory, avoid: true })] : null;
       case 'replicate_image':
         return [notDone('Adjunta la foto con el botón 📎 (o pégala) y la replico en tu cuarto')];
+      case 'pro_quantities': {
+        const material = PRO_MATERIAL.exec(fold(text))?.[1];
+        return [tb.run('estimate_works', material ? { material: MATERIAL_NAME[material] ?? material } : {})];
+      }
+      case 'pro_compliance':
+        return [tb.run('check_compliance', {})];
+      case 'pro_installations':
+        return [tb.run('suggest_installations', {})];
+      case 'pro_drawings': {
+        const wall = PRO_WALL.exec(fold(text))?.[1];
+        return [tb.run('list_drawings', wall ? { wall } : {})];
+      }
       default:
         return null;
     }

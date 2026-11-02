@@ -390,6 +390,23 @@ describe('LocalNluDesignAgent (modelo propio)', () => {
     expect(kinds.at(-1)).toBe('recommend');
   });
 
+  it('Modo Pro: cantidades, normativa, instalaciones y planos responden sin tocar la escena', async () => {
+    const ai = new FakeAi();
+    ai.nlu.set('pintura', nluHit('pro_quantities'));
+    ai.nlu.set('normativa', nluHit('pro_compliance'));
+    ai.nlu.set('tomas', nluHit('pro_installations'));
+    ai.nlu.set('alzado', nluHit('pro_drawings'));
+    const tb = toolbox();
+    const { reply } = await run(ai, 'cuántos galones de pintura necesito. revisa la normativa. dónde van las tomas. muestra el alzado de la pared del fondo', tb);
+    const lines = reply.split('\n');
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toMatch(/^✓ Para pintura: \d+ galon/);
+    expect(lines[1]).toMatch(/^✓ Revisé con el perfil/);
+    expect(lines[2]).toMatch(/^✓ Te propongo .*toma/);
+    expect(lines[3]).toMatch(/^✓ La pared del fondo es el alzado E\d/);
+    expect(tb.operations()).toEqual([]);
+  });
+
   it('si duda, falta un dato o el servicio está caído, pasa el turno sin tocar nada', async () => {
     const ai = new FakeAi();
     ai.nlu.set('algo', nluHit('set_floor', {}, 0.5));
