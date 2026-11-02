@@ -24,7 +24,6 @@ import {
   type ArrangeBox,
   type CatalogItem,
   type DesignIssue,
-  type DesignPiece,
   type FurniturePlacement,
   type Opening,
   type Point2,
