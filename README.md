@@ -39,6 +39,8 @@ Un botón **Modo Pro** en la cabecera (preferencia de la cuenta) añade al edito
 - **Planos técnicos** ([ADR-0029](docs/adr/0029-planos-tecnicos.md)). Planta arquitectónica con muros achurados y cotas encadenadas, planta de amoblamiento, de cielo raso e iluminación y de acabados, alzados interiores de cada pared y corte A–A'. Láminas A4–A1 a escala 1:20–1:100 con rótulo y escala gráfica.
   - Descargas: lámina en **SVG**, vistas en **DXF** (AutoCAD/LibreCAD, en metros, con capas `A-WALL`, `A-DOOR`, `A-ANNO-DIMS`...) y el **juego de planos en PDF** vectorial (A-01, A-02...).
   - Un solo modelo de dibujo y un renderizador por formato (Composite + Visitor): lo que se ve es lo que se imprime y lo que abre el CAD.
+- **Normativa y ergonomía** ([ADR-0030](docs/adr/0030-normativa-e-iluminacion.md)). Perfiles "Buenas prácticas (Neufert)" y "Colombia — orientativo": paso libre, vanos, giro de silla de ruedas, altura libre, luz y ventilación natural, holguras de uso, triángulo de cocina y alturas de trabajo, cada hallazgo con lo medido, lo exigido y su fuente (reglas Specification).
+  - **Cálculo de iluminación** punto a punto de las lámparas y factor de luz diurna, con mapa de calor de noche y de día. Informe en PDF.
 
 ## Diseño de la interfaz
 
