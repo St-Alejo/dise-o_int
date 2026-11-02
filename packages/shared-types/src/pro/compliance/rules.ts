@@ -79,6 +79,15 @@ const pct = (v: number) => `${v.toFixed(1).replace('.', ',')} %`;
 const flat = (v: { x: number; z: number }): Point2 => ({ x: v.x, z: v.z });
 export const cornersOf = (p: Pick<DesignPiece, 'position' | 'dims' | 'rotationY'>): Point2[] => footprint(p.position, p.dims, p.rotationY).corners.map(flat);
 
+/** Tramo junto a la cabecera que no se mide a los lados (donde van las mesas de noche). */
+const SIDE_HEAD_M = 0.6;
+
+/** Piezas auxiliares: basta con llegar a ellas con el paso mínimo, no con el de la circulación principal. */
+const SECONDARY = new Set(['nightstand', 'side-table', 'plant', 'floor-lamp', 'ottoman', 'stool', 'vanity-stool', 'dining-chair', 'office-chair', 'vase']);
+
+/** "de el clóset" → "del clóset". */
+const of = (label: string) => `de ${label}`.replace(/^de el /, 'del ');
+
 /** Asientos y lo que se mueve con la mano: no cuentan al medir holguras delante de un mueble. */
 const MOVABLE = new Set(['office-chair', 'dining-chair', 'stool', 'vanity-stool', 'ottoman', 'rug', 'plant', 'vase', 'floor-lamp']);
 
@@ -123,10 +132,14 @@ export function freeDepth(ctx: Pick<ComplianceContext, 'room' | 'shell' | 'obsta
   const local = side === 'front' ? { x: 0, z: 1 } : side === 'left' ? { x: -1, z: 0 } : { x: 1, z: 0 };
   const dir = rotateXZ(local.x, local.z, piece.rotationY);
   const across = rotateXZ(local.z, -local.x, piece.rotationY);
-  const halfFace = (side === 'front' ? piece.dims.x : piece.dims.z) / 2;
   const halfDepth = (side === 'front' ? piece.dims.z : piece.dims.x) / 2;
+  // A los lados solo cuenta el tramo hacia el frente: junto a la cabecera de una cama van las
+  // mesas de noche, y no por eso falta sitio para subirse.
+  const headroom = side === 'front' ? 0 : Math.min(SIDE_HEAD_M, piece.dims.z * 0.4);
+  const halfFace = ((side === 'front' ? piece.dims.x : piece.dims.z) - headroom) / 2;
   const width = Math.max(0.15, halfFace - 0.05);
-  const face = { x: piece.position.x + dir.x * halfDepth, z: piece.position.z + dir.z * halfDepth };
+  const shift = rotateXZ(0, headroom / 2, piece.rotationY);
+  const face = { x: piece.position.x + dir.x * halfDepth + shift.x, z: piece.position.z + dir.z * halfDepth + shift.z };
   const others = ctx.obstacles.filter((o) => o.id !== piece.id && !MOVABLE.has(o.subcategory ?? '')).map(cornersOf);
   const partitions = partitionSolids(ctx.shell);
   const free = (d: number) => {
@@ -247,6 +260,7 @@ const clearPath: ComplianceRule = {
     for (const p of ctx.obstacles) {
       if (served(main, p, width)) continue;
       const ok = served(narrow, p, minimum);
+      if (ok && SECONDARY.has(p.subcategory ?? '')) continue;
       out.push(
         finding(this, ctx, {
           id: `clear-path:${p.id}`,
@@ -408,8 +422,8 @@ const fixtureClearance: ComplianceRule = {
         finding(this, ctx, {
           id: `clearance:${p.id}`,
           status,
-          title: `Espacio delante de ${spec.label}`,
-          detail: status === 'pass' ? 'Se puede usar con comodidad.' : `Delante de ${spec.label} queda poco espacio para usarlo.`,
+          title: `Espacio delante ${of(spec.label)}`,
+          detail: status === 'pass' ? 'Se puede usar con comodidad.' : `Delante ${of(spec.label)} queda poco espacio para usarlo.`,
           measured: m(free),
           required: m(need),
           placementIds: [p.id],

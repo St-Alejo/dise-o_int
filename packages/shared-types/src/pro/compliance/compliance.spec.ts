@@ -170,6 +170,13 @@ describe('revisión normativa', () => {
     expect(byId(check([bed], { roomType: 'bedroom' }), 'clearance:cama')).toMatchObject({ status: 'warn', measured: '1,00 m y 0,00 m' });
     const centred = piece('cama', 2.5, 1.2, [1.6, 0.5, 2], { category: 'bed' });
     expect(byId(check([centred], { roomType: 'bedroom' }), 'clearance:cama')!.status).toBe('pass');
+    // Las mesas de noche junto a la cabecera no quitan el sitio para subirse.
+    const nightstands = [piece('mesa izq', 1.45, 0.45, [0.5, 0.55, 0.4], { subcategory: 'nightstand' }), piece('mesa der', 3.55, 0.45, [0.5, 0.55, 0.4], { subcategory: 'nightstand' })];
+    const withTables = check([{ ...centred, position: { x: 2.5, y: 0, z: 1 } }, ...nightstands], { roomType: 'bedroom' });
+    expect(byId(withTables, 'clearance:cama')!.status).toBe('pass');
+    // Y a una mesa de noche basta con llegar con el paso mínimo.
+    expect(withTables.findings.filter((f) => f.id.startsWith('clear-path:mesa'))).toEqual([]);
+    expect(byId(check([piece('clóset', 2.5, 3.6, [1.2, 2, 0.6], { subcategory: 'wardrobe', rotationY: Math.PI })]), 'clearance:clóset')!.title).toBe('Espacio delante del clóset');
   });
 
   it('cocina: triángulo de trabajo y altura del mesón', () => {

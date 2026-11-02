@@ -28,6 +28,9 @@ const STATUS: Record<ComplianceStatus, { label: string; color: string }> = {
   na: { label: 'NO APLICA', color: '#667085' },
 };
 
+/** Helvetica (WinAnsi) no tiene "≥": se escribe con palabras. */
+const plain = (text: string) => text.replace(/≥\s?/g, 'mín. ');
+
 const LEFT = 48;
 const RIGHT = 547;
 
@@ -40,6 +43,10 @@ function drawHeatmap(doc: Doc, shell: RoomShell, report: ComplianceReport, targe
   const oy = box.y + (box.height - (b.maxZ - b.minZ) * k) / 2;
   const at = (x: number, z: number): [number, number] => [ox + (x - b.minX) * k, oy + (z - b.minZ) * k];
   const step = report.lighting.stepM * k;
+  // El piso entero en gris claro: la banda junto a las paredes no se evalúa.
+  doc.moveTo(...at(room[0]!.x, room[0]!.z));
+  for (const p of room.slice(1)) doc.lineTo(...at(p.x, p.z));
+  doc.closePath().fill('#e9e9e6');
   for (const c of report.lighting.cells) {
     const [x, y] = at(c.x, c.z);
     doc.rect(x - step / 2, y - step / 2, step, step).fill(luxColor(c.lux, target));
@@ -94,10 +101,10 @@ export function renderCompliancePdf(report: ComplianceReport, shell: RoomShell, 
       const y = doc.y;
       const st = STATUS[f.status];
       doc.font('Helvetica-Bold').fontSize(8).fillColor(st.color).text(st.label, LEFT, y, { width: 62 });
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#111').text(f.title, LEFT + 66, y, { width: RIGHT - LEFT - 66 });
-      const values = [f.measured && `Medido: ${f.measured}`, f.required && `Exigido: ${f.required}`].filter(Boolean).join('   ');
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#111').text(plain(f.title), LEFT + 66, y, { width: RIGHT - LEFT - 66 });
+      const values = plain([f.measured && `Medido: ${f.measured}`, f.required && `Exigido: ${f.required}`].filter(Boolean).join('   '));
       if (values) doc.font('Helvetica').fontSize(9).fillColor('#333').text(values, LEFT + 66, doc.y, { width: RIGHT - LEFT - 66 });
-      doc.font('Helvetica').fontSize(9).fillColor('#333').text(f.detail, LEFT + 66, doc.y, { width: RIGHT - LEFT - 66 });
+      doc.font('Helvetica').fontSize(9).fillColor('#333').text(plain(f.detail), LEFT + 66, doc.y, { width: RIGHT - LEFT - 66 });
       doc.font('Helvetica').fontSize(7.5).fillColor('#777').text(f.reference, LEFT + 66, doc.y, { width: RIGHT - LEFT - 66 });
       doc.moveDown(0.5);
     }
