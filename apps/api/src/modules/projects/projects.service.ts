@@ -11,6 +11,7 @@ import {
   type DesignBrief,
   type TechnicalSpec,
   type ComplianceInput,
+  type TakeoffInput,
   type DrawingSetInput,
   type DesignProject,
   type DesignProjectVersion,
@@ -200,6 +201,11 @@ export class ProjectsService {
   /** Datos para la revisión normativa del Modo Pro. */
   complianceInput(actor: Actor, id: string, hour?: number): Promise<ComplianceInput & { roomName: string }> {
     return this.reports.complianceInput(actor, id, hour);
+  }
+
+  /** Datos para el presupuesto de obra del Modo Pro. */
+  takeoffInput(actor: Actor, id: string): Promise<TakeoffInput & { roomName: string }> {
+    return this.reports.takeoffInput(actor, id);
   }
 
   dossier(actor: Actor, id: string): Promise<ProjectDossier> {

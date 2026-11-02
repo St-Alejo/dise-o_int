@@ -8,6 +8,7 @@ import {
   STYLES,
   technicalOf,
   type ComplianceInput,
+  type TakeoffInput,
   type DesignPiece,
   type DrawingSetInput,
   type ShoppingList,
@@ -77,6 +78,21 @@ export class ProjectReports {
     const shell = this.access.requireShell(project);
     const spec = technicalOf(project.technical ?? null);
     return { shell, pieces: await this.piecesOf(project), roomType: project.roomType, compliance: spec.compliance, roomName: project.name, ...(hour === undefined ? {} : { hour }) };
+  }
+
+  /** Lo que necesita el presupuesto de obra: planta, acabados, ficha, mobiliario (de la lista de compras) y tope. */
+  async takeoffInput(actor: Actor, id: string): Promise<TakeoffInput & { roomName: string }> {
+    const project = await this.access.own(actor, id);
+    const shell = this.access.requireShell(project);
+    const list = await this.buildShoppingList(project);
+    return {
+      shell,
+      finishes: project.finishes,
+      spec: technicalOf(project.technical ?? null),
+      furniture: { total: list.total, pieces: list.lines.reduce((s, l) => s + l.quantity, 0), currency: list.currency },
+      budgetCap: project.budgetCap ?? null,
+      roomName: project.name,
+    };
   }
 
   /** Los muebles del cuarto como piezas de diseño (las mismas que usa la revisión del diseño). */

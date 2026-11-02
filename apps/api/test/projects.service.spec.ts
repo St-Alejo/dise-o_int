@@ -1,9 +1,10 @@
 import { renderHomeDossierPdf, renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { availableSheets, checkCompliance, createRectangularShell, drawingSet, moveWall, technicalOf } from '@interiores/shared-types';
+import { availableSheets, checkCompliance, computeTakeoff, takeoffCsv, createRectangularShell, drawingSet, moveWall, technicalOf } from '@interiores/shared-types';
 import { renderDrawingSetPdf } from '../src/modules/projects/drawings.pdf.js';
 import { renderCompliancePdf } from '../src/modules/projects/compliance.pdf.js';
+import { renderTakeoffPdf } from '../src/modules/projects/takeoff.pdf.js';
 import {
   NotFoundError,
   QuotaExceededError,
@@ -380,6 +381,20 @@ describe('ProjectsService', () => {
       const pdf = await renderCompliancePdf(report, input.shell, { roomName, date: '2026-11-01' });
       expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
       await expect(service.complianceInput(bob, p.id)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('el presupuesto de obra suma el mobiliario de la lista de compras y sale en CSV y PDF', async () => {
+      const p = await readyProject();
+      const { roomName, ...input } = await service.takeoffInput(alice, p.id);
+      const list = await service.shoppingList(alice, p.id);
+      expect(input.furniture).toEqual({ total: list.total, pieces: list.lines.reduce((s, l) => s + l.quantity, 0), currency: list.currency });
+      const t = computeTakeoff(input);
+      expect(t.lines.length).toBeGreaterThan(3);
+      expect(t.total).toBe(t.works + t.furniture);
+      expect(takeoffCsv(t)).toContain('Total obra');
+      const pdf = await renderTakeoffPdf(t, { roomName, date: '2026-11-01' });
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      await expect(service.takeoffInput(bob, p.id)).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 

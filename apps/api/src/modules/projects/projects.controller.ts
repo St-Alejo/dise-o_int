@@ -34,6 +34,9 @@ import {
   SetTechnicalRequestSchema,
   SHEET_IDS,
   checkCompliance,
+  computeTakeoff,
+  takeoffCsv,
+  type Takeoff,
   type ComplianceReport,
   availableSheets,
   drawingSet,
@@ -81,6 +84,7 @@ import { ProjectsService, type Actor } from './projects.service.js';
 import { renderHomeDossierPdf, renderProjectDossierPdf, renderShoppingListPdf } from './shopping-list.pdf.js';
 import { renderDrawingSetPdf } from './drawings.pdf.js';
 import { renderCompliancePdf } from './compliance.pdf.js';
+import { renderTakeoffPdf } from './takeoff.pdf.js';
 import { ValidationError } from '../../common/errors.js';
 
 /** Tope duro de Multer; el límite configurable (UPLOAD_MAX_MB) lo aplica PhotoProcessor. */
@@ -433,6 +437,37 @@ export class ProjectsController {
       .type('application/pdf')
       .setHeader('cache-control', 'no-store')
       .setHeader('content-disposition', `attachment; filename="normativa-${id.slice(0, 8)}.pdf"`)
+      .send(pdf);
+  }
+
+  /** Presupuesto de obra del Modo Pro: cómputo métrico, APU, AIU, cronograma y total con mobiliario. */
+  @Get(':id/takeoff')
+  @Throttle(perMinute(30))
+  async takeoff(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string): Promise<Takeoff> {
+    const { roomName: _name, ...input } = await this.service.takeoffInput(this.actor(user), id);
+    return computeTakeoff(input);
+  }
+
+  @Get(':id/takeoff.csv')
+  @Throttle(perMinute(20))
+  async takeoffCsv(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string, @Res() res: Response): Promise<void> {
+    const { roomName: _name, ...input } = await this.service.takeoffInput(this.actor(user), id);
+    res
+      .type('text/csv; charset=utf-8')
+      .setHeader('cache-control', 'no-store')
+      .setHeader('content-disposition', `attachment; filename="presupuesto-obra-${id.slice(0, 8)}.csv"`)
+      .send(takeoffCsv(computeTakeoff(input)));
+  }
+
+  @Get(':id/takeoff.pdf')
+  @Throttle(perMinute(20))
+  async takeoffPdf(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string, @Res() res: Response): Promise<void> {
+    const { roomName, ...input } = await this.service.takeoffInput(this.actor(user), id);
+    const pdf = await renderTakeoffPdf(computeTakeoff(input), { roomName, date: new Date().toISOString().slice(0, 10) });
+    res
+      .type('application/pdf')
+      .setHeader('cache-control', 'no-store')
+      .setHeader('content-disposition', `attachment; filename="presupuesto-obra-${id.slice(0, 8)}.pdf"`)
       .send(pdf);
   }
 
