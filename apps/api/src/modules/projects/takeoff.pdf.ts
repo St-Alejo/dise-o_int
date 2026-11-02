@@ -52,7 +52,7 @@ export function renderTakeoffPdf(t: Takeoff, opts: { roomName: string; date: str
       doc.font('Helvetica').fontSize(8.5).fillColor('#111');
       doc.text(l.detail ? `${l.name} — ${l.detail}` : l.name, cols.act, y, { width: cols.unit - cols.act - 6 });
       const after = doc.y;
-      doc.text(l.unit === 'm²' ? 'm2' : l.unit, cols.unit, y);
+      doc.text(l.unit, cols.unit, y);
       doc.text(num(l.quantity), cols.qty, y);
       doc.text(l.waste ? `${Math.round(l.waste * 100)} %` : '—', cols.waste, y);
       doc.text(money(l.unitMaterial + l.unitLabor), cols.unitPrice, y);
@@ -95,8 +95,14 @@ export function renderTakeoffPdf(t: Takeoff, opts: { roomName: string; date: str
   for (const task of t.schedule) {
     const y = doc.y;
     doc.font('Helvetica').fontSize(9).fillColor('#111').text(task.label, LEFT, y + 2, { width: barLeft - LEFT - 6 });
-    doc.rect(barLeft + task.startDay * k, y, Math.max(2, task.days * k), 12).fill('#2f6d6a');
-    doc.font('Helvetica').fontSize(7.5).fillColor('#444').text(`día ${num(task.startDay + 1, 1)} · ${num(task.days, 1)} d`, barLeft + task.startDay * k + Math.max(2, task.days * k) + 4, y + 2, { lineBreak: false });
+    const x = barLeft + task.startDay * k;
+    const w = Math.max(2, task.days * k);
+    doc.rect(x, y, w, 12).fill('#2f6d6a');
+    const label = `día ${num(task.startDay + 1, 1)} · ${num(task.days, 1)} d`;
+    doc.font('Helvetica').fontSize(7.5);
+    // La etiqueta va a la derecha de la barra, o a su izquierda si no cabe en la página.
+    const lx = x + w + 4 + doc.widthOfString(label) > RIGHT ? x - 4 - doc.widthOfString(label) : x + w + 4;
+    doc.fillColor('#444').text(label, lx, y + 2, { lineBreak: false });
     doc.y = y + 20;
   }
 
@@ -108,7 +114,7 @@ export function renderTakeoffPdf(t: Takeoff, opts: { roomName: string; date: str
     const y = doc.y;
     doc.font('Helvetica').fontSize(9).fillColor('#111').text(p.name, LEFT, y, { width: 250 });
     const after = doc.y;
-    doc.text(`${num(p.quantity)} ${p.unit === 'm²' ? 'm2' : p.unit}`, 300, y).text(p.packs, 400, y);
+    doc.text(`${num(p.quantity)} ${p.unit}`, 300, y).text(p.packs, 400, y);
     doc.y = Math.max(after, doc.y) + 2;
   }
   doc.moveDown(0.8).font('Helvetica-Oblique').fontSize(8).fillColor('#666').text('Cantidades calculadas desde el modelo, con desperdicio según el dibujo de cada acabado. Precios de referencia: ajústalos en la ficha técnica con los de tu zona y verifica las medidas en obra.', LEFT, doc.y, { width: RIGHT - LEFT });

@@ -74,6 +74,15 @@ describe('APU, desperdicio y compras', () => {
     const paint = purchasesFor('paint', getMaterial('paint-white')!, 31.67, 0);
     expect(paint[0]).toMatchObject({ unit: 'L', packs: '2 galones' });
     expect(paint[0]!.quantity).toBeCloseTo(6.334, 3);
+    expect(purchasesFor('paint', getMaterial('paint-white')!, 12, 0)[0]!.packs).toBe('1 galón');
+  });
+
+  it('las compras del mismo material se unen en una línea', () => {
+    const t = computeTakeoff({ shell: room(), finishes, spec: defaultTechnicalSpec() });
+    const paint = t.purchases.filter((p) => p.name === 'Pintura Blanco cálido');
+    expect(paint).toHaveLength(1);
+    expect(paint[0]!.quantity).toBeCloseTo(((31.67 + 12) * 2) / 10, 2);
+    expect(paint[0]!.packs).toBe('3 galones');
   });
 });
 
