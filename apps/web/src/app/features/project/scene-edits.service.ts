@@ -64,24 +64,7 @@ export class SceneEditsService {
   readonly issues = computed<DesignIssue[]>(() => {
     const shell = this.store.shell();
     if (!shell) return [];
-    const catalog = this.store.catalog();
-    const pieces = this.store.placements().flatMap((p): DesignPiece[] => {
-      const item = catalog.get(p.catalogItemId);
-      if (!item) return [];
-      return [
-        {
-          id: p.id,
-          name: item.name,
-          mount: item.mount,
-          category: item.category,
-          ...(item.subcategory ? { subcategory: item.subcategory } : {}),
-          position: p.position,
-          rotationY: p.rotationY,
-          dims: effectiveDimensions(item.dimensionsM, p),
-          ...(p.supportId ? { supportId: p.supportId } : {}),
-        },
-      ];
-    });
+    const pieces = this.store.designPieces();
     return checkDesign(shell, pieces);
   });
   /** Avisos que conviene atender (las sugerencias no cuentan para el indicador). */

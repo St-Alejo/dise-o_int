@@ -214,6 +214,11 @@ export class ProjectsApi {
   }
 
   /** El proyecto en un PDF: ficha, plano acotado con muebles y lista de compras. */
+  /** Juego de planos técnicos (Modo Pro) en PDF vectorial, a escala. */
+  drawingSetPdf(id: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(`${this.base}/${id}/drawings/set.pdf`, { responseType: 'blob' }));
+  }
+
   dossierPdf(id: string): Promise<Blob> {
     return firstValueFrom(this.http.get(`${this.base}/${id}/dossier.pdf`, { responseType: 'blob' }));
   }

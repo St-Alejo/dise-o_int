@@ -8,6 +8,7 @@ import {
   effectiveDimensions,
   mountY,
   technicalOf,
+  type DesignPiece,
   type TechnicalSpec,
   type WallSpec,
   type CatalogItem,
@@ -259,6 +260,28 @@ export class DesignProjectStore {
       throw err;
     }
   }
+
+  /** Los muebles como piezas de diseño (medidas reales, montaje): para la revisión y los planos. */
+  readonly designPieces = computed<DesignPiece[]>(() => {
+    const catalog = this.catalog();
+    return this.placements().flatMap((p): DesignPiece[] => {
+      const item = catalog.get(p.catalogItemId);
+      if (!item) return [];
+      return [
+        {
+          id: p.id,
+          name: item.name,
+          mount: item.mount,
+          category: item.category,
+          ...(item.subcategory ? { subcategory: item.subcategory } : {}),
+          position: p.position,
+          rotationY: p.rotationY,
+          dims: effectiveDimensions(item.dimensionsM, p),
+          ...(p.supportId ? { supportId: p.supportId } : {}),
+        },
+      ];
+    });
+  });
 
   /** Ficha técnica del Modo Pro, con los valores por defecto si el proyecto aún no tiene. */
   readonly technical = computed(() => technicalOf(this.project()?.technical ?? null));
