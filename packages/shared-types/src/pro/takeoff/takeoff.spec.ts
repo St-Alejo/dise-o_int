@@ -115,6 +115,16 @@ describe('presupuesto de obra', () => {
     expect(t.budget.level).toBe('none');
   });
 
+  it('el mobiliario en dólares se pasa a pesos con la tasa de la ficha; sin tasa no se suma', () => {
+    const usd = computeTakeoff({ shell: room(), finishes, spec: defaultTechnicalSpec(), furniture: { total: 500, pieces: 2, currency: 'USD' }, budgetCap: 2_000 });
+    expect(usd.fx).toEqual({ from: 'USD', rate: 4000 });
+    expect(usd.furniture).toBe(2_000_000);
+    expect(usd.budget.remaining).toBe(8_000_000 - usd.total);
+    const eur = computeTakeoff({ shell: room(), finishes, spec: defaultTechnicalSpec(), furniture: { total: 500, pieces: 2, currency: 'EUR' } });
+    expect(eur.fx).toEqual({ from: 'EUR', rate: null });
+    expect(eur.furniture).toBe(0);
+  });
+
   it('exporta un CSV para Excel en español', () => {
     const csv = takeoffCsv(computeTakeoff({ shell: room(), finishes, spec: defaultTechnicalSpec() }));
     expect(csv.startsWith('﻿Fase;Actividad;')).toBe(true);

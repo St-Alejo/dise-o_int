@@ -49,8 +49,9 @@ export interface TakeoffInput {
   shell: RoomShell;
   finishes: RoomFinishes | null | undefined;
   spec: TechnicalSpec;
-  /** Mobiliario del cuarto: total de la lista de compras y número de piezas. */
-  furniture?: { total: number; pieces: number };
+  /** Mobiliario del cuarto: total de la lista de compras, su moneda y número de piezas. */
+  furniture?: { total: number; pieces: number; currency?: string };
+  /** Tope del proyecto, en la moneda del mobiliario. */
   budgetCap?: number | null;
   waste?: WasteStrategy;
 }
@@ -63,7 +64,10 @@ export interface Takeoff {
   direct: number;
   aiu: { administration: number; contingency: number; profit: number; total: number };
   works: number;
+  /** Mobiliario ya convertido a la moneda de las tarifas. */
   furniture: number;
+  /** Conversión aplicada al mobiliario y al tope; `null` si no hacía falta. Sin tasa conocida, el mobiliario no se suma. */
+  fx: { from: string; rate: number | null } | null;
   total: number;
   budget: BudgetStatus;
   schedule: ScheduleTask[];
@@ -137,7 +141,12 @@ export function computeTakeoff(input: TakeoffInput): Takeoff {
   };
   aiu.total = aiu.administration + aiu.contingency + aiu.profit;
   const works = direct + aiu.total;
-  const furniture = Math.round(input.furniture?.total ?? 0);
+  // El mobiliario (y el tope, que va en su moneda) se pasa a la moneda de las tarifas.
+  const from = input.furniture?.currency ?? spec.rates.currency;
+  const rate = from === spec.rates.currency ? 1 : (spec.rates.fx[from] ?? null);
+  const fx = from === spec.rates.currency ? null : { from, rate };
+  const furniture = rate === null ? 0 : Math.round((input.furniture?.total ?? 0) * rate);
+  const cap = input.budgetCap != null && rate !== null ? input.budgetCap * rate : null;
 
   // Cronograma: las fases van una tras otra; dentro de una fase, las cuadrillas trabajan a la vez.
   let cursor = 0;
@@ -159,8 +168,9 @@ export function computeTakeoff(input: TakeoffInput): Takeoff {
     aiu,
     works,
     furniture,
+    fx,
     total: works + furniture,
-    budget: budgetStatus(works + furniture, input.budgetCap ?? null),
+    budget: budgetStatus(works + furniture, cap),
     schedule,
     days: cursor,
   };

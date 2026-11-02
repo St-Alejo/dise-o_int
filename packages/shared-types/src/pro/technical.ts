@@ -86,6 +86,8 @@ export const RatesSpecSchema = z.object({
   }),
   /** Tarifas propias del proyecto (`código de actividad → precio`), por encima de la lista base. */
   overrides: z.record(z.string().min(1).max(40), UnitRateSchema),
+  /** Cuánto vale una unidad de otra moneda (la del catálogo de muebles) en la de las tarifas. */
+  fx: z.record(z.string().regex(/^[A-Z]{3}$/), finite.positive().max(1e7)),
 });
 export type RatesSpec = z.infer<typeof RatesSpecSchema>;
 
@@ -160,7 +162,7 @@ export function defaultTechnicalSpec(): TechnicalSpec {
     titleBlock: { revision: 'A' },
     sheet: { paper: 'A3', scale: 50 },
     compliance: { profile: 'neufert', accessible: false },
-    rates: { currency: 'COP', aiu: { administration: 0.1, contingency: 0.05, profit: 0.05 }, overrides: {} },
+    rates: { currency: 'COP', aiu: { administration: 0.1, contingency: 0.05, profit: 0.05 }, overrides: {}, fx: { USD: 4000 } },
     installations: { voltage: 120, points: [], circuits: [] },
   };
 }
