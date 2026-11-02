@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import type { DesignIssue, IssueSeverity } from '@interiores/shared-types';
+import type { ComplianceFinding, DesignIssue, IssueSeverity } from '@interiores/shared-types';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
+import { ComplianceService } from '../pro/compliance.service';
 
 const SEVERITY: Record<IssueSeverity, string> = { problem: 'Problema', warning: 'Atención', tip: 'Sugerencia' };
 
@@ -31,12 +32,34 @@ const SEVERITY: Record<IssueSeverity, string> = { problem: 'Problema', warning: 
       } @else {
         <p class="ok" role="status">Todo en orden: se puede entrar, se llega a cada mueble y nada tapa las ventanas.</p>
       }
+      @if (compliance?.report(); as report) {
+        <h4>Normativa · {{ report.profile.name }}</h4>
+        @if (compliance!.pending().length) {
+          <ul class="list" role="list">
+            @for (f of compliance!.pending(); track f.id) {
+              <li>
+                <button type="button" [class]="'issue ' + (f.status === 'fail' ? 'issue-problem' : 'issue-warning')" (click)="openFinding(f)" [disabled]="!f.placementIds.length">
+                  <span class="tag">{{ f.status === 'fail' ? 'No cumple' : 'Aviso' }}{{ f.measured ? ' · ' + f.measured : '' }}{{ f.required ? ' (pide ' + f.required + ')' : '' }}</span>
+                  <strong>{{ f.title }}</strong>
+                  <span class="muted">{{ f.detail }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="ok" role="status">Cumple todo lo que revisa el perfil elegido.</p>
+        }
+      }
     </section>
   `,
   styles: `
     h3 {
       margin: 0 0 8px;
       font-size: 1.05rem;
+    }
+    h4 {
+      margin: 12px 0 6px;
+      font-size: 0.9rem;
     }
     .list {
       list-style: none;
@@ -99,6 +122,13 @@ export class DesignReviewComponent {
   private readonly store = inject(DesignProjectStore);
   protected readonly edits = inject(SceneEditsService);
   protected readonly labels = SEVERITY;
+  /** Solo dentro del editor y con el Modo Pro: los hallazgos de normativa se suman a la revisión. */
+  protected readonly compliance = inject(ComplianceService, { optional: true });
+
+  protected openFinding(f: ComplianceFinding): void {
+    const id = f.placementIds[0];
+    if (id) this.store.select(id);
+  }
 
   protected open(issue: DesignIssue): void {
     const id = issue.placementIds[0];

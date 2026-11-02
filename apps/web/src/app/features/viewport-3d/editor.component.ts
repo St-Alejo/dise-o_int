@@ -1,3 +1,4 @@
+import { ComplianceService } from '../pro/compliance.service';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { ArViewerComponent } from '../ar-view/ar-viewer.component';
@@ -40,7 +41,7 @@ function initialView(): ViewMode {
   selector: 'app-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   // La conversación del asistente vive con el editor (no se pierde al cambiar de pestaña).
-  providers: [SceneService, DesignChatService, SceneEditsService],
+  providers: [SceneService, DesignChatService, SceneEditsService, ComplianceService],
   imports: [
     ThreeViewportComponent,
     PlanEditorComponent,

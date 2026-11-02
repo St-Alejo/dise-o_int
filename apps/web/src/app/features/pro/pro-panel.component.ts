@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { CompliancePanelComponent } from './compliance-panel.component';
 import { DrawingsPanelComponent } from './drawings-panel.component';
 import { TechnicalFormComponent } from './technical-form.component';
 
@@ -9,12 +10,16 @@ import { TechnicalFormComponent } from './technical-form.component';
 @Component({
   selector: 'app-pro-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TechnicalFormComponent, DrawingsPanelComponent],
+  imports: [TechnicalFormComponent, DrawingsPanelComponent, CompliancePanelComponent],
   template: `
     <div class="pro">
       <details open>
         <summary>Planos técnicos</summary>
         <app-drawings-panel />
+      </details>
+      <details>
+        <summary>Normativa y ergonomía</summary>
+        <app-compliance-panel />
       </details>
       <details>
         <summary>Ficha técnica</summary>

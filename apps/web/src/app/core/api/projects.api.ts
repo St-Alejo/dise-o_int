@@ -219,6 +219,11 @@ export class ProjectsApi {
     return firstValueFrom(this.http.get(`${this.base}/${id}/drawings/set.pdf`, { responseType: 'blob' }));
   }
 
+  /** Informe de la revisión normativa (Modo Pro). */
+  compliancePdf(id: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(`${this.base}/${id}/compliance.pdf`, { responseType: 'blob' }));
+  }
+
   dossierPdf(id: string): Promise<Blob> {
     return firstValueFrom(this.http.get(`${this.base}/${id}/dossier.pdf`, { responseType: 'blob' }));
   }
