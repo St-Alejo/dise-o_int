@@ -102,6 +102,7 @@ model Project {
   shareLinks      ShareLink[]
   jobs            JobAudit[]
   recommendations RecommendationFeedback[]
+  renders         Render[]
 
   @@index([ownerId, updatedAt])
   @@index([ownerId, homeId])
@@ -225,4 +226,31 @@ model RecommendationFeedback {
   @@index([projectId, createdAt])
   @@index([ownerId, createdAt])
   @@map("recommendation_feedback")
+}
+
+/// Estudio de render (plan v9): imágenes y vídeos del cuarto hechos en el navegador, y las fotos
+/// realistas que la IA saca de ellos.
+model Render {
+  id             String        @id @default(uuid()) @db.Uuid
+  projectId      String        @db.Uuid
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// path | photoreal | video
+  kind           String
+  status         PreviewStatus @default(pending)
+  mediaType      String?
+  fileKey        String?
+  /// RenderSpec con el que se hizo (cámara, hora, formato); la foto IA hereda el de su render.
+  spec           Json?
+  sourceRenderId String?       @db.Uuid
+  fidelity       String?
+  provider       String?
+  /// sha256(render + profundidad + fidelidad + modelo): repetir la misma foto IA no vuelve a costar.
+  cacheKey       String?
+  shared         Boolean       @default(false)
+  error          String?
+  createdAt      DateTime      @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([projectId, cacheKey])
+  @@map("renders")
 }

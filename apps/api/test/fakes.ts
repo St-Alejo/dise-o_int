@@ -28,6 +28,10 @@ import type {
   IProgressBroker,
   IProjectRepository,
   IQuota,
+  IRenderRepository,
+  NewRender,
+  RenderPatch,
+  RenderRecord,
   JobPayloads,
   PreviewRecord,
   RecommendationRecord,
@@ -44,7 +48,46 @@ export const testConfig = {
   RETENTION_HOURS: 24,
   MEDIA_SIGNING_SECRET: 'x'.repeat(40),
   MEDIA_URL_TTL_SECONDS: 3600,
+  RENDERS_MAX_MB: 60,
+  RENDERS_PER_PROJECT: 60,
 } as unknown as AppConfig;
+
+export class InMemoryRenderRepository implements IRenderRepository {
+  rows: RenderRecord[] = [];
+  private clock = 0;
+
+  async create(data: NewRender): Promise<RenderRecord> {
+    const rec: RenderRecord = { shared: false, ...data, error: null, createdAt: new Date(Date.UTC(2026, 0, 1) + ++this.clock * 1000) };
+    this.rows.push(structuredClone(rec));
+    return structuredClone(rec);
+  }
+  async findById(projectId: string, id: string) {
+    const r = this.rows.find((x) => x.id === id && x.projectId === projectId);
+    return r ? structuredClone(r) : null;
+  }
+  async listByProject(projectId: string, opts: { sharedOnly?: boolean } = {}) {
+    return this.rows
+      .filter((r) => r.projectId === projectId && (!opts.sharedOnly || (r.shared && r.status === 'ready')))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => structuredClone(r));
+  }
+  async findByCacheKey(projectId: string, cacheKey: string) {
+    const r = (await this.listByProject(projectId)).find((x) => x.cacheKey === cacheKey);
+    return r ?? null;
+  }
+  async update(id: string, patch: RenderPatch) {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) throw new NotFoundError('render');
+    Object.assign(r, patch);
+    return structuredClone(r);
+  }
+  async delete(id: string) {
+    this.rows = this.rows.filter((r) => r.id !== id);
+  }
+  async countByProject(projectId: string) {
+    return this.rows.filter((r) => r.projectId === projectId).length;
+  }
+}
 
 export class InMemoryProjectRepository implements IProjectRepository {
   projects = new Map<string, ProjectRecord>();

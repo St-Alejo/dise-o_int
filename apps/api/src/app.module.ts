@@ -14,6 +14,7 @@ import { ChatModule } from './modules/chat/chat.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { ProgressModule } from './modules/progress/progress.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
+import { RendersModule } from './modules/renders/renders.module.js';
 import { APP_CONFIG, REDIS } from './ports/index.js';
 
 @Module({
@@ -29,6 +30,7 @@ import { APP_CONFIG, REDIS } from './ports/index.js';
     }),
     AuthModule,
     ProjectsModule,
+    RendersModule,
     CatalogModule,
     ChatModule,
     HealthModule,

@@ -34,6 +34,11 @@ import type {
   RoomShell,
   RoomType,
   StyleId,
+  PhotorealFidelity,
+  RenderKind,
+  RenderMediaType,
+  RenderSpec,
+  RenderStatus,
 } from '@interiores/shared-types';
 
 // ---------------------------------------------------------------------------
@@ -229,6 +234,40 @@ export interface ICatalogRepository {
 }
 
 // ---------------------------------------------------------------------------
+// Estudio de render (plan v9): la galería de cada proyecto
+// ---------------------------------------------------------------------------
+export interface RenderRecord {
+  id: string;
+  projectId: string;
+  kind: RenderKind;
+  status: RenderStatus;
+  mediaType: RenderMediaType | null;
+  fileKey: string | null;
+  spec: RenderSpec | null;
+  sourceRenderId: string | null;
+  fidelity: PhotorealFidelity | null;
+  provider: string | null;
+  cacheKey: string | null;
+  shared: boolean;
+  error: string | null;
+  createdAt: Date;
+}
+
+export type NewRender = Omit<RenderRecord, 'createdAt' | 'error' | 'shared'> & { shared?: boolean };
+export type RenderPatch = Partial<Pick<RenderRecord, 'status' | 'mediaType' | 'fileKey' | 'provider' | 'shared' | 'error'>>;
+
+export interface IRenderRepository {
+  create(data: NewRender): Promise<RenderRecord>;
+  findById(projectId: string, id: string): Promise<RenderRecord | null>;
+  /** Lo más reciente primero. */
+  listByProject(projectId: string, opts?: { sharedOnly?: boolean }): Promise<RenderRecord[]>;
+  findByCacheKey(projectId: string, cacheKey: string): Promise<RenderRecord | null>;
+  update(id: string, patch: RenderPatch): Promise<RenderRecord>;
+  delete(id: string): Promise<void>;
+  countByProject(projectId: string): Promise<number>;
+}
+
+// ---------------------------------------------------------------------------
 // Almacenamiento de archivos (S3 / R2 / SeaweedFS / memoria)
 // ---------------------------------------------------------------------------
 export interface StoredObject {
@@ -328,6 +367,7 @@ export interface IQuota {
 // ---------------------------------------------------------------------------
 export const PROJECT_REPOSITORY = Symbol('IProjectRepository');
 export const CATALOG_REPOSITORY = Symbol('ICatalogRepository');
+export const RENDER_REPOSITORY = Symbol('IRenderRepository');
 export const FILE_STORAGE = Symbol('IFileStorage');
 export const AI_CLIENT = Symbol('IAiClient');
 export const JOB_QUEUE = Symbol('IJobQueue');

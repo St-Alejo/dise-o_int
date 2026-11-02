@@ -11,12 +11,14 @@ import {
   PROJECT_REPOSITORY,
   QUOTA,
   REDIS,
+  RENDER_REPOSITORY,
 } from '../ports/index.js';
 import { HttpAiClient } from './ai/http-ai-client.js';
 import { PhotoProcessor } from './imaging/photo-processor.js';
 import { MediaUrlSigner } from './media/media-url-signer.js';
 import { PrismaCatalogRepository } from './prisma/prisma-catalog.repository.js';
 import { PrismaProjectRepository } from './prisma/prisma-project.repository.js';
+import { PrismaRenderRepository } from './prisma/prisma-render.repository.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { BullMqJobQueue } from './queue/bullmq-job-queue.js';
 import { RedisQuota } from './queue/redis-quota.js';
@@ -48,6 +50,7 @@ class RedisLifecycle implements OnApplicationShutdown {
     MediaUrlSigner,
     { provide: PROJECT_REPOSITORY, useClass: PrismaProjectRepository },
     { provide: CATALOG_REPOSITORY, useClass: PrismaCatalogRepository },
+    { provide: RENDER_REPOSITORY, useClass: PrismaRenderRepository },
     { provide: FILE_STORAGE, useClass: S3FileStorage },
     { provide: AI_CLIENT, useClass: HttpAiClient },
     { provide: JOB_QUEUE, useClass: BullMqJobQueue },
@@ -62,6 +65,7 @@ class RedisLifecycle implements OnApplicationShutdown {
     MediaUrlSigner,
     PROJECT_REPOSITORY,
     CATALOG_REPOSITORY,
+    RENDER_REPOSITORY,
     FILE_STORAGE,
     AI_CLIENT,
     JOB_QUEUE,

@@ -18,6 +18,10 @@ export const projectKeys = {
   preview: (projectId: string, previewId: string) => `projects/${projectId}/previews/${previewId}.jpg`,
   /** Imagen de referencia del chat ("hazlo como esta foto"); el hash evita duplicarla. */
   reference: (projectId: string, hash: string) => `projects/${projectId}/refs/${hash.slice(0, 24)}.jpg`,
+  /** Galería del estudio de render (imágenes, fotos IA y vídeos). */
+  render: (projectId: string, renderId: string, ext: string) => `projects/${projectId}/renders/${renderId}.${ext}`,
+  /** Mapa de profundidad que acompaña a un render (guía de la foto realista). */
+  renderDepth: (projectId: string, renderId: string) => `projects/${projectId}/renders/${renderId}.depth.png`,
 };
 
 export function toPreviewDto(p: PreviewRecord, signer: MediaUrlSigner): StylePreview {

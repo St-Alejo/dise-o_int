@@ -48,6 +48,10 @@ export const EnvSchema = z
 
     UPLOAD_MAX_MB: z.coerce.number().positive().max(50).default(15),
     GENERATIONS_PER_DAY: z.coerce.number().int().min(1).default(40),
+    /** Tope de cada archivo de la galería de renders (imágenes 4K y vídeos de recorrido). */
+    RENDERS_MAX_MB: z.coerce.number().positive().max(200).default(60),
+    /** Renders que guarda un proyecto como máximo. */
+    RENDERS_PER_PROJECT: z.coerce.number().int().min(1).max(500).default(60),
     RETENTION_HOURS: z.coerce.number().int().min(1).default(24),
     /** Chat de diseño: sin API key responde el agente por reglas (gratis). */
     ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
