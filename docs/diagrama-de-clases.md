@@ -313,3 +313,102 @@ classDiagram
   diálogos: cada pieza emite lo que quiere y el editor decide quién lo atiende.
 - `DialogComponent`, `TooltipDirective` y `SegmentedComponent` son las piezas base de
   `shared/ui`: una sola implementación del título, el cierre, el foco y el teclado.
+
+## 7. Modo Pro: dibujo técnico, normativa, obra e instalaciones (`shared-types/src/pro`)
+
+Todo es lógica pura: la web dibuja la vista previa y calcula al momento; la API genera SVG, DXF y
+PDF con el mismo código. `TechnicalSpec` (zod) es la ficha técnica que guarda cada proyecto.
+
+```mermaid
+classDiagram
+  class TechnicalSpec {
+    walls
+    titleBlock
+    sheet
+    compliance
+    rates
+    installations
+    section
+  }
+  class DrawingBuilder {
+    +line() +polyline() +circle() +text() +dimension() +hatch()
+    +build(title) Drawing
+  }
+  class Drawing {
+    layers: Layer[]
+  }
+  class Entity {
+    <<union>>
+    Line | Polyline | Arc | Text | Dimension | Hatch
+  }
+  class SvgRenderer
+  class DxfRenderer
+  class PdfRenderer
+  Drawing "1" *-- "*" Entity : Composite
+  DrawingBuilder ..> Drawing : Builder
+  SvgRenderer ..> Drawing : Visitor
+  DxfRenderer ..> Drawing : Visitor
+  PdfRenderer ..> Drawing : Visitor (API)
+
+  class ComplianceRule {
+    <<interface>>
+    +id
+    +group
+    +applies(ctx) bool
+    +evaluate(ctx) Finding[]
+  }
+  class ComplianceContext {
+    profile: ComplianceProfile
+    world: WalkWorld
+    installations
+    +reachable(d)
+    +lighting()
+    +daylight()
+  }
+  class ComplianceProfile {
+    references
+    clearPathM
+    targetLux
+  }
+  ComplianceRule ..> ComplianceContext : Specification
+  ComplianceContext --> ComplianceProfile
+  class clearPath
+  class illuminance
+  class outletSpacing
+  class circuitLoad
+  ComplianceRule <|.. clearPath
+  ComplianceRule <|.. illuminance
+  ComplianceRule <|.. outletSpacing
+  ComplianceRule <|.. circuitLoad
+
+  class WasteStrategy {
+    <<interface>>
+    +wasteFor(material, surface) number
+  }
+  class PATTERN_WASTE
+  WasteStrategy <|.. PATTERN_WASTE : Strategy
+  class computeTakeoff {
+    measureRoom()
+    activityWithRate()
+    purchasesFor()
+  }
+  computeTakeoff ..> WasteStrategy
+
+  class proposeInstallations
+  class assignCircuits
+  class loadSchedule
+  class drawSymbol {
+    <<factory>>
+    kind → símbolo
+  }
+  proposeInstallations ..> assignCircuits
+  loadSchedule ..> assignCircuits
+  DrawingBuilder <.. drawSymbol
+
+  TechnicalSpec <.. computeTakeoff
+  TechnicalSpec <.. ComplianceContext
+  TechnicalSpec <.. proposeInstallations
+```
+
+El chat usa estas mismas funciones como herramientas de solo lectura de la `DesignToolbox`
+(`estimate_works`, `check_compliance`, `suggest_installations`, `list_drawings`, en `pro/assistant.ts`).

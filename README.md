@@ -43,6 +43,7 @@ Un botón **Modo Pro** en la cabecera (preferencia de la cuenta) añade al edito
   - **Cálculo de iluminación** punto a punto de las lámparas y factor de luz diurna, con mapa de calor de noche y de día. Informe en PDF.
 - **Cantidades y presupuesto de obra** ([ADR-0031](docs/adr/0031-computo-y-presupuesto-de-obra.md)). Cómputo métrico desde el modelo (piso, muros netos, revestimientos, cielo raso, guardaescoba, tabiques), APU de referencia en COP editables por proyecto, desperdicio según el dibujo (Strategy), materiales a comprar (cajas, bultos, galones), AIU, cronograma por fases y total de obra más mobiliario contra el tope. Descargas en CSV y PDF.
 - **Instalaciones** ([ADR-0032](docs/adr/0032-instalaciones.md)). Puntos eléctricos e hidrosanitarios con propuesta automática según los muebles (tomas por perímetro y junto a mesas de noche, escritorio y TV, GFCI cerca del agua, interruptor del lado de la chapa, luz por luminaria, agua y desagüe por aparato), circuitos con tope del 80 %, cuadro de cargas NTC 2050, láminas de plano eléctrico e hidrosanitario (capas `E-*`/`P-*` en DXF) y reglas RETIE en la normativa.
+- **En el chat y en las plantillas** ([ADR-0033](docs/adr/0033-cierre-del-plan-v8.md)). "¿Cuántas cajas de baldosa necesito?", "revisa la normativa", "muestra el alzado de la pared del fondo" o "propón los puntos eléctricos" los entiende el modelo local y responde con el mismo cálculo de la pestaña Pro. La plantilla "Dormitorio listo para obra" trae cajetín, perfil normativo e instalaciones.
 
 ## Diseño de la interfaz
 

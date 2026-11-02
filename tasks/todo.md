@@ -128,3 +128,34 @@ una primera versión de G (viviendas).
 
 - [x] ADR-0018 a 0022, README, capturas y diagrama de clases.
 - [x] Despliegue en Railway y e2e contra la URL pública.
+
+## Plan v8 — Modo Pro (2026-11-01)
+
+Plan en `~/.claude/plans/ethereal-questing-rainbow.md`; decisiones en los ADR-0028 a 0033.
+
+- [x] Fase 0: ficha técnica (`TechnicalSpec`), `User.proMode`, pestaña Pro y muros con grosor.
+- [x] Fase 1: modelo de dibujo, plantas, alzados, corte, láminas con cajetín, SVG/DXF/PDF.
+- [x] Fase 2: normativa (Neufert y Colombia), cálculo de iluminación y luz natural, informe PDF.
+- [x] Fase 3: cómputo métrico, APU y AIU, desperdicio por dibujo, compras, cronograma, CSV/PDF.
+- [x] Fase 4: instalaciones (propuesta, circuitos, cuadro de cargas, planos, reglas RETIE).
+- [x] Fase 5: intenciones de chat, plantilla profesional, diagrama de clases y ADR de cierre.
+- [ ] Despliegue de los hitos 1–3 en Railway: pendiente de `railway login` (la CLI no tiene sesión).
+  Pasos: migraciones `20261020000000_design_brief`, `20261021000000_recommendation_feedback` y
+  `20261101000000_pro_mode` por proxy TCP, `GROQ_API_KEY` en el servicio api (desde `.env`),
+  `railway up` de api/worker/web/ai, resembrar y e2e de humo contra la URL pública.
+
+### Desviaciones
+- La ficha técnica se guarda aparte de la escena y no entra en el `CommandHistory` (deshacer de la
+  escena no la revierte; cada cambio se guarda al momento y, si falla, vuelve).
+- El 3D usa muros de 12 cm sin leer la ficha; el plano editable no dibuja el grosor.
+- El corte se define con un formulario (eje y posición), no trazándolo en el plano. Las láminas no
+  llevan norte (el cuarto no tiene orientación).
+- Lúmenes por subcategoría de lámpara, no como atributo del catálogo. El cálculo de luz no tiene
+  sombras ni evalúa las zonas cerradas (baño privado) en la rejilla.
+- Las puertas existentes del cuarto no se presupuestan, solo las de los tabiques nuevos.
+- Los puntos de instalación se editan desde el panel (borrar o añadir a mano), no arrastrándolos
+  en el plano, y no se ven como marcadores en el 3D. Sin cálculo de caída de tensión.
+- El Modo Pro no está en la demo sin cuenta.
+- `e2e/tests/customize.spec.ts` falla desde antes de la v8 ("Con esas medidas no cabe en ningún
+  lugar libre del cuarto" al poner el sofá a 240 cm en un cuarto lleno); chat, homes y zz-catalog son
+  inestables con carga y pasan al repetir.
