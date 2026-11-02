@@ -31,6 +31,15 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Zonas dentro del cuarto.** Un baño privado (ducha de obra, bañera con mampara, spa en mármol o industrial), vestidor o zona de tocador con sus tabiques, su puerta y sus propios acabados. Se recorre a pie y el motor la distribuye como un cuarto propio ([ADR-0025](docs/adr/0025-zonas-interiores-y-bano-privado.md)).
 - **Chat que entiende sin IA externa.** Un modelo propio (scikit-learn) entiende "pon piso de baldosa brillante azul claro con verde", "agrega un tocador" o "estilo nórdico y recomienda". Solo si no está seguro pregunta a Groq, y al final queda el agente por reglas. Se le puede adjuntar o pegar una foto y replica su piso, paredes, estilo y luz ([ADR-0026](docs/adr/0026-chat-local-primero-y-cascada.md)).
 
+## Modo Pro (para arquitectos y diseñadores)
+
+Un botón **Modo Pro** en la cabecera (preferencia de la cuenta) añade al editor la pestaña **Pro**. Quien no lo activa no ve nada nuevo ([ADR-0028](docs/adr/0028-modo-pro-y-ficha-tecnica.md)).
+
+- **Ficha técnica del proyecto.** Grosor de muros y tabiques (el 3D los dibuja así), datos del rótulo (proyecto, cliente, dirección, profesional, matrícula, revisión), papel y escala, criterios de revisión y si el cuarto debe ser accesible. Áreas útil y construida.
+- **Planos técnicos** ([ADR-0029](docs/adr/0029-planos-tecnicos.md)). Planta arquitectónica con muros achurados y cotas encadenadas, planta de amoblamiento, de cielo raso e iluminación y de acabados, alzados interiores de cada pared y corte A–A'. Láminas A4–A1 a escala 1:20–1:100 con rótulo y escala gráfica.
+  - Descargas: lámina en **SVG**, vistas en **DXF** (AutoCAD/LibreCAD, en metros, con capas `A-WALL`, `A-DOOR`, `A-ANNO-DIMS`...) y el **juego de planos en PDF** vectorial (A-01, A-02...).
+  - Un solo modelo de dibujo y un renderizador por formato (Composite + Visitor): lo que se ve es lo que se imprime y lo que abre el CAD.
+
 ## Diseño de la interfaz
 
 - **Paleta "petróleo y arcilla"** en claro y oscuro, definida solo con tokens CSS en [`apps/web/src/styles.scss`](apps/web/src/styles.scss). Una prueba ([`design-tokens.spec.ts`](apps/web/src/design-tokens.spec.ts)) lee ese archivo y exige contraste AA en cada pareja de texto y fondo.
@@ -119,6 +128,8 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Adapter | `HttpAiClient`, `S3FileStorage`, `BullMqJobQueue`, `ReplicateClient` |
 | Factory | `FurnitureFactory` (receta o GLB → Object3D), `RecipeRegistry` (`kind → receta`), plantillas de forma (`ROOM_TEMPLATES`), `room-factory.ts` y `cli/catalog/procedural.ts` |
 | Builder + Composite | `packages/furniture-kit/src/builder.ts` (piezas y grupos anidados por slot de material) |
+| Composite + Visitor (dibujo técnico) | `packages/shared-types/src/pro/drawing/model.ts` (capas y entidades) con renderizadores `svg.ts`, `dxf.ts` y `apps/api/.../drawings.pdf.ts` |
+| Builder (láminas) | `DrawingBuilder` y `composeSheet` en `pro/drawing/` |
 | Flyweight | caché de modelos por medidas (`buildCached`), de geometrías/materiales en GPU (`ParametricRenderer`) y de texturas del piso (`TextureLibrary`) |
 
 ## Robustez (más allá del documento)
