@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CompliancePanelComponent } from './compliance-panel.component';
 import { DrawingsPanelComponent } from './drawings-panel.component';
+import { TakeoffPanelComponent } from './takeoff-panel.component';
 import { TechnicalFormComponent } from './technical-form.component';
 
 /**
@@ -10,7 +11,7 @@ import { TechnicalFormComponent } from './technical-form.component';
 @Component({
   selector: 'app-pro-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TechnicalFormComponent, DrawingsPanelComponent, CompliancePanelComponent],
+  imports: [TechnicalFormComponent, DrawingsPanelComponent, CompliancePanelComponent, TakeoffPanelComponent],
   template: `
     <div class="pro">
       <details open>
@@ -20,6 +21,10 @@ import { TechnicalFormComponent } from './technical-form.component';
       <details>
         <summary>Normativa y ergonomía</summary>
         <app-compliance-panel />
+      </details>
+      <details>
+        <summary>Cantidades y presupuesto de obra</summary>
+        <app-takeoff-panel />
       </details>
       <details>
         <summary>Ficha técnica</summary>

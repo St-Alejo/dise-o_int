@@ -219,6 +219,11 @@ export class ProjectsApi {
     return firstValueFrom(this.http.get(`${this.base}/${id}/drawings/set.pdf`, { responseType: 'blob' }));
   }
 
+  /** Presupuesto de obra en PDF (Modo Pro). */
+  takeoffPdf(id: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(`${this.base}/${id}/takeoff.pdf`, { responseType: 'blob' }));
+  }
+
   /** Informe de la revisión normativa (Modo Pro). */
   compliancePdf(id: string): Promise<Blob> {
     return firstValueFrom(this.http.get(`${this.base}/${id}/compliance.pdf`, { responseType: 'blob' }));
