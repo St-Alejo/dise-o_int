@@ -37,6 +37,7 @@ export function demoProject(scene: FurnishedScene, now = new Date().toISOString(
     selectedStyleId: scene.styleId,
     furniturePlacements: scene.furniturePlacements,
     finishes: scene.finishes,
+    ...(scene.technical ? { technical: scene.technical } : {}),
     versions: [],
     visibility: 'private',
     saved: false,

@@ -384,7 +384,8 @@ export class ProjectsService {
       saved: true,
     });
     this.logger.log({ projectId: created.id, pieces: placements.length, requestId: actor.requestId }, 'Proyecto importado');
-    return this.toDto(created);
+    // La ficha técnica va aparte, como en PUT /technical (sus puntos nombran las paredes del cuarto).
+    return this.toDto(req.technical ? await this.projects.update(created.id, { technical: req.technical }) : created);
   }
 
 

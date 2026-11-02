@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { ROOM_TYPE_LABELS, STYLES } from '@interiores/shared-types';
+import { furnishedTemplateInfo, ROOM_TYPE_LABELS, STYLES } from '@interiores/shared-types';
 import { ApiError } from '../../core/api/api-error';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -53,6 +53,12 @@ import { TooltipDirective } from '../../shared/ui/tooltip.directive';
           <app-icon name="info" />
           Estás probando sin cuenta: los cambios se quedan en este navegador. Para conservarlos, compartirlos o pedir otra distribución, guárdalo en tu cuenta.
         </p>
+        @if (isPro()) {
+          <p class="note" role="note">
+            <app-icon name="info" />
+            Esta plantilla trae ficha técnica: cajetín, perfil normativo e instalaciones propuestas. Guárdala en tu cuenta y activa el Modo profesional (menú de usuario) para ver el juego de planos, la normativa y el presupuesto de obra.
+          </p>
+        }
         <app-project-facts class="facts" />
         <app-editor [demo]="true" />
       } @else {
@@ -146,6 +152,8 @@ export class DemoPage implements OnInit {
     return id ? STYLES[id].label : null;
   });
   private readonly projectId = computed(() => `${DEMO_PREFIX}${this.plantilla()}`);
+  /** La plantilla trae ficha técnica (Modo Pro). */
+  protected readonly isPro = computed(() => !!furnishedTemplateInfo(this.plantilla())?.pro);
 
   async ngOnInit(): Promise<void> {
     // De vuelta del registro con la intención de guardar: se guarda lo que quedó en este navegador
@@ -193,6 +201,7 @@ export class DemoPage implements OnInit {
         finishes: project.finishes,
         selectedStyleId: project.selectedStyleId,
         budgetCap: project.budgetCap ?? null,
+        technical: project.technical ?? null,
       });
       this.local.reset(this.projectId());
       const missing = project.furniturePlacements.length - created.furniturePlacements.length;

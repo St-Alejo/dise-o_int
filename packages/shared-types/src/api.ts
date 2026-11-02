@@ -203,6 +203,8 @@ export const ImportProjectRequestSchema = z.object({
   finishes: RoomFinishesSchema.nullable().optional(),
   selectedStyleId: StyleIdSchema.nullable().optional(),
   budgetCap: z.number().positive().max(BUDGET_CAP_MAX).nullable().optional(),
+  /** Ficha técnica del Modo Pro (la trae la plantilla profesional). */
+  technical: TechnicalSpecSchema.nullable().optional(),
 });
 export type ImportProjectRequest = z.infer<typeof ImportProjectRequestSchema>;
 

@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { FurniturePlacementSchema, RoomFinishesSchema, RoomShellSchema, RoomTypeSchema, StyleIdSchema, type RoomType, type StyleId } from './domain.js';
 import type { RoomSpec } from './room-templates.js';
+import { TechnicalSpecSchema } from './pro/technical.js';
 
 export interface FurnishedTemplateInfo {
   id: string;
@@ -16,6 +17,8 @@ export interface FurnishedTemplateInfo {
   summary: string;
   /** Planta con la que se generó (para volver a generarla con el motor). */
   spec: RoomSpec;
+  /** Trae ficha técnica (cajetín, instalaciones): pensada para el Modo Pro. */
+  pro?: boolean;
 }
 
 export const FURNISHED_TEMPLATES: readonly FurnishedTemplateInfo[] = [
@@ -25,6 +28,7 @@ export const FURNISHED_TEMPLATES: readonly FurnishedTemplateInfo[] = [
   { id: 'estudio-industrial', name: 'Estudio industrial', roomType: 'office', styleId: 'industrial', summary: 'Escritorio junto a la ventana, metal y ladrillo.', spec: { shape: 'rect', widthM: 3.6, depthM: 3.2, heightM: 2.6 } },
   { id: 'cocina-minimalista', name: 'Cocina minimalista', roomType: 'kitchen', styleId: 'minimalista', summary: 'Hilera con isla y taburetes.', spec: { shape: 'rect', widthM: 4.4, depthM: 3.6, heightM: 2.6 } },
   { id: 'sala-en-l-bohemia', name: 'Sala en L bohemia', roomType: 'living', styleId: 'bohemio', summary: 'Planta en L con rincón de lectura y terracota.', spec: { shape: 'L', widthM: 5.6, depthM: 4.6, heightM: 2.6 } },
+  { id: 'dormitorio-obra', name: 'Dormitorio listo para obra', roomType: 'bedroom', styleId: 'escandinavo', summary: 'Con cajetín, instalaciones y presupuesto de obra: el juego de planos sale en el Modo Pro.', spec: { shape: 'rect', widthM: 4.2, depthM: 3.8, heightM: 2.6 }, pro: true },
 ];
 
 /** La escena de una plantilla, tal como se guarda en su JSON. */
@@ -36,6 +40,7 @@ export const FurnishedSceneSchema = z.object({
   roomShell: RoomShellSchema,
   furniturePlacements: z.array(FurniturePlacementSchema).max(200),
   finishes: RoomFinishesSchema.nullable(),
+  technical: TechnicalSpecSchema.nullable().optional(),
 });
 export type FurnishedScene = z.infer<typeof FurnishedSceneSchema>;
 

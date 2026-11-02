@@ -278,6 +278,13 @@ describe('ProjectsService', () => {
       await expect(service.get(bob, created.id)).rejects.toBeInstanceOf(NotFoundError);
     });
 
+    it('la plantilla profesional llega con su ficha técnica', async () => {
+      const technical = technicalOf({ titleBlock: { project: 'Obra', revision: 'B' }, installations: { points: [{ id: 't1', kind: 'outlet', wallId: shell.walls[0]!.id, offsetM: 1, heightM: 0.3 }] } });
+      const created = await service.importScene(alice, { ...body, technical });
+      expect(created.technical).toMatchObject({ titleBlock: { project: 'Obra', revision: 'B' }, installations: { points: [{ id: 't1' }] } });
+      expect((await service.importScene(alice, body)).technical ?? null).toBeNull();
+    });
+
     it('un mueble que ya no está en el catálogo se deja fuera, sin perder el resto del cuarto', async () => {
       const gone = { ...sofa, id: 'p2', catalogItemId: 'ya-no-existe' };
       const created = await service.importScene(alice, { ...body, furniturePlacements: [sofa, gone] });
