@@ -25,7 +25,7 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
   host: { '(document:keydown.escape)': 'menuOpen.set(false)' },
   template: `
     <a class="skip-link" href="#main">Saltar al contenido</a>
-    <header class="app-header">
+    <header class="app-header" [class.over-hero]="atHome()">
       <div class="container bar">
         <a routerLink="/" class="brand" aria-label="Interiores IA, inicio">
           <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
@@ -159,6 +159,28 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       background: color-mix(in srgb, var(--bg) 88%, transparent);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--border);
+    }
+    /* En la home, la cabecera es la barra oscura que enmarca el cuarto del encabezado. */
+    .app-header.over-hero {
+      background: var(--deep);
+      backdrop-filter: none;
+      border-bottom-color: transparent;
+      --text: var(--on-deep);
+      --text-muted: var(--on-deep-muted);
+    }
+    .app-header.over-hero .brand {
+      color: var(--on-deep);
+    }
+    .app-header.over-hero .brand svg path {
+      stroke: var(--deep);
+    }
+    .app-header.over-hero .brand svg rect:last-child {
+      fill: var(--deep);
+    }
+    .app-header.over-hero .btn-primary {
+      background: var(--on-deep);
+      color: var(--deep);
+      border-color: var(--on-deep);
     }
     .bar {
       display: flex;
@@ -341,6 +363,10 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       .nav.open {
         display: flex;
       }
+      .app-header.over-hero .nav {
+        background: var(--deep);
+        border-bottom-color: transparent;
+      }
       .nav .section-link {
         display: block;
       }
@@ -368,11 +394,16 @@ export class App {
   protected readonly repo = REPO_URL;
   /** El menú de la cabecera en pantallas angostas. */
   protected readonly menuOpen = signal(false);
+  /** En la home la cabecera se oscurece para enmarcar el encabezado. */
+  protected readonly atHome = signal(false);
 
   constructor() {
     // Elegir un destino cierra el menú.
     inject(Router).events.subscribe((event) => {
-      if (event instanceof NavigationEnd) this.menuOpen.set(false);
+      if (event instanceof NavigationEnd) {
+        this.menuOpen.set(false);
+        this.atHome.set(event.urlAfterRedirects.split(/[?#]/)[0] === '/');
+      }
     });
   }
 }

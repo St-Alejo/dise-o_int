@@ -72,6 +72,61 @@ const FAQ = [
   template: `
     <app-hero [start]="start()" />
 
+    <section class="intro" aria-labelledby="intro-title">
+      <div class="container intro-grid" appReveal>
+        <h2 id="intro-title">Vívelo antes de construirlo.</h2>
+        <div class="intro-body">
+          <p class="intro-lead">
+            Un cuarto bien resuelto empieza por sus medidas reales: dónde cae la ventana, cuánto paso queda junto a la cama, qué luz entra por la tarde.
+            La app trabaja sobre esas medidas, no sobre una foto bonita.
+          </p>
+          <dl class="facts">
+            <div>
+              <dt>6</dt>
+              <dd>estilos que deciden muebles, materiales y paleta</dd>
+            </div>
+            <div>
+              <dt>3D</dt>
+              <dd>que se recorre a pie, de día, de tarde o de noche</dd>
+            </div>
+            <div>
+              <dt>1:50</dt>
+              <dd>la escala de los planos que salen para la obra</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="pro deep" aria-labelledby="pro-title">
+      <div class="container pro-grid" appReveal>
+        <figure class="pro-shot">
+          <img
+            src="landing/editor-plano.webp"
+            alt="El editor en vista de plano: la sala con sus cotas, la ventana, la puerta y cada mueble dibujado a escala."
+            width="1400"
+            height="1120"
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+        <div class="pro-copy">
+          <h2 id="pro-title">Planos listos para la obra.</h2>
+          <p class="pro-lead">
+            Activa el Modo profesional y el mismo cuarto sale con todo lo que pide una obra: el juego de planos con cajetín, la revisión de normativa y
+            ergonomía, el presupuesto de obra y los puntos eléctricos e hidráulicos.
+          </p>
+          <ul class="pro-list">
+            <li><strong>Planos técnicos.</strong> Planta, amoblamiento, cielo raso, acabados, alzados y corte, en PDF y DXF para AutoCAD.</li>
+            <li><strong>Normativa.</strong> Paso libre, vanos, alturas, luz natural e iluminación con el perfil de Colombia o el de Neufert.</li>
+            <li><strong>Presupuesto de obra.</strong> Cantidades, materiales en cajas y galones, AIU y cronograma.</li>
+            <li><strong>Instalaciones.</strong> Tomas, interruptores, luces y agua propuestos por la app, con su cuadro de cargas.</li>
+          </ul>
+          <a class="btn btn-lg pro-go" [routerLink]="['/demo', 'dormitorio-obra']">Abrir el dormitorio listo para obra</a>
+        </div>
+      </div>
+    </section>
+
     <section id="como-funciona" class="editorial" aria-labelledby="how-title">
       <div class="container" appReveal>
         <header class="spread">
@@ -236,6 +291,145 @@ const FAQ = [
   styles: `
     section {
       scroll-margin-top: var(--header-h);
+    }
+
+    /* Dos columnas: la tesis grande a la izquierda, el porqué y tres datos a la derecha. */
+    .intro {
+      padding-block: clamp(96px, 11vw, 200px);
+    }
+    .intro-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--space-7) clamp(48px, 7vw, 120px);
+      align-items: start;
+    }
+    .intro h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.2rem, 4.2vw, 4rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+    }
+    .intro-body {
+      display: grid;
+      gap: var(--space-7);
+    }
+    .intro-lead {
+      font-size: clamp(1.1rem, 0.5vw + 1rem, 1.35rem);
+      line-height: 1.5;
+      max-width: 46ch;
+      color: var(--text);
+    }
+    .facts {
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-5);
+    }
+    .facts div {
+      display: grid;
+      gap: var(--space-2);
+      align-content: start;
+    }
+    .facts dt {
+      font-family: var(--font-display);
+      font-size: clamp(2.2rem, 3.4vw, 3.2rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--primary);
+    }
+    .facts dd {
+      margin: 0;
+      font-size: var(--text-base);
+      line-height: 1.45;
+      color: var(--text);
+    }
+
+    /* Bloque oscuro: la captura del plano a la izquierda, lo que trae el Modo Pro a la derecha. */
+    .pro {
+      padding-block: clamp(96px, 10vw, 180px);
+    }
+    .pro-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: var(--space-7) clamp(40px, 6vw, 96px);
+      align-items: center;
+    }
+    .pro-shot {
+      margin: 0;
+      overflow: hidden;
+    }
+    .pro-shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+      transition: transform 1.2s var(--ease);
+    }
+    .pro-shot:hover img {
+      transform: scale(1.03);
+    }
+    .pro-copy {
+      display: grid;
+      gap: var(--space-5);
+      justify-items: start;
+    }
+    .pro h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.1rem, 3.8vw, 3.6rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      color: var(--on-deep);
+    }
+    .pro-lead {
+      font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
+      line-height: 1.5;
+      color: var(--on-deep);
+      max-width: 48ch;
+    }
+    .pro-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: var(--space-3);
+      max-width: 52ch;
+    }
+    .pro-list li {
+      line-height: 1.5;
+      color: var(--on-deep);
+    }
+    .pro-list strong {
+      font-weight: 600;
+    }
+    .pro-go {
+      background: var(--on-deep);
+      color: var(--deep);
+      border-color: var(--on-deep);
+      border-radius: 0;
+    }
+    .pro-go:hover {
+      background: #ffffff;
+    }
+    @media (max-width: 900px) {
+      .intro-grid,
+      .pro-grid {
+        grid-template-columns: 1fr;
+      }
+      .facts {
+        grid-template-columns: 1fr;
+      }
+      .facts div {
+        grid-template-columns: 5.5rem 1fr;
+        align-items: baseline;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pro-shot img {
+        transition: none;
+      }
     }
     h3 {
       margin: 0;

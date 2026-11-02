@@ -19,6 +19,8 @@ HERO_WIDTHS = (800, 1600)
 HERO_RATIO = 16 / 10
 THUMB = (960, 640)
 EDITOR_WIDTH = 1400
+#: Cuartos que recorre el encabezado de la landing (la sala es la de "cuarto").
+SEQUENCE = ("cocina-minimalista", "comedor-moderno", "dormitorio-luminoso")
 
 
 def cover(image: Image.Image, ratio: float) -> Image.Image:
@@ -56,6 +58,9 @@ def main() -> None:
             save(cover(image, THUMB[0] / THUMB[1]), PUBLIC / "landing" / f"estilo-{variant}.webp", THUMB[0])
         elif variant == "tarde":  # miniatura de cada plantilla
             save(cover(image, THUMB[0] / THUMB[1]), PUBLIC / "escenas" / f"{group}.webp", THUMB[0])
+            if group in SEQUENCE:  # y, en grande, los cuartos que pasan por el encabezado al bajar
+                for width in HERO_WIDTHS:
+                    save(cover(image, HERO_RATIO), PUBLIC / "landing" / f"secuencia-{group}-{width}.webp", width)
 
 
 if __name__ == "__main__":
