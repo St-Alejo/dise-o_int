@@ -195,3 +195,22 @@ export function daylight(shell: GridShell, opts: DaylightOptions = {}): Daylight
   const grid = summarize(points, (p) => (meanWeight > 0 ? ((factorPct / 100) * ext * weight(p)) / meanWeight : 0), step, plane);
   return { factorPct, windowAreaM2: area, hour, grid };
 }
+
+const LUX_STOPS: [number, [number, number, number]][] = [
+  [0, [13, 27, 76]],
+  [0.5, [47, 109, 181]],
+  [1, [242, 201, 76]],
+  [1.5, [255, 244, 194]],
+];
+
+/** Color del mapa de calor para una iluminancia, relativo al objetivo: azul oscuro (sin luz) → amarillo (cumple) → casi blanco (1,5×). */
+export function luxColor(lux: number, targetLux: number): string {
+  const t = Math.min(1.5, Math.max(0, targetLux > 0 ? lux / targetLux : 0));
+  let i = 0;
+  while (i < LUX_STOPS.length - 2 && t > LUX_STOPS[i + 1]![0]) i++;
+  const [t0, c0] = LUX_STOPS[i]!;
+  const [t1, c1] = LUX_STOPS[i + 1]!;
+  const u = (t - t0) / (t1 - t0);
+  const hex = (k: number) => Math.round(c0[k]! + (c1[k]! - c0[k]!) * u).toString(16).padStart(2, '0');
+  return `#${hex(0)}${hex(1)}${hex(2)}`;
+}

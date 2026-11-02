@@ -7,6 +7,7 @@ import {
   RoomPlan,
   STYLES,
   technicalOf,
+  type ComplianceInput,
   type DesignPiece,
   type DrawingSetInput,
   type ShoppingList,
@@ -68,6 +69,14 @@ export class ProjectReports {
     const project = await this.access.own(actor, id);
     const shell = this.access.requireShell(project);
     return { shell, spec: technicalOf(project.technical ?? null), pieces: await this.piecesOf(project), finishes: project.finishes, roomName: project.name, date };
+  }
+
+  /** Lo que necesita la revisión normativa: la planta, los muebles, el tipo de cuarto y el perfil de la ficha. */
+  async complianceInput(actor: Actor, id: string, hour?: number): Promise<ComplianceInput & { roomName: string }> {
+    const project = await this.access.own(actor, id);
+    const shell = this.access.requireShell(project);
+    const spec = technicalOf(project.technical ?? null);
+    return { shell, pieces: await this.piecesOf(project), roomType: project.roomType, compliance: spec.compliance, roomName: project.name, ...(hour === undefined ? {} : { hour }) };
   }
 
   /** Los muebles del cuarto como piezas de diseño (las mismas que usa la revisión del diseño). */

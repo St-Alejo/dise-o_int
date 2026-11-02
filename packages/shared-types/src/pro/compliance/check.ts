@@ -24,6 +24,8 @@ export interface ComplianceInput {
 export interface ComplianceReport {
   profile: { id: ComplianceSpec['profile']; name: string };
   accessible: boolean;
+  /** Iluminancia media que pide el perfil para este tipo de cuarto. */
+  targetLux: number;
   findings: ComplianceFinding[];
   summary: Record<ComplianceStatus, number>;
   lighting: IlluminanceGrid;
@@ -80,6 +82,7 @@ export function checkCompliance(input: ComplianceInput, rules: readonly Complian
   return {
     profile: { id: ctx.profile.id, name: ctx.profile.name },
     accessible: ctx.accessible,
+    targetLux: ctx.profile.targetLux[ctx.roomType],
     findings,
     summary,
     lighting: ctx.lighting(),

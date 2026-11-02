@@ -4,7 +4,7 @@ import type { Opening, RoomShell, RoomType } from '../../domain.js';
 import { createRectangularShell } from '../../geometry.js';
 import type { ComplianceSpec } from '../technical.js';
 import { checkCompliance, type ComplianceReport } from './check.js';
-import { artificialLighting, daylight, directLux, exteriorLux, lightSources, type LightSource } from './lighting-calc.js';
+import { artificialLighting, daylight, directLux, exteriorLux, lightSources, luxColor, type LightSource } from './lighting-calc.js';
 import { convexOverlap } from './rules.js';
 
 /** Cuarto de 5 × 4 × 2,6 con la puerta en la pared del frente (en x ≈ 1) y una ventana al fondo. */
@@ -87,6 +87,13 @@ describe('cálculo de iluminación', () => {
     expect(day.grid.avgLux).toBeCloseTo((day.factorPct / 100) * 10_000, 3);
     expect(daylight(room(), { hour: 22 }).grid.avgLux).toBe(0);
   });
+
+  it('el color del mapa de calor va de azul oscuro a amarillo al llegar al objetivo', () => {
+    expect(luxColor(0, 200)).toBe('#0d1b4c');
+    expect(luxColor(200, 200)).toBe('#f2c94c');
+    expect(luxColor(9999, 200)).toBe('#fff4c2');
+    expect(luxColor(50, 0)).toBe('#0d1b4c');
+  });
 });
 
 describe('revisión normativa', () => {
@@ -96,6 +103,7 @@ describe('revisión normativa', () => {
     expect(byId(r, 'door-width:door')).toMatchObject({ status: 'pass', measured: '0,90 m', required: '0,80 m' });
     expect(byId(r, 'ceiling-height')).toMatchObject({ status: 'pass', measured: '2,60 m' });
     expect(r.profile.name).toContain('Neufert');
+    expect(r.targetLux).toBe(200);
     expect(r.disclaimer).toMatch(/orientativa/);
     expect(r.summary.pass + r.summary.warn + r.summary.fail + r.summary.na).toBe(r.findings.length);
     // Lo grave primero.

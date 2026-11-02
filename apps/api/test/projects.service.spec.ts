@@ -1,8 +1,9 @@
 import { renderHomeDossierPdf, renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { availableSheets, createRectangularShell, drawingSet, moveWall, technicalOf } from '@interiores/shared-types';
+import { availableSheets, checkCompliance, createRectangularShell, drawingSet, moveWall, technicalOf } from '@interiores/shared-types';
 import { renderDrawingSetPdf } from '../src/modules/projects/drawings.pdf.js';
+import { renderCompliancePdf } from '../src/modules/projects/compliance.pdf.js';
 import {
   NotFoundError,
   QuotaExceededError,
@@ -364,6 +365,21 @@ describe('ProjectsService', () => {
       expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
       expect(pdf.toString('latin1').match(/\/Type \/Page[^s]/g)).toHaveLength(sheets.length);
       await expect(service.drawingInput(bob, p.id, '2026-11-01')).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('la revisión normativa usa el perfil de la ficha y sale en PDF', async () => {
+      const p = await readyProject();
+      await service.setTechnical(alice, p.id, technicalOf({ compliance: { profile: 'colombia', accessible: true } }));
+      const { roomName, ...input } = await service.complianceInput(alice, p.id, 10);
+      expect(input.compliance).toEqual({ profile: 'colombia', accessible: true });
+      expect(input.hour).toBe(10);
+      expect(input.roomType).toBe(p.roomType);
+      const report = checkCompliance(input);
+      expect(report.profile.id).toBe('colombia');
+      expect(report.findings.some((f) => f.ruleId === 'turning-circle')).toBe(true);
+      const pdf = await renderCompliancePdf(report, input.shell, { roomName, date: '2026-11-01' });
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      await expect(service.complianceInput(bob, p.id)).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 

@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -32,6 +33,8 @@ import {
   SetBriefRequestSchema,
   SetTechnicalRequestSchema,
   SHEET_IDS,
+  checkCompliance,
+  type ComplianceReport,
   availableSheets,
   drawingSet,
   renderDxf,
@@ -77,11 +80,20 @@ import { CurrentUser, RequestId, type AuthPrincipal } from '../auth/auth.decorat
 import { ProjectsService, type Actor } from './projects.service.js';
 import { renderHomeDossierPdf, renderProjectDossierPdf, renderShoppingListPdf } from './shopping-list.pdf.js';
 import { renderDrawingSetPdf } from './drawings.pdf.js';
+import { renderCompliancePdf } from './compliance.pdf.js';
 import { ValidationError } from '../../common/errors.js';
 
 /** Tope duro de Multer; el límite configurable (UPLOAD_MAX_MB) lo aplica PhotoProcessor. */
 const MULTER_HARD_LIMIT = 50 * 1024 * 1024;
 const uuid = new ParseUUIDPipe({ version: '4' });
+
+/** Hora solar de la consulta (0–24); sin valor, mediodía. */
+function parseHour(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const hour = Number(raw);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 24) throw new ValidationError('La hora debe estar entre 0 y 24');
+  return hour;
+}
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -402,6 +414,26 @@ export class ProjectsController {
     }
     const dxf = renderDxf(viewFor(sheet as SheetId, input), { scale: input.spec.sheet.scale });
     res.type('application/dxf').setHeader('content-disposition', `attachment; filename="${base}-${sheet}.dxf"`).send(Buffer.from(dxf, 'latin1'));
+  }
+
+  /** Revisión normativa del Modo Pro (perfil de la ficha técnica). `hour` = hora solar para la luz natural. */
+  @Get(':id/compliance')
+  @Throttle(perMinute(30))
+  async compliance(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string, @Query('hour') hour?: string): Promise<ComplianceReport> {
+    const { roomName: _name, ...input } = await this.service.complianceInput(this.actor(user), id, parseHour(hour));
+    return checkCompliance(input);
+  }
+
+  @Get(':id/compliance.pdf')
+  @Throttle(perMinute(20))
+  async compliancePdf(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string, @Res() res: Response): Promise<void> {
+    const { roomName, ...input } = await this.service.complianceInput(this.actor(user), id);
+    const pdf = await renderCompliancePdf(checkCompliance(input), input.shell, { roomName, date: new Date().toISOString().slice(0, 10) });
+    res
+      .type('application/pdf')
+      .setHeader('cache-control', 'no-store')
+      .setHeader('content-disposition', `attachment; filename="normativa-${id.slice(0, 8)}.pdf"`)
+      .send(pdf);
   }
 
   @Get(':id/shopping-list.pdf')
