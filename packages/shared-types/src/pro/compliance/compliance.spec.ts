@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { DesignPiece } from '../../design-check.js';
 import type { Opening, RoomShell, RoomType } from '../../domain.js';
 import { createRectangularShell } from '../../geometry.js';
-import type { ComplianceSpec } from '../technical.js';
+import { defaultTechnicalSpec, type ComplianceSpec, type InstallationsSpec } from '../technical.js';
+import { proposeInstallations } from '../installations/propose.js';
 import { checkCompliance, type ComplianceReport } from './check.js';
 import { artificialLighting, daylight, directLux, exteriorLux, lightSources, luxColor, type LightSource } from './lighting-calc.js';
 import { convexOverlap } from './rules.js';
@@ -222,5 +223,53 @@ describe('revisión normativa', () => {
       { x: 1.2, z: 2 },
     ];
     expect(convexOverlap(sq(0.3, 0.3), diamond)).toBe(false);
+  });
+});
+
+describe('reglas eléctricas (RETIE / NTC 2050)', () => {
+  const withInst = (pieces: DesignPiece[], installations: InstallationsSpec, roomType: RoomType = 'bedroom') =>
+    checkCompliance({ shell: room(), pieces, roomType, compliance: neufert, installations });
+  const none = (): InstallationsSpec => defaultTechnicalSpec().installations;
+
+  it('sin puntos las reglas eléctricas no aplican y piden proponerlos', () => {
+    const r = withInst([], none());
+    expect(byId(r, 'outlet-spacing')!.status).toBe('na');
+    expect(byId(r, 'switch-door')!.status).toBe('na');
+  });
+
+  it('la propuesta automática cumple tomas, interruptor y circuitos', () => {
+    const lav = piece('lav', 2.5, 0.25, [0.6, 0.85, 0.5], { category: 'kitchen', subcategory: 'sink' });
+    const inst = proposeInstallations({ shell: room(), pieces: [lav], roomType: 'kitchen', installations: none() });
+    const r = withInst([lav], inst, 'kitchen');
+    const electrical = r.findings.filter((f) => f.group === 'electrical');
+    expect(electrical.length).toBeGreaterThan(3);
+    expect(electrical.filter((f) => f.status !== 'pass')).toEqual([]);
+    expect(electrical[0]!.reference).toMatch(/NTC 2050/);
+  });
+
+  it('avisa una pared sin tomas, la toma común junto al agua y el interruptor lejos de la puerta', () => {
+    const lav = piece('lav', 2.5, 0.25, [0.6, 0.85, 0.5], { category: 'bathroom', subcategory: 'vanity' });
+    const inst: InstallationsSpec = {
+      ...none(),
+      points: [
+        { id: 't1', kind: 'outlet', wallId: 'w-back', offsetM: 2.5, heightM: 0.3 },
+        { id: 's1', kind: 'switch', wallId: 'w-back', offsetM: 0.3, heightM: 1.2 },
+      ],
+    };
+    const r = withInst([lav], inst);
+    expect(byId(r, 'outlet-spacing')!.status).toBe('warn');
+    expect(byId(r, 'gfci:t1')!.status).toBe('fail');
+    expect(byId(r, 'switch-door:door')!.status).toBe('warn');
+  });
+
+  it('un circuito por encima del 80 % falla', () => {
+    const inst: InstallationsSpec = {
+      ...none(),
+      points: [{ id: 'h', kind: 'outlet', wallId: 'w-back', offsetM: 1, heightM: 0.3, watts: 2000, circuitId: 'C1' }],
+      circuits: [{ id: 'C1', name: 'Tomas', breakerA: 20, kind: 'outlets' }],
+    };
+    const f = byId(withInst([], inst), 'circuit-load:C1')!;
+    expect(f.status).toBe('fail');
+    expect(f.measured).toMatch(/2000 VA · 83 %/);
   });
 });

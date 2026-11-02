@@ -25,7 +25,7 @@ export const OUTLET_REACH_M = 1.8;
 /** Distancia a un aparato con agua dentro de la cual una toma debe ser GFCI. */
 export const WET_REACH_M = 1.8;
 
-const WET_FIXTURES = new Set(['sink', 'vanity', 'bathtub', 'shower']);
+export const WET_FIXTURES: ReadonlySet<string> = new Set(['sink', 'vanity', 'bathtub', 'shower']);
 const OUTLET_NEXT_TO = new Set(['nightstand', 'desk', 'tv-stand', 'dressing-table', 'fridge', 'kitchen-base', 'stove', 'sink', 'kitchen-island']);
 
 export interface ProposalInput {

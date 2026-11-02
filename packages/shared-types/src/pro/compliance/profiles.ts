@@ -25,6 +25,7 @@ export interface ComplianceProfile {
     habitability: string;
     ergonomics: string;
     lighting: string;
+    electrical: string;
   };
   /** Paso libre en la circulación principal (m) y el mínimo tolerable entre muebles. */
   clearPathM: number;
@@ -91,6 +92,7 @@ const NEUFERT: ComplianceProfile = {
     habitability: 'Neufert: altura libre e iluminación natural',
     ergonomics: 'Neufert / Panero y Zelnik: dimensiones humanas',
     lighting: 'EN 12464-1 y CIE: iluminancia y uniformidad',
+    electrical: 'NTC 2050 / NEC 210-52 y 210-8 (buenas prácticas)',
   },
   clearPathM: 0.9,
   minPassM: 0.6,
@@ -119,6 +121,7 @@ const COLOMBIA: ComplianceProfile = {
     habitability: 'NSR-10 / POT: altura libre, iluminación y ventilación',
     ergonomics: 'NTC 6047 y Neufert: alturas y holguras',
     lighting: 'RETILAP: niveles de iluminancia en vivienda',
+    electrical: 'RETIE y NTC 2050: tomas, GFCI y circuitos',
   },
   minCeilingM: 2.2,
   naturalLightRatio: 1 / 10,

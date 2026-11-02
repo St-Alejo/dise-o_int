@@ -13,9 +13,13 @@ import { partitionSolids } from '../../zones.js';
 import { formatMeters } from '../drawing/model.js';
 import type { DaylightResult, IlluminanceGrid } from './lighting-calc.js';
 import type { ComplianceProfile } from './profiles.js';
+import type { InstallationsSpec } from '../technical.js';
+import { BREAKER_USAGE, loadSchedule, MAX_POINTS_PER_CIRCUIT } from '../installations/circuits.js';
+import { isOutlet, isSwitch, placePoints } from '../installations/points.js';
+import { OUTLET_REACH_M, WET_FIXTURES, WET_REACH_M } from '../installations/propose.js';
 
 export type ComplianceStatus = 'pass' | 'warn' | 'fail' | 'na';
-export const COMPLIANCE_GROUPS = ['circulation', 'accessibility', 'habitability', 'ergonomics', 'lighting'] as const;
+export const COMPLIANCE_GROUPS = ['circulation', 'accessibility', 'habitability', 'ergonomics', 'lighting', 'electrical'] as const;
 export type ComplianceGroup = (typeof COMPLIANCE_GROUPS)[number];
 
 export const GROUP_TITLES: Record<ComplianceGroup, string> = {
@@ -24,6 +28,7 @@ export const GROUP_TITLES: Record<ComplianceGroup, string> = {
   habitability: 'Habitabilidad',
   ergonomics: 'Ergonomía',
   lighting: 'Iluminación',
+  electrical: 'Instalaciones eléctricas',
 };
 
 export interface ComplianceFinding {
@@ -65,6 +70,8 @@ export interface ComplianceContext {
   reachable(diameterM: number): Point2[];
   lighting(): IlluminanceGrid;
   daylight(): DaylightResult;
+  /** Puntos y circuitos de la ficha técnica (vacío si aún no hay). */
+  installations: InstallationsSpec;
 }
 
 export interface ComplianceRule {
@@ -554,5 +561,128 @@ const daylightFactor: ComplianceRule = {
   },
 };
 
+const hasElectrical = (ctx: ComplianceContext) => ctx.installations.points.some((p) => isOutlet(p.kind) || isSwitch(p.kind) || p.kind === 'light');
+const noPoints = (rule: Pick<ComplianceRule, 'id' | 'group'>, ctx: ComplianceContext, title: string) =>
+  finding(rule, ctx, { id: rule.id, status: 'na', title, detail: 'Aún no hay puntos eléctricos: usa "Proponer instalaciones" en la pestaña Pro.' });
+
+/** Desde cualquier punto del muro (sin contar las puertas) hay una toma a menos de 1,8 m, medido por el perímetro. */
+const outletSpacing: ComplianceRule = {
+  id: 'outlet-spacing',
+  group: 'electrical',
+  applies: (ctx) => ctx.roomType !== 'bathroom',
+  evaluate(ctx) {
+    if (!hasElectrical(ctx)) return [noPoints(this, ctx, 'Tomas por el perímetro')];
+    const starts = new Map<string, number>();
+    let total = 0;
+    for (const w of ctx.shell.walls) {
+      starts.set(w.id, total);
+      total += Math.hypot(w.end.x - w.start.x, w.end.z - w.start.z);
+    }
+    const outlets = ctx.installations.points
+      .filter((p) => isOutlet(p.kind) && p.wallId !== undefined && p.offsetM !== undefined && starts.has(p.wallId))
+      .map((p) => starts.get(p.wallId!)! + p.offsetM!);
+    const doors = ctx.shell.openings
+      .filter((o) => o.type === 'door' && starts.has(o.wallId))
+      .map((o) => [starts.get(o.wallId)! + o.offsetM - o.widthM / 2, starts.get(o.wallId)! + o.offsetM + o.widthM / 2] as const);
+    let worst = 0;
+    for (let s = 0.05; s < total; s += 0.1) {
+      if (doors.some(([a, b]) => s > a && s < b)) continue;
+      const d = outlets.length ? Math.min(...outlets.map((o) => Math.min(Math.abs(s - o), total - Math.abs(s - o)))) : Infinity;
+      worst = Math.max(worst, d);
+    }
+    const ok = worst <= OUTLET_REACH_M + 0.05;
+    return [
+      finding(this, ctx, {
+        id: 'outlet-spacing',
+        status: ok ? 'pass' : 'warn',
+        title: 'Tomas por el perímetro',
+        detail: ok ? 'Desde cualquier punto del muro hay una toma a menos de 1,80 m.' : 'Hay tramos de muro lejos de una toma: se acabarían usando extensiones.',
+        measured: Number.isFinite(worst) ? `${m(worst)} hasta la toma más cercana` : 'sin tomas',
+        required: `≤ ${m(OUTLET_REACH_M)}`,
+      }),
+    ];
+  },
+};
+
+/** Las tomas a menos de 1,8 m de un aparato con agua llevan protección diferencial (GFCI). */
+const gfciNearWater: ComplianceRule = {
+  id: 'gfci',
+  group: 'electrical',
+  applies: (ctx) => ctx.pieces.some((p) => WET_FIXTURES.has(p.subcategory ?? '')),
+  evaluate(ctx) {
+    if (!hasElectrical(ctx)) return [noPoints(this, ctx, 'Tomas GFCI junto al agua')];
+    const wet = ctx.pieces.filter((p) => !p.supportId && WET_FIXTURES.has(p.subcategory ?? ''));
+    const required = `GFCI a menos de ${m(WET_REACH_M)} del agua`;
+    const bad = placePoints(ctx.shell, ctx.installations.points).filter(
+      (pp) => pp.point.kind === 'outlet' && wet.some((w) => Math.hypot(w.position.x - pp.at.x, w.position.z - pp.at.z) <= WET_REACH_M),
+    );
+    if (!bad.length) return [finding(this, ctx, { id: 'gfci', status: 'pass', title: 'Tomas GFCI junto al agua', detail: 'Las tomas cerca del agua tienen protección diferencial.', required })];
+    return bad.map((pp) =>
+      finding(this, ctx, { id: `gfci:${pp.point.id}`, status: 'fail', title: 'Toma sin GFCI junto al agua', detail: 'Cámbiala por una toma con protección diferencial (GFCI).', required }),
+    );
+  },
+};
+
+/** Un interruptor a mano al entrar por cada puerta. */
+const switchAtDoor: ComplianceRule = {
+  id: 'switch-door',
+  group: 'electrical',
+  applies: (ctx) => ctx.doors.length > 0,
+  evaluate(ctx) {
+    if (!hasElectrical(ctx)) return [noPoints(this, ctx, 'Interruptor junto a la puerta')];
+    const switches = placePoints(ctx.shell, ctx.installations.points).filter((pp) => isSwitch(pp.point.kind));
+    return ctx.doors.map((d) => {
+      const near = switches.some((s) => Math.hypot(s.at.x - d.at.x, s.at.z - d.at.z) <= d.widthM / 2 + 0.6);
+      return finding(this, ctx, {
+        id: `switch-door:${d.id}`,
+        status: near ? 'pass' : 'warn',
+        title: 'Interruptor junto a la puerta',
+        detail: near ? 'Al entrar se enciende la luz sin cruzar el cuarto a oscuras.' : 'Al entrar no hay un interruptor a mano: ponlo del lado de la chapa a 1,20 m.',
+        required: 'a menos de 0,60 m del marco',
+      });
+    });
+  },
+};
+
+/** Ningún circuito por encima del 80 % de su interruptor ni con más de 12 salidas. */
+const circuitLoad: ComplianceRule = {
+  id: 'circuit-load',
+  group: 'electrical',
+  applies: (ctx) => ctx.installations.circuits.length > 0,
+  evaluate(ctx) {
+    return loadSchedule(ctx.installations).rows.map((r) => {
+      const status: ComplianceStatus = r.usage > BREAKER_USAGE + 1e-9 ? 'fail' : r.points > MAX_POINTS_PER_CIRCUIT ? 'warn' : 'pass';
+      return finding(this, ctx, {
+        id: `circuit-load:${r.circuit.id}`,
+        status,
+        title: `Circuito ${r.circuit.id} · ${r.circuit.name}`,
+        detail:
+          status === 'pass'
+            ? `${r.points} salidas en un interruptor de ${r.circuit.breakerA} A con cable AWG ${r.awg}.`
+            : status === 'fail'
+              ? 'El circuito va sobrecargado: reparte sus salidas en otro circuito.'
+              : 'Demasiadas salidas en un solo circuito: divídelo.',
+        measured: `${Math.round(r.va)} VA · ${Math.round(r.usage * 100)} % · ${r.points} salidas`,
+        required: `≤ ${Math.round(BREAKER_USAGE * 100)} % y ≤ ${MAX_POINTS_PER_CIRCUIT} salidas`,
+      });
+    });
+  },
+};
+
 /** Todas las reglas, en el orden en que se muestran. */
-export const COMPLIANCE_RULES: readonly ComplianceRule[] = [clearPath, doorWidth, turningCircle, ceilingHeight, naturalLight, fixtureClearance, kitchenTriangle, workHeights, illuminance, daylightFactor];
+export const COMPLIANCE_RULES: readonly ComplianceRule[] = [
+  clearPath,
+  doorWidth,
+  turningCircle,
+  ceilingHeight,
+  naturalLight,
+  fixtureClearance,
+  kitchenTriangle,
+  workHeights,
+  illuminance,
+  daylightFactor,
+  outletSpacing,
+  gfciNearWater,
+  switchAtDoor,
+  circuitLoad,
+];

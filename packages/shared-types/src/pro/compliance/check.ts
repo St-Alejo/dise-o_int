@@ -7,7 +7,7 @@ import type { RoomShell, RoomType } from '../../domain.js';
 import type { DesignPiece } from '../../design-check.js';
 import { roomPolygon } from '../../geometry.js';
 import { buildWalkWorld } from '../../walk.js';
-import type { ComplianceSpec } from '../technical.js';
+import { defaultTechnicalSpec, type ComplianceSpec, type InstallationsSpec } from '../technical.js';
 import { artificialLighting, daylight, lightSources, type DaylightResult, type IlluminanceGrid } from './lighting-calc.js';
 import { COMPLIANCE_DISCLAIMER, profileOf } from './profiles.js';
 import { COMPLIANCE_RULES, cornersOf, doorwaysOf, reachableCells, type ComplianceContext, type ComplianceFinding, type ComplianceRule, type ComplianceStatus } from './rules.js';
@@ -17,6 +17,8 @@ export interface ComplianceInput {
   pieces: readonly DesignPiece[];
   roomType: RoomType;
   compliance: ComplianceSpec;
+  /** Puntos y circuitos de la ficha, para las reglas eléctricas. */
+  installations?: InstallationsSpec;
   /** Hora solar para la luz natural (por defecto, mediodía). */
   hour?: number;
 }
@@ -65,6 +67,7 @@ export function complianceContext(input: ComplianceInput): ComplianceContext {
     },
     lighting: () => (lighting ??= artificialLighting(input.shell, lightSources(input.pieces))),
     daylight: () => (day ??= daylight(input.shell, { hour: input.hour ?? 12 })),
+    installations: input.installations ?? defaultTechnicalSpec().installations,
   };
 }
 
