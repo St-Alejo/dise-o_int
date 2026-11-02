@@ -51,6 +51,7 @@ const RELATION_PHRASES: [RegExp, Relation][] = [
   [/\b(?:frente a(?:l)?|delante de(?:l)?|in front of)\b/, 'in-front-of'],
   [/\b(?:detras de(?:l)?|behind)\b/, 'behind'],
   [/\b(?:sobre|encima de(?:l)?|arriba de(?:l)?|on top of)\b/, 'on-top-of'],
+  [/\b(?:debajo de(?:l)?|bajo|under(?:neath)?)\b/, 'under'],
   [/\b(?:contra la pared|en la pared|pegad[oa] a la pared)\b/, 'against-wall'],
   [/\b(?:en el centro|en medio|al centro|in the center)\b/, 'center'],
 ];
@@ -100,6 +101,19 @@ export class RuleBasedDesignAgent implements DesignAgent {
   async run({ message, toolbox }: DesignAgentInput): Promise<DesignAgentResult> {
     const session = new RuleSession(toolbox);
     for (const clause of splitClauses(message)) session.handle(clause);
+    return { reply: session.reply() };
+  }
+
+  /**
+   * Las reglas como primer intento: responden solo si entienden y resuelven CADA orden del mensaje
+   * ("pinta las paredes de salvia y pon una alfombra bajo la mesa"); si alguna falla o no la
+   * entienden ("hazlo más acogedor"), null y responde la IA. Instantáneo y sin gastar cuota.
+   */
+  async runIfComplete({ message, toolbox }: DesignAgentInput): Promise<DesignAgentResult | null> {
+    const clauses = splitClauses(message);
+    if (clauses.length === 0) return null;
+    const session = new RuleSession(toolbox);
+    for (const clause of clauses) if (!session.handleCleanly(clause)) return null;
     return { reply: session.reply() };
   }
 }
@@ -164,6 +178,14 @@ export class RuleSession {
     } else {
       this.problems.push(out.summary);
     }
+  }
+
+  /** Aplica la orden y dice si salió del todo bien: algo hecho y ningún problema nuevo. */
+  handleCleanly(clause: Clause): boolean {
+    const said = this.said.length;
+    const problems = this.problems.length;
+    this.handle(clause);
+    return this.said.length > said && this.problems.length === problems;
   }
 
   handle({ text }: Clause): void {
@@ -248,6 +270,15 @@ export class RuleSession {
     }
     const rel: Relation = relation ?? (nearId ? 'next-to' : wallId ? 'against-wall' : 'anywhere');
     const fixedRel: Relation = rel === 'on-top-of' && (item.mount === 'wall' || item.mount === 'ceiling') ? 'above' : rel;
+    // "pon una alfombra bajo la mesa" con una alfombra ya en el cuarto: se mueve esa (dos
+    // alfombras encimadas no caben y casi nunca es lo que se quiere).
+    if (fixedRel === 'under' && count === 1 && item.subcategory === 'rug' && nearId) {
+      const existing = this.tb.scenePlacements.find((p) => this.tb.itemOf(p)?.subcategory === 'rug');
+      if (existing) {
+        this.record(this.tb.run('move_item', { id: existing.id, relation: 'under', nearId }), existing.id);
+        return;
+      }
+    }
     for (let i = 0; i < count; i++) {
       this.record(this.tb.run('add_item', { catalogItemId: item.id, relation: fixedRel, ...(nearId ? { nearId } : {}), ...(wallId ? { wallId } : {}) }));
     }

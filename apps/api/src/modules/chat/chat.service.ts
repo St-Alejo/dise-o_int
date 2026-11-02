@@ -15,14 +15,17 @@ import { CHAT_QUOTA, type IAiClient, type IFileStorage, type IQuota, type Projec
 import { CatalogService } from '../catalog/catalog.service.js';
 import { projectKeys } from '../projects/project.mapper.js';
 import { ProjectsService, type Actor } from '../projects/projects.service.js';
-import { AgentDeclinedError, AgentUnavailableError, type DesignAgent } from './design-agent.js';
+import { AgentDeclinedError, AgentUnavailableError, type DesignAgent, type DesignAgentInput, type DesignAgentResult } from './design-agent.js';
 
-/** Los agentes, en el orden en que se prueban: local → Groq → Claude → reglas. */
+/**
+ * Los agentes, en el orden en que se prueban: local → reglas (solo si resuelven todo) → Groq →
+ * Claude → reglas (respaldo).
+ */
 export interface ChatAgents {
   local?: DesignAgent;
   groq?: DesignAgent;
   claude?: DesignAgent;
-  rules: DesignAgent;
+  rules: DesignAgent & { runIfComplete?(input: DesignAgentInput): Promise<DesignAgentResult | null> };
 }
 export const CHAT_AGENTS = Symbol('ChatAgents');
 
@@ -69,10 +72,19 @@ export class ChatService {
 
     let note = '';
     let quotaLeft = true;
+    let triedRules = false;
     for (const agent of [this.agents.local, this.agents.groq, this.agents.claude]) {
       if (!agent?.available) continue;
       const external = agent.kind !== 'local';
       if (external && !quotaLeft) continue;
+      // Antes de gastar IA externa: si las reglas resuelven cada orden sin problemas, responden ellas
+      // (con la capa gratuita de Groq, los LLM pequeños fallaban órdenes que las reglas hacen bien).
+      if (external && !triedRules) {
+        triedRules = true;
+        const toolbox = newToolbox();
+        const done = await this.agents.rules.runIfComplete?.({ ...input, toolbox });
+        if (done) return { reply: done.reply, operations: toolbox.operations(), agent: 'rules' };
+      }
       let charged = false;
       // Toolbox nueva por agente: lo que uno haya hecho a medias no se mezcla con el siguiente.
       const toolbox = newToolbox();

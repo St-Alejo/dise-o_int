@@ -25,6 +25,7 @@ const CATALOG = [
   item({ id: 'sofa', name: 'Sofá', category: 'sofa', dimensionsM: { x: 2.1, y: 0.84, z: 0.92 } }),
   item({ id: 'coffee', name: 'Mesa de centro', category: 'table', subcategory: 'coffee-table', dimensionsM: { x: 1.1, y: 0.42, z: 0.6 } }),
   item({ id: 'tvstand', name: 'Mueble TV', category: 'storage', subcategory: 'tv-stand', dimensionsM: { x: 1.6, y: 0.5, z: 0.42 } }),
+  item({ id: 'rug', name: 'Alfombra', category: 'textile', subcategory: 'rug', dimensionsM: { x: 2, y: 0.01, z: 1.4 } }),
   item({ id: 'pendant', name: 'Colgante', category: 'lighting', subcategory: 'pendant', mount: 'ceiling', dimensionsM: { x: 0.45, y: 0.9, z: 0.45 } }),
 ];
 const catalog = new Map(CATALOG.map((c) => [c.id, c]));
@@ -57,6 +58,18 @@ describe('SpatialResolver', () => {
     expect(Math.abs(r.pose.position.x - 2.25)).toBeCloseTo(0.8 + 0.08 + 0.25, 2);
     expect(r.pose.position.z).toBeCloseTo(0.2, 2); // respaldo contra la pared, como la cama
     expect(collidesWithScene(scene, 'n', 'nightstand', r.pose)).toBe(false);
+  });
+
+  it('una alfombra "bajo la mesa de centro" queda centrada debajo; un mueble no puede ir debajo', () => {
+    const scene: SceneModel = { shell, catalog, placements: [at('s1', 'sofa', 2.25, 0.46), at('c1', 'coffee', 2.25, 1.6, Math.PI / 2)] };
+    const resolver = new SpatialResolver(scene);
+    const r = resolver.resolve('r', catalog.get('rug')!, { relation: 'under', nearId: 'c1' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.pose.position.x).toBeCloseTo(2.25, 2);
+    expect(r.pose.position.z).toBeCloseTo(1.6, 2);
+    expect(r.pose.rotationY).toBeCloseTo(Math.PI / 2, 4);
+    expect(resolver.resolve('n', catalog.get('nightstand')!, { relation: 'under', nearId: 'c1' })).toMatchObject({ ok: false, reason: expect.stringMatching(/solo .* alfombra/) });
   });
 
   it('a la izquierda y a la derecha quedan en lados opuestos', () => {

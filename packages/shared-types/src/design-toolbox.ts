@@ -31,7 +31,7 @@ import { DEFAULT_FINISHES, getMaterial, materialsForSurface, materialsOfKinds, r
 import { STYLES } from './styles.js';
 import { addPrivateBathroom, BATHROOM_PRESETS } from './zone-presets.js';
 import { zoneAt } from './zones.js';
-import { searchCatalog } from './catalog-search.js';
+import { searchCatalog, tokenize } from './catalog-search.js';
 import { alongOf, positionOnWall, wallFrames } from './walls.js';
 import { RELATIONS, SpatialResolver, type ResolvedPose } from './spatial-resolver.js';
 import type { DesignPiece } from './design-check.js';
@@ -128,7 +128,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   list_materials:
     'Lista materiales disponibles (id y nombre), filtrando por tipo (fabric, wood, metal...) o por superficie del cuarto (floor, wall, ceiling).',
   add_item:
-    'Agrega una pieza del catálogo con una relación espacial respecto a otra pieza (nearId) o al cuarto. Tú NO das coordenadas: el sistema calcula una posición válida sin choques o te explica por qué no cabe. Relaciones: anywhere (cualquier hueco), center (centro del cuarto), next-to / left-of / right-of (al lado, alineada con la referencia), in-front-of (delante y mirándola: mesa de centro frente al sofá, silla frente al escritorio), facing (enfrente, al otro lado del cuarto: TV frente al sofá), behind, on-top-of (apoyada sobre un mueble), above (colgada en la pared encima de la referencia, o lámpara de techo sobre ella), against-wall (contra la pared wallId o la primera libre). Los objetos de superficie (lámparas de mesa, jarrones) se apoyan solos sobre el mueble adecuado más cercano. Medidas opcionales en cm.',
+    'Agrega una pieza del catálogo con una relación espacial respecto a otra pieza (nearId) o al cuarto. Tú NO das coordenadas: el sistema calcula una posición válida sin choques o te explica por qué no cabe. Relaciones: anywhere (cualquier hueco), center (centro del cuarto), next-to / left-of / right-of (al lado, alineada con la referencia), in-front-of (delante y mirándola: mesa de centro frente al sofá, silla frente al escritorio), facing (enfrente, al otro lado del cuarto: TV frente al sofá), behind, on-top-of (apoyada sobre un mueble), above (colgada en la pared encima de la referencia, o lámpara de techo sobre ella), against-wall (contra la pared wallId o la primera libre), under (solo alfombras: centrada debajo de la referencia, p. ej. bajo la mesa de centro). Los objetos de superficie (lámparas de mesa, jarrones) se apoyan solos sobre el mueble adecuado más cercano. Medidas opcionales en cm.',
   move_item: 'Mueve una pieza existente usando las mismas relaciones que add_item. Lo que esté apoyado encima se mueve con ella.',
   rotate_item: 'Gira una pieza en el sitio (grados; positivo = antihorario visto desde arriba). Si ya no cabe, se corre lo mínimo.',
   resize_item: 'Cambia ancho, alto o fondo de una pieza (cm). Se limita al rango que admite el mueble; si choca, se corre.',
@@ -355,12 +355,26 @@ export class DesignToolbox {
 
   // ------------------------------------------------------------------- herramientas
   private searchCatalog(input: ToolInput<'search_catalog'>): ToolOutcome {
-    const ranked = searchCatalog(this.init.catalog, {
-      q: input.query,
+    const filters = {
       ...(input.category ? { category: input.category } : {}),
       ...(input.mount ? { mount: input.mount } : {}),
       ...(input.maxWidthCm !== undefined ? { maxWidthM: input.maxWidthCm / 100 } : {}),
-    });
+    };
+    let ranked = searchCatalog(this.init.catalog, { q: input.query, ...filters });
+    // Todas las palabras deben coincidir ("alfombra escandinava" falla si ninguna alfombra dice
+    // "escandinava"): antes de responder "nada", se suman los resultados de cada palabra suelta,
+    // para que el modelo no gaste otra vuelta reformulando.
+    const words = tokenize(input.query);
+    if (ranked.length === 0 && words.length > 1) {
+      const byId = new Map<string, { item: CatalogItem; score: number }>();
+      for (const word of words) {
+        for (const r of searchCatalog(this.init.catalog, { q: word, ...filters })) {
+          const prev = byId.get(r.item.id);
+          byId.set(r.item.id, { item: r.item, score: (prev?.score ?? 0) + r.score });
+        }
+      }
+      ranked = [...byId.values()].sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name, 'es'));
+    }
     const items = ranked.slice(0, input.limit ?? 6).map((r) => this.describeItem(r.item));
     return this.success({ results: items }, items.length ? `Encontré ${items.length} resultados para "${input.query}"` : `No encontré nada para "${input.query}"`);
   }

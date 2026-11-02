@@ -4,7 +4,7 @@
  * dentro del cuarto y sin choques. El chat de IA NUNCA calcula coordenadas: elige la relación y
  * esta función hace la geometría, o explica por qué no cabe.
  */
-import { bodiesCollide, bodyOf } from './collision.js';
+import { bodiesCollide, bodyOf, layerOf } from './collision.js';
 import type { CatalogItem, FurniturePlacement, RoomShell, Vector3 } from './domain.js';
 import { clampToRoom, effectiveDimensions, footprint, isInsideRoom, mountY, roomCenter, rotateXZ, snapAngle } from './geometry.js';
 import { closestOnSegment } from './polygon.js';
@@ -22,6 +22,7 @@ export const RELATIONS = [
   'on-top-of',
   'above',
   'against-wall',
+  'under',
 ] as const;
 export type Relation = (typeof RELATIONS)[number];
 
@@ -275,6 +276,15 @@ export class SpatialResolver {
     const refName = this.nameOf(ref);
 
     if (relation === 'on-top-of') return this.onTopOf(selfId, item, dims, ref);
+
+    if (relation === 'under') {
+      // Solo una alfombra va "debajo": su capa de colisión no choca con muebles, así que se
+      // centra bajo la referencia (mesa de centro, cama, comedor) con su misma orientación.
+      if (layerOf(item) !== 'rug') return fail('Debajo de un mueble solo se puede poner una alfombra');
+      const y = mountY('floor', dims, shell);
+      const pose = this.firstFit(selfId, item, dims, [{ position: { x: ref.position.x, y, z: ref.position.z }, rotationY: ref.rotationY }]);
+      return pose ? { ok: true, pose } : fail(`Ya hay otra alfombra bajo ${refName}`);
+    }
 
     if (relation === 'above') {
       if (item.mount === 'ceiling') {

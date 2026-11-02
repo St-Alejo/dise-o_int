@@ -49,6 +49,13 @@ describe('DesignToolbox', () => {
     expect(data(out.content)['results']).toEqual([expect.objectContaining({ id: 'lamp', sizeCm: { width: 30, height: 50, depth: 30 } })]);
   });
 
+  it('si no coinciden todas las palabras, busca por palabras sueltas antes de decir "nada"', () => {
+    // Ninguna lámpara dice "escandinava": antes devolvía [] y el modelo gastaba otra vuelta.
+    const out = toolbox().run('search_catalog', { query: 'lampara escandinava' });
+    expect(data(out.content)['results']).toEqual([expect.objectContaining({ id: 'lamp' })]);
+    expect(data(toolbox().run('search_catalog', { query: 'zzz yyy' }).content)['results']).toEqual([]);
+  });
+
   it('valida la entrada como haría con la del modelo', () => {
     const out = toolbox().run('add_item', { catalogItemId: 'nightstand', relation: 'cerca' });
     expect(out.ok).toBe(false);

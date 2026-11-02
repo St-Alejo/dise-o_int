@@ -21,7 +21,7 @@ import type { NluParseResponse } from '@interiores/shared-types';
 import { PhotoProcessor } from '../src/infrastructure/imaging/photo-processor.js';
 import { MemoryFileStorage } from '../src/infrastructure/storage/memory-file-storage.js';
 import type { ChatAgents } from '../src/modules/chat/chat.service.js';
-import { GroqDesignAgent, buildGroqTools, selectGroqTools, type FetchLike } from '../src/modules/chat/groq.agent.js';
+import { GroqDesignAgent, buildGroqTools, compactScene, materialsHint, selectGroqTools, type FetchLike } from '../src/modules/chat/groq.agent.js';
 import { LocalNluDesignAgent, specName } from '../src/modules/chat/local-nlu.agent.js';
 import { FakeAi, FakeQuota } from './fakes.js';
 
@@ -120,6 +120,22 @@ describe('RuleBasedDesignAgent (español, sin red)', () => {
     expect(sofa?.placement.rotationY).toBeCloseTo(Math.PI);
     const bed = ops.find((o) => o.op === 'update' && o.placement.id === 'bed1') as { placement: FurniturePlacement } | undefined;
     expect(bed?.placement.dimensionsM?.x).toBeGreaterThan(1.6);
+  });
+
+  it('"pinta las paredes de verde salvia suave y pon una alfombra bajo la cama": los dos cambios', async () => {
+    const { ops, reply } = await rules('Pinta las paredes de un verde salvia suave y pon una alfombra bajo la cama');
+    expect(reply).not.toMatch(/✗/);
+    expect(ops).toContainEqual(expect.objectContaining({ op: 'finishes', finishes: expect.objectContaining({ walls: expect.objectContaining({ all: 'paint-sage' }) }) }));
+    // Ya había una alfombra: se mueve esa bajo la cama, no se agrega otra.
+    const rug = ops.find((o) => o.op === 'update' && o.placement.id === 'rug1') as { placement: FurniturePlacement } | undefined;
+    expect(rug?.placement.position.x).toBeCloseTo(2.25, 2);
+    expect(rug?.placement.position.z).toBeCloseTo(1.06, 2);
+    expect(ops.some((o) => o.op === 'add')).toBe(false);
+
+    // Sin alfombra en el cuarto, se agrega una debajo.
+    const noRug = toolbox(SCENE().filter((p) => p.id !== 'rug1'));
+    const added = await rules('pon una alfombra debajo de la cama', noRug);
+    expect(added.ops).toEqual([expect.objectContaining({ op: 'add', placement: expect.objectContaining({ catalogItemId: 'rug', position: expect.objectContaining({ x: 2.25 }) }) })]);
   });
 
   it('acabados: "pinta las paredes de verde salvia y el piso de nogal"', async () => {
@@ -308,7 +324,7 @@ describe('ChatService', () => {
       },
     };
     const { svc, quota } = service(flaky);
-    const res = await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra'));
+    const res = await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra; hazlo más acogedor'));
     expect(res.agent).toBe('rules');
     expect(res.reply).toMatch(/no está disponible/);
     expect(res.operations).toEqual([{ op: 'remove', id: 'rug1' }]);
@@ -318,7 +334,7 @@ describe('ChatService', () => {
   it('con cuota agotada avisa y responde con reglas', async () => {
     const claude: DesignAgent = { kind: 'claude', available: true, run: async () => ({ reply: 'claude' }) };
     const { svc } = service(claude, new FakeQuota(0));
-    const res = await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra'));
+    const res = await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra; hazlo más acogedor'));
     expect(res).toMatchObject({ agent: 'rules', reply: expect.stringMatching(/límite/) });
   });
 
@@ -331,8 +347,23 @@ describe('ChatService', () => {
         return { reply: 'Piso de mármol.' };
       },
     };
-    const res = await service(claude).svc.chat({ userId: 'alice' }, 'p1', req('piso de mármol'));
+    const res = await service(claude).svc.chat({ userId: 'alice' }, 'p1', req('hazlo más elegante'));
     expect(res).toMatchObject({ agent: 'claude', reply: 'Piso de mármol.', operations: [{ op: 'finishes' }] });
+  });
+
+  it('si las reglas resuelven cada orden, responden ellas sin gastar IA; si no, la IA', async () => {
+    let calls = 0;
+    const claude: DesignAgent = { kind: 'claude', available: true, run: async () => ((calls += 1), { reply: 'claude' }) };
+    const { svc, quota } = service(claude);
+    const both = await svc.chat({ userId: 'alice' }, 'p1', req('Pinta las paredes de un verde salvia suave y pon una alfombra bajo la cama'));
+    expect(both.agent).toBe('rules');
+    expect(both.reply).not.toMatch(/no está disponible|✗/);
+    expect(both.operations.map((o) => o.op).sort()).toEqual(['finishes', 'update']);
+    expect(calls).toBe(0);
+    expect(quota.used.get('alice') ?? 0).toBe(0);
+
+    expect((await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra; hazlo más acogedor'))).agent).toBe('claude');
+    expect(calls).toBe(1);
   });
 
   it('revisión vieja → 409', async () => {
@@ -506,6 +537,15 @@ describe('GroqDesignAgent', () => {
     expect(names('¿cuánto cuesta la obra?')).toContain('estimate_works');
     expect(names('no cambies el piso')).toEqual(expect.arrayContaining(['pin', 'unpin']));
     expect(names('agranda la cama')).toContain('resize_item');
+    // Ids de pintura en el mensaje si se habla de paredes: no hace falta list_materials.
+    expect(materialsHint('Pinta las paredes de verde salvia')).toMatch(/^Paredes .*paint-sage Verde salvia/);
+    expect(materialsHint('pon una lámpara')).toBe('');
+    // Escena en líneas, con cada id pegado a su nombre (con JSON confundía las piezas).
+    const scene = compactScene(toolbox().run('get_scene', {}).content);
+    expect(scene).toMatch(/^Cuarto 4\.5 × 4\.5 m/);
+    expect(scene).toMatch(/^- rug1 = Alfombra rectangular \(rug\): 200×140 cm/m);
+    expect(scene.length).toBeLessThan(toolbox().run('get_scene', {}).content.length);
+    expect(compactScene('no es json')).toBe('no es json');
     const all = JSON.stringify(buildGroqTools()).length;
     expect(JSON.stringify(buildGroqTools(core)).length).toBeLessThan(all / 2);
 
@@ -516,14 +556,24 @@ describe('GroqDesignAgent', () => {
     expect(body).toMatchObject({ reasoning_effort: 'low', max_tokens: 700 });
   });
 
-  it('si en la vuelta final el modelo insiste en una herramienta, conserva lo hecho', async () => {
-    const tool = completion(null, [{ name: 'set_finishes', args: { floor: 'stone-marble-white' } }]);
-    const rejected = { status: 400, body: '{"error":{"code":"tool_use_failed"}}' };
-    const { fn } = scriptedFetch([tool, rejected]);
+  it('en la vuelta final ejecuta las herramientas pedidas y cierra sin otra llamada', async () => {
+    // "pinta las paredes y pon una alfombra": busca en una vuelta y en la última hace las dos cosas.
+    const search = completion(null, [{ name: 'search_catalog', args: { query: 'alfombra' } }]);
+    const both = completion(null, [
+      { name: 'set_finishes', args: { floor: 'stone-marble-white' } },
+      { name: 'add_item', args: { catalogItemId: 'floor-lamp', relation: 'anywhere' } },
+    ]);
+    const { fn, bodies } = scriptedFetch([search, both]);
     const tb = toolbox();
     const { reply } = await new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: fn, maxToolTurns: 2 }).run(input(tb));
-    expect(reply).toMatch(/apliqué los cambios/);
-    expect(tb.operations()).toEqual([expect.objectContaining({ op: 'finishes' })]);
+    expect(reply).toBe('Listo: cambié los acabados y agregué una pieza. Si falta algo, pídemelo de nuevo.');
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]).toMatchObject({ tool_choice: 'auto' });
+    expect(tb.operations().map((o) => o.op)).toEqual(expect.arrayContaining(['finishes', 'add']));
+
+    // Si al acabar las vueltas no cambió nada, responde el siguiente de la cascada.
+    const idle = scriptedFetch([search, search]);
+    await expect(new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: idle.fn, maxToolTurns: 2 }).run(input())).rejects.toBeInstanceOf(AgentUnavailableError);
   });
 
   it('a mitad del bucle, un 429 espera lo que pide Groq dentro de un presupuesto por mensaje', async () => {
@@ -586,7 +636,7 @@ describe('ChatService en cascada', () => {
 
     const down: DesignAgent = { kind: 'groq', available: true, run: async () => Promise.reject(new AgentUnavailableError('429')) };
     const fallback = cascade({ local, groq: down });
-    const res = await fallback.svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra'));
+    const res = await fallback.svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra; hazlo más acogedor'));
     expect(res).toMatchObject({ agent: 'rules', reply: expect.stringMatching(/no está disponible/) });
     expect(fallback.quota.used.get('alice')).toBe(0);
   });
