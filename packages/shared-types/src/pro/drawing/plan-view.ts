@@ -13,8 +13,9 @@ import { partitions, zoneArea } from '../../zones.js';
 import type { TechnicalSpec } from '../technical.js';
 import { partitionPieces, thickWalls, wallGaps, wallPieces, type ThickWall } from '../walls-2d.js';
 import { DrawingBuilder, formatMeters, fromPlan, type Drawing, type P } from './model.js';
+import { drawInstallations } from '../installations/plan-symbols.js';
 
-export const PLAN_KINDS = ['architectural', 'furniture', 'ceiling', 'finishes'] as const;
+export const PLAN_KINDS = ['architectural', 'furniture', 'ceiling', 'finishes', 'electrical', 'plumbing'] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
 export const PLAN_TITLES: Record<PlanKind, string> = {
@@ -22,6 +23,8 @@ export const PLAN_TITLES: Record<PlanKind, string> = {
   furniture: 'Planta de amoblamiento',
   ceiling: 'Planta de cielo raso e iluminación',
   finishes: 'Planta de acabados',
+  electrical: 'Plano eléctrico',
+  plumbing: 'Plano hidrosanitario',
 };
 
 export interface PlanViewInput {
@@ -61,6 +64,10 @@ export function planView(kind: PlanKind, input: PlanViewInput): Drawing {
   if (kind === 'architectural') drawFurniture(d, input, false);
   if (kind === 'ceiling') drawCeiling(d, input);
   if (kind === 'finishes') drawFinishes(d, input, thick);
+  if (kind === 'electrical' || kind === 'plumbing') {
+    drawFurniture(d, input, false);
+    drawInstallations(d, kind, shell, spec.installations, (mm) => paper(spec, mm));
+  }
   drawRoomLabels(d, input, kind);
   return d.build(PLAN_TITLES[kind]);
 }

@@ -6,7 +6,7 @@
  */
 import type { RoomFinishes, RoomShell } from '../../domain.js';
 import type { DesignPiece } from '../../design-check.js';
-import { DRAWING_SCALES, type DrawingScale, type PaperSize, type TechnicalSpec, type TitleBlock } from '../technical.js';
+import { DRAWING_SCALES, isElectrical, type DrawingScale, type PaperSize, type TechnicalSpec, type TitleBlock } from '../technical.js';
 import { elevationLabel, elevationView, sectionView } from './elevation.js';
 import { boundsOf, DrawingBuilder, type Bounds, type Drawing, type Entity } from './model.js';
 import { planView, PLAN_TITLES, type PlanKind } from './plan-view.js';
@@ -230,7 +230,7 @@ export interface DrawingSetInput {
   date: string;
 }
 
-export const SHEET_IDS = ['architectural', 'furniture', 'ceiling', 'finishes', 'elevations', 'section'] as const;
+export const SHEET_IDS = ['architectural', 'furniture', 'ceiling', 'finishes', 'electrical', 'plumbing', 'elevations', 'section'] as const;
 export type SheetId = (typeof SHEET_IDS)[number];
 
 export const SHEET_TITLES: Record<SheetId, string> = {
@@ -242,8 +242,14 @@ export const SHEET_TITLES: Record<SheetId, string> = {
 const withScale = (spec: TechnicalSpec, scale: DrawingScale): TechnicalSpec => ({ ...spec, sheet: { ...spec.sheet, scale } });
 
 /** Las láminas que tiene este cuarto (el corte, solo si se trazó). */
-export function availableSheets(spec: Pick<TechnicalSpec, 'section'>): SheetId[] {
-  return SHEET_IDS.filter((id) => id !== 'section' || !!spec.section);
+export function availableSheets(spec: Pick<TechnicalSpec, 'section'> & Partial<Pick<TechnicalSpec, 'installations'>>): SheetId[] {
+  const points = spec.installations?.points ?? [];
+  return SHEET_IDS.filter((id) => {
+    if (id === 'section') return !!spec.section;
+    if (id === 'electrical') return points.some((p) => isElectrical(p.kind));
+    if (id === 'plumbing') return points.some((p) => !isElectrical(p.kind));
+    return true;
+  });
 }
 
 /** Vistas de una lámina a una escala dada. */
