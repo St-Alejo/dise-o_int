@@ -19,7 +19,7 @@ import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RoomActionsComponent } from '../floor-plan/room-actions.component';
-import { TIMES_OF_DAY } from './scene/lighting-rig';
+import { MAX_LAMPS, TIMES_OF_DAY } from './scene/lighting-rig';
 import type { PostFx } from './scene/post-fx';
 import { QUALITY, QUALITY_CHOICES, QualityGovernor, loadQualityChoice, saveQualityChoice, startingLevel, type QualityChoice } from './scene/quality';
 import { PaintPaletteComponent } from './tools/paint-palette.component';
@@ -484,13 +484,40 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
       });
     };
     this.scene.postFxState = () => (this.postFx && this.settings().postFx ? { ao: this.postFx.aoEnabled } : null);
+    // El estudio de render dibuja con este mismo renderer mientras el visor está en pausa.
+    this.scene.studioHost = {
+      renderer,
+      canvas,
+      paint,
+      prepare: (width, height, raster) => {
+        renderer.setPixelRatio(1);
+        renderer.setSize(width, height, false);
+        if (!raster) return;
+        // El raster de respaldo sale con lo mejor del visor, haya o no ritmo para ello.
+        const best = QUALITY.high;
+        this.postFx?.configure({ ao: true, bloom: best.bloom, pixelRatio: 1 });
+        this.postFx?.setSize(width, height);
+        this.scene.attachHighlighter(null);
+        this.scene.setShadowSize(4096);
+        this.scene.setLampShadows(MAX_LAMPS);
+      },
+      restore: () => {
+        const { width, height } = this.host.nativeElement.getBoundingClientRect();
+        renderer.setRenderTarget(null);
+        renderer.setSize(width, height, false);
+        this.scene.setSize(width, height);
+        this.applyQuality();
+        this.scene.invalidate();
+      },
+    };
     void this.loadPostFx(renderer);
 
     canvas.addEventListener('webglcontextlost', this.onContextLost);
     canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     this.resizeObserver = new ResizeObserver(([entry]) => {
-      if (!entry) return;
+      // Mientras el estudio usa el renderer, su tamaño es el de la imagen; al acabar se repone.
+      if (!entry || this.scene.studioActive) return;
       const { width, height } = entry.contentRect;
       renderer.setSize(width, height, false);
       this.postFx?.setSize(width, height);
@@ -516,6 +543,10 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
         const elapsed = now - last;
         const dt = Math.min(elapsed / 1000, 0.1);
         last = now;
+        if (this.scene.studioActive) {
+          drewLast = false;
+          return;
+        }
         const draw = this.scene.tick(dt);
         if (draw) paint();
         // Solo cuentan los cuadros dibujados uno tras otro: entre dos sueltos no hay ritmo que medir.
@@ -717,6 +748,7 @@ export class ThreeViewportComponent implements AfterViewInit, OnDestroy {
     this.scene.controls = null;
     this.scene.canvas = null;
     this.scene.frameCapture = null;
+    this.scene.studioHost = null;
     this.scene.postFxState = null;
     this.scene.qualityState = null;
     this.scene.attachHighlighter(null);

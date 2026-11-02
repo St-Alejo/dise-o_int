@@ -203,6 +203,46 @@ function skyTexture(colors: LightingPreset['skyline']): THREE.Texture | null {
   return texture;
 }
 
+/**
+ * Cuánto brilla el cielo que entra por las ventanas en el trazado de rayos (multiplica sus colores
+ * lineales). En el raster esa claridad la fingen las luces de ventana; con luz rebotada real, el
+ * cielo tiene que ser bastante más brillante que el interior.
+ */
+export const PHOTO_SKY_RADIANCE: Record<TimeOfDay, number> = { day: 2.4, evening: 1.5, night: 0.04 };
+
+/**
+ * Cielo panorámico en coma flotante (lineal) para el trazado de rayos: la luz que entra por cada
+ * ventana sale de la dirección en que mira, y el reflejo en el vidrio es el cielo de verdad.
+ */
+export function skyRadiance(colors: LightingPreset['skyline'], radiance: number, width = 64, height = 32): THREE.DataTexture {
+  const top = new THREE.Color(colors.top);
+  const horizon = new THREE.Color(colors.horizon);
+  const ground = new THREE.Color(colors.ground);
+  const data = new Float32Array(width * height * 4);
+  const c = new THREE.Color();
+  for (let y = 0; y < height; y++) {
+    // v = 0 arriba (cenit) y 1 abajo (nadir), como una panorámica equirectangular.
+    const v = (y + 0.5) / height;
+    if (v < 0.5) c.copy(horizon).lerp(top, Math.pow(1 - v / 0.5, 0.6));
+    else c.copy(ground).multiplyScalar(0.55 + 0.45 * Math.max(0, 1 - (v - 0.5) / 0.12));
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      data[i] = c.r * radiance;
+      data[i + 1] = c.g * radiance;
+      data[i + 2] = c.b * radiance;
+      data[i + 3] = 1;
+    }
+  }
+  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.FloatType);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.colorSpace = THREE.LinearSRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 /** Luces y entorno de la escena: sol con sombra, cielo, luz general del techo y las lámparas del cuarto. */
 export class LightingRig {
   private readonly sun = new THREE.DirectionalLight('#fff3e0', 1.6);
@@ -252,6 +292,31 @@ export class LightingRig {
   /** Brillo de las pantallas de lámpara a esta hora. */
   get glow(): number {
     return LIGHTING_PRESETS[this.time].glow;
+  }
+
+  /**
+   * Modo fotográfico (estudio de render con trazado de rayos): la luz que fingía el raster (cielo
+   * hemisférico, claridad de ventanas y relleno del techo de día) se apaga, y entra el cielo de
+   * verdad por las ventanas. Quedan el sol y las lámparas. Devuelve cómo dejarlo como estaba.
+   */
+  photographic(): () => void {
+    const preset = LIGHTING_PRESETS[this.time];
+    const saved = { background: this.scene.background, environment: this.scene.environment, intensity: this.scene.environmentIntensity };
+    const sky = skyRadiance(preset.skyline, PHOTO_SKY_RADIANCE[this.time]);
+    this.scene.background = sky;
+    this.scene.environment = sky;
+    this.scene.environmentIntensity = 1;
+    this.sky.intensity = 0;
+    // De noche la luz del techo es la lámpara del techo; de día es un relleno que ya no hace falta.
+    if (this.time !== 'night') this.ceiling.intensity = 0;
+    for (const child of this.windowRoot.children) if (child instanceof THREE.SpotLight) child.intensity = 0;
+    return () => {
+      this.scene.background = saved.background;
+      this.scene.environment = saved.environment;
+      this.scene.environmentIntensity = saved.intensity;
+      sky.dispose();
+      this.apply();
+    };
   }
 
   /** Entorno PBR para reflejos realistas; necesita el renderer ya creado. */

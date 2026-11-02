@@ -92,8 +92,11 @@ export function cameraPitch(camera: Pick<RenderCamera, 'position' | 'target'>): 
   return Math.atan2(dy, Math.hypot(dx, dz));
 }
 
-/** Más allá de esta inclinación la vista es cenital y enderezar verticales no tiene sentido. */
-export const MAX_SHIFT_PITCH_RAD = (60 * Math.PI) / 180;
+/**
+ * Inclinación máxima que se corrige descentrando el objetivo. Un objetivo basculable real llega a
+ * poco más de eso; con la cámara más inclinada, el descentramiento estira la imagen.
+ */
+export const MAX_SHIFT_PITCH_RAD = (30 * Math.PI) / 180;
 
 export interface ShiftedCamera {
   position: Vector3;

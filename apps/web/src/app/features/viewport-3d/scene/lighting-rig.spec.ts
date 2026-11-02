@@ -1,7 +1,7 @@
 import { createRectangularShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { FILL_HEIGHT, LEVEL_FACTOR, LIGHTING_PRESETS, LightingRig, MAX_LAMPS, MAX_WINDOW_LIGHTS, MOOD_COLORS, keepOffWalls, LAMP_WALL_GAP, sunHeading, windowSpots } from './lighting-rig';
+import { FILL_HEIGHT, LEVEL_FACTOR, LIGHTING_PRESETS, LightingRig, PHOTO_SKY_RADIANCE, skyRadiance, MAX_LAMPS, MAX_WINDOW_LIGHTS, MOOD_COLORS, keepOffWalls, LAMP_WALL_GAP, sunHeading, windowSpots } from './lighting-rig';
 
 const lights = <T extends THREE.Light>(scene: THREE.Scene, type: new (...args: never[]) => T): T[] => {
   const found: T[] = [];
@@ -195,5 +195,51 @@ describe('LightingRig', () => {
     rig.syncLamps([{ id: 'mesa', x: 3.95, y: 0.6, z: 1.5 }]);
     rig.fitToRoom(shell); // el cuarto llega después: igual se aparta
     expect((scene.getObjectByName('lamp-mesa') as THREE.PointLight).position.x).toBeCloseTo(4 - LAMP_WALL_GAP);
+  });
+
+  describe('modo fotográfico (estudio de render)', () => {
+    it('el cielo panorámico es más claro arriba que abajo y escala con su brillo', () => {
+      const sky = skyRadiance(LIGHTING_PRESETS.day.skyline, 2, 8, 8);
+      const data = sky.image.data as Float32Array;
+      const luminance = (row: number) => data[row * 8 * 4]! + data[row * 8 * 4 + 1]! + data[row * 8 * 4 + 2]!;
+      expect(sky.type).toBe(THREE.FloatType);
+      expect(sky.mapping).toBe(THREE.EquirectangularReflectionMapping);
+      expect(luminance(0)).toBeGreaterThan(luminance(7));
+      const dim = skyRadiance(LIGHTING_PRESETS.day.skyline, 1, 8, 8).image.data as Float32Array;
+      expect(data[0]).toBeCloseTo(dim[0]! * 2);
+    });
+
+    it('apaga la luz fingida, pone el cielo de verdad y al salir deja todo como estaba', () => {
+      const scene = new THREE.Scene();
+      const rig = new LightingRig(scene);
+      rig.fitToRoom(createRectangularShell(4, 3, 2.5));
+      const hemi = lights(scene, THREE.HemisphereLight)[0]!;
+      const ceiling = scene.getObjectByName('ceiling-light') as THREE.PointLight;
+      const before = { hemi: hemi.intensity, ceiling: ceiling.intensity, env: scene.environment, bg: scene.background };
+
+      const restore = rig.photographic();
+      expect(hemi.intensity).toBe(0);
+      expect(ceiling.intensity).toBe(0);
+      expect(scene.environment).toBeInstanceOf(THREE.DataTexture);
+      expect(scene.background).toBe(scene.environment);
+      for (const w of lights(scene, THREE.SpotLight)) expect(w.intensity).toBe(0);
+
+      restore();
+      expect(hemi.intensity).toBe(before.hemi);
+      expect(ceiling.intensity).toBe(before.ceiling);
+      expect(scene.environment).toBe(before.env);
+      expect(scene.background).toEqual(before.bg);
+    });
+
+    it('de noche la luz del techo se queda: es la lámpara del techo', () => {
+      const scene = new THREE.Scene();
+      const rig = new LightingRig(scene);
+      rig.setTimeOfDay('night');
+      const ceiling = scene.getObjectByName('ceiling-light') as THREE.PointLight;
+      const on = ceiling.intensity;
+      rig.photographic();
+      expect(ceiling.intensity).toBe(on);
+      expect(PHOTO_SKY_RADIANCE.night).toBeLessThan(PHOTO_SKY_RADIANCE.day);
+    });
   });
 });

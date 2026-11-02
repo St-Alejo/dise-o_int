@@ -16,6 +16,7 @@ import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
 import { RecommendationCardComponent } from '../brief/recommendation-card.component';
 import { EditorTourComponent } from '../onboarding/editor-tour.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
+import { RenderStudioComponent } from '../render-studio/render-studio.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
 export type { ViewMode };
@@ -51,6 +52,7 @@ function initialView(): ViewMode {
     ShortcutsDialogComponent,
     ArViewerComponent,
     PresentationOverlayComponent,
+    RenderStudioComponent,
     EditorTourComponent,
     EditorToolbarComponent,
     EditorPanelComponent,
@@ -67,6 +69,7 @@ function initialView(): ViewMode {
       (roomDims)="roomDims.open()"
       (review)="panel.showReview()"
       (present)="presentation.start()"
+      (studio)="studio.open()"
       (shortcuts)="shortcuts.open()"
     />
 
@@ -120,6 +123,7 @@ function initialView(): ViewMode {
     <app-calibration-dialog #calibration />
     <app-ar-viewer #ar />
     <app-shortcuts-dialog #shortcuts />
+    <app-render-studio #studio [demo]="demo()" />
   `,
   styles: `
     :host {

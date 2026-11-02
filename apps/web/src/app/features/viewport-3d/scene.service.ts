@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clearancesOf, metres } from '../floor-plan/floor-plan-model';
 import { DesignProjectStore } from '../project/design-project.store';
+import type { StudioView } from '../render-studio/studio-camera';
 import { CameraDirector } from './camera/camera-director';
 import { CameraFraming, type ViewPreset } from './camera/camera-framing';
 import type { CameraModeId } from './camera/camera-mode';
@@ -54,6 +55,18 @@ export const VIEW_PRESETS: readonly { id: ViewPreset; label: string }[] = [
 ];
 
 /** Lo que las pruebas e2e pueden leer de la escena sin comparar píxeles. */
+/** Lo que el visor presta al estudio de render: su renderer y cómo devolverle su calidad. */
+export interface StudioHost {
+  renderer: THREE.WebGLRenderer;
+  canvas: HTMLCanvasElement;
+  /** Dibuja un cuadro como el visor (con su posprocesado si lo hay). */
+  paint(): void;
+  /** Deja el renderer al tamaño de la imagen; en raster, además, con la mejor calidad. */
+  prepare(width: number, height: number, raster: boolean): void;
+  /** Vuelve a dejar el renderer con la resolución y la calidad del visor. */
+  restore(): void;
+}
+
 export interface SceneSnapshot {
   walls: number;
   hasCeiling: boolean;
@@ -105,6 +118,10 @@ export class SceneService implements SceneContext {
   canvas: HTMLCanvasElement | null = null;
   /** Lo registra el viewport, que es quien tiene el renderer: dibuja un frame y lo devuelve como imagen. */
   frameCapture: ((scale?: number) => Promise<Blob | null>) | null = null;
+  /** Quién dibuja (lo pone el visor): el estudio de render lo usa mientras el visor está en pausa. */
+  studioHost: StudioHost | null = null;
+  /** El estudio de render tiene la escena: el visor no dibuja ni avanza la cámara. */
+  studioActive = false;
 
   private readonly lighting = new LightingRig(this.scene);
   private readonly room = new RoomView(this, () => this.furniture.refreshTextures());
@@ -810,6 +827,85 @@ export class SceneService implements SceneContext {
       for (const object of hidden) object.visible = true;
       this.refreshSelection();
     };
+  }
+
+  /**
+   * Presta la escena al estudio de render: cámara física (perspectiva, con su focal y las verticales
+   * enderezadas), la hora pedida, sin ayudas de edición ni sombras fingidas, y luz fotográfica. El
+   * recorte de paredes se calcula desde esa cámara. Devuelve cómo dejarlo todo como estaba.
+   */
+  beginStudio(view: StudioView): () => void {
+    const cam = this.camera;
+    const saved = {
+      position: cam.position.clone(),
+      quaternion: cam.quaternion.clone(),
+      up: cam.up.clone(),
+      fov: cam.fov,
+      aspect: cam.aspect,
+      zoom: cam.zoom,
+      span: cam.spanM,
+      time: this.timeOfDay(),
+      shades: this.room.paintedShadesVisible,
+    };
+    this.studioActive = true;
+    const showHelpers = this.hideHelpers();
+    // Las sombras de contacto y las penumbras pintadas fingen lo que el trazado de rayos calcula.
+    const fakes: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (o.name === 'contact-shadow' && o.visible) fakes.push(o);
+    });
+    for (const o of fakes) o.visible = false;
+    this.room.setPaintedShades(false);
+    if (view.timeOfDay !== saved.time) this.setTimeOfDay(view.timeOfDay);
+
+    cam.setOrthographic(null);
+    cam.position.set(view.position.x, view.position.y, view.position.z);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(view.target.x, view.target.y, view.target.z);
+    cam.fov = view.fovDeg;
+    cam.aspect = view.aspect;
+    if (view.shiftY) cam.setViewOffset(view.width, view.height, 0, (-view.shiftY * view.height) / 2, view.width, view.height);
+    else cam.clearViewOffset();
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld(true);
+    this.room.updateCutaway();
+    // Las paredes cortadas del visor solo dejan de pintarse (siguen dando sombra); en el estudio se
+    // quitan del todo, porque el trazado de rayos las vería igual.
+    const ghosts: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (o.userData['ghost'] === true && o.visible) ghosts.push(o);
+    });
+    for (const o of ghosts) o.visible = false;
+    const restoreLight = this.lighting.photographic();
+
+    return () => {
+      restoreLight();
+      cam.clearViewOffset();
+      cam.position.copy(saved.position);
+      cam.quaternion.copy(saved.quaternion);
+      cam.up.copy(saved.up);
+      cam.fov = saved.fov;
+      cam.aspect = saved.aspect;
+      if (saved.span) cam.setOrthographic(saved.span);
+      cam.zoom = saved.zoom;
+      cam.updateProjectionMatrix();
+      cam.updateMatrixWorld(true);
+      if (this.timeOfDay() !== saved.time) this.setTimeOfDay(saved.time);
+      for (const o of fakes) o.visible = true;
+      for (const o of ghosts) o.visible = true;
+      this.room.setPaintedShades(saved.shades);
+      showHelpers();
+      this.room.updateCutaway();
+      this.studioActive = false;
+      this.invalidate();
+    };
+  }
+
+  /** La cámara del visor ahora mismo (para empezar el estudio desde lo que se está viendo). */
+  viewerCamera(): { position: Vector3; target: Vector3; fovDeg: number; aspect: number } {
+    const p = this.camera.position;
+    const t = this.controls?.target ?? new THREE.Vector3(p.x, p.y, p.z - 1);
+    return { position: { x: p.x, y: p.y, z: p.z }, target: { x: t.x, y: t.y, z: t.z }, fovDeg: this.camera.fov, aspect: this.camera.aspect };
   }
 
   // ------------------------------------------------------------------ acciones (teclado / toolbar)

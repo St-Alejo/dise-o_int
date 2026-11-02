@@ -58,6 +58,11 @@ export class RoomView {
     this.ctx.invalidate();
   }
 
+  /** Si se ven las penumbras pintadas de los rincones (sin AO de posprocesado). */
+  get paintedShadesVisible(): boolean {
+    return this.paintedShades;
+  }
+
   setPaintedShades(visible: boolean): void {
     if (this.paintedShades === visible) return;
     this.paintedShades = visible;

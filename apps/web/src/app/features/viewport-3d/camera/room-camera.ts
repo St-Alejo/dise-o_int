@@ -30,6 +30,11 @@ export class RoomCamera extends THREE.PerspectiveCamera {
     return !!this.span;
   }
 
+  /** Alto visible en metros de la vista ortográfica (null en perspectiva). */
+  get spanM(): number | null {
+    return this.span;
+  }
+
   /** Pasa a ortográfica abarcando `spanM` metros de alto, o vuelve a perspectiva con null. */
   setOrthographic(spanM: number | null): void {
     this.span = spanM && spanM > 0 ? spanM : null;

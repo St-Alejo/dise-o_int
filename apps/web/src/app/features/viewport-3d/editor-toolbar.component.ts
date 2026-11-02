@@ -75,6 +75,7 @@ export const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = 
           </button>
         </div>
       </details>
+      <button type="button" class="btn btn-sm" (click)="studio.emit()" [disabled]="!store.shell() || viewMode() === 'plan'" appTooltip="Una imagen realista del cuarto: luz rebotada, sombras suaves y el cielo por las ventanas"><app-icon name="camera" /> Render realista</button>
       <button type="button" class="btn btn-sm" (click)="present.emit()" [disabled]="!store.shell()" appTooltip="Enseña el cuarto a pantalla completa, vista por vista (flechas para avanzar)">Presentar</button>
       <button type="button" class="btn btn-sm btn-ghost" (click)="shortcuts.emit()" appTooltip="Atajos de teclado (?)">Atajos</button>
       <span class="spacer"></span>
@@ -218,6 +219,8 @@ export class EditorToolbarComponent {
   readonly roomDims = output<void>();
   readonly review = output<void>();
   readonly present = output<void>();
+  /** Abrir el estudio de render (imagen realista). */
+  readonly studio = output<void>();
   readonly shortcuts = output<void>();
 
   protected readonly views = VIEWS;
