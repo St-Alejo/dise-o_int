@@ -451,13 +451,9 @@ img {
   --btn-fg: var(--on-primary);
   --btn-border: var(--primary);
 }
-.btn-primary {
-  box-shadow: 0 1px 0 rgb(255 255 255 / 18%) inset, var(--shadow-sm);
-}
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-strong);
   border-color: var(--primary-strong);
-  box-shadow: 0 6px 18px var(--ring);
 }
 .btn-ghost {
   --btn-bg: transparent;

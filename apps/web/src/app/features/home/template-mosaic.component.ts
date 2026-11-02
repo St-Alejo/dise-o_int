@@ -18,7 +18,7 @@ export const MOSAIC_SIZE = 5;
       @for (t of templates; track t.id) {
         <li>
           <a [routerLink]="['/demo', t.id]" [attr.aria-label]="'Abrir la plantilla ' + t.name + ' en el editor'">
-            <img [src]="'escenas/' + t.id + '.webp'" alt="" width="960" height="640" loading="lazy" decoding="async" />
+            <span class="shot"><img [src]="'escenas/' + t.id + '.webp'" alt="" width="960" height="640" loading="lazy" decoding="async" /></span>
             <span class="label">
               <span class="kind">{{ roomLabels[t.roomType] }} · {{ styles[t.styleId].label }}</span>
               <span class="name">{{ t.name }}</span>
@@ -43,14 +43,16 @@ export const MOSAIC_SIZE = 5;
       grid-row: span 2;
     }
     a {
-      position: relative;
-      display: block;
       height: 100%;
-      overflow: hidden;
-      border-radius: var(--radius);
-      background: var(--surface-2);
-      color: #f5f1e8;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: var(--space-3);
+      color: var(--text);
       text-decoration: none;
+    }
+    .shot {
+      overflow: hidden;
+      background: var(--surface-2);
     }
     img {
       display: block;
@@ -64,19 +66,18 @@ export const MOSAIC_SIZE = 5;
     a:focus-visible img {
       transform: scale(1.04);
     }
+    /* El nombre va debajo de la imagen, en la tinta de la página. */
     .label {
-      position: absolute;
-      inset: auto 0 0 0;
       display: grid;
       gap: 2px;
-      padding: var(--space-6) var(--space-4) var(--space-3);
-      background: linear-gradient(to top, rgb(12 28 27 / 78%), rgb(12 28 27 / 0%));
     }
     .kind {
-      font-size: var(--text-xs);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      opacity: 0.85;
+      font-size: var(--text-base);
+      color: var(--text-muted);
+    }
+    a:hover .name {
+      text-decoration: underline;
+      text-underline-offset: 4px;
     }
     .name {
       font-family: var(--font-display);

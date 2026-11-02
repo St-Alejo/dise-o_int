@@ -243,7 +243,6 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       outline: none;
     }
     .app-footer {
-      border-top: 1px solid var(--border);
       background: var(--tint-1);
       padding-block: var(--space-7) var(--space-6);
       font-size: var(--text-sm);
@@ -255,11 +254,9 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
     }
     .app-footer h2 {
       font-family: var(--font);
-      font-size: var(--text-xs);
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-muted);
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--text);
       margin: 0 0 var(--space-3);
     }
     .app-footer ul {

@@ -189,36 +189,35 @@ export const FEATURES: readonly Feature[] = [
     :host {
       display: block;
     }
+    /* Pestañas como piezas llenas: la elegida en tinta, las demás en el tono de fondo. */
     .tabs {
       display: flex;
-      gap: var(--space-5);
-      overflow-x: auto;
-      border-bottom: 1px solid var(--rule);
+      flex-wrap: wrap;
+      gap: var(--space-2);
       margin-bottom: var(--space-6);
-      scrollbar-width: none;
     }
     .tab {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
-      flex: none;
       min-height: 48px;
-      padding: 0 2px;
+      padding: 0 var(--space-4);
       border: 0;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      background: none;
-      color: var(--text-muted);
+      background: var(--surface-2);
+      color: var(--text);
       font: inherit;
       font-weight: 600;
       cursor: pointer;
+      transition:
+        background 0.2s var(--ease),
+        color 0.2s var(--ease);
     }
     .tab:hover {
-      color: var(--text);
+      background: color-mix(in srgb, var(--text) 12%, var(--surface-2));
     }
     .tab[aria-selected='true'] {
-      color: var(--text);
-      border-bottom-color: var(--accent);
+      background: var(--text);
+      color: var(--bg);
     }
     .panel {
       display: grid;
@@ -236,8 +235,6 @@ export const FEATURES: readonly Feature[] = [
     img {
       width: 100%;
       height: auto;
-      border-radius: var(--radius);
-      border: 1px solid var(--rule);
       background: var(--surface-2);
     }
     .copy {
@@ -272,17 +269,14 @@ export const FEATURES: readonly Feature[] = [
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2) var(--space-4);
-      font-size: var(--text-sm);
-      color: var(--text-muted);
+      font-size: var(--text-base);
+      color: var(--text);
     }
     kbd {
       font: inherit;
       font-weight: 600;
       color: var(--text);
       padding: 2px 8px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      border-bottom-width: 2px;
       background: var(--surface-2);
     }
     @media (max-width: 900px) {

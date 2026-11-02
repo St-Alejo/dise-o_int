@@ -51,8 +51,8 @@ export function statsOf(catalog: readonly Pick<CatalogItem, 'category'>[] | null
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: var(--space-5) var(--space-6);
       margin: 0;
-      padding-top: var(--space-5);
-      border-top: 1px solid var(--rule);
+      padding: clamp(var(--space-5), 4vw, 56px);
+      background: var(--surface-2);
     }
     /* La cifra va antes que su leyenda a la vista; en el HTML, el término antes que el valor. */
     .stat {
@@ -61,15 +61,18 @@ export function statsOf(catalog: readonly Pick<CatalogItem, 'category'>[] | null
       align-content: start;
     }
     dt {
-      color: var(--text-muted);
-      font-size: var(--text-sm);
+      color: var(--text);
+      font-size: var(--text-base);
+      line-height: 1.4;
     }
     dd {
       margin: 0;
       order: -1;
       font-family: var(--font-display);
       font-size: var(--text-3xl);
-      font-weight: 380;
+      font-weight: 440;
+      letter-spacing: -0.02em;
+      color: var(--primary);
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }

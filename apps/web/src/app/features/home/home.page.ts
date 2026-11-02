@@ -127,32 +127,28 @@ const FAQ = [
       </div>
     </section>
 
-    <section id="como-funciona" class="editorial" aria-labelledby="how-title">
+    <section id="como-funciona" class="block" aria-labelledby="how-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">Cómo funciona</p>
-          <h2 id="how-title" class="title-xl">Del cuarto que tienes al que quieres, <em>en tres pasos.</em></h2>
+        <header class="head">
+          <h2 id="how-title">Tres pasos hasta tu cuarto.</h2>
+          <p class="head-lead">Del cuarto que tienes al que quieres, sin instalar nada y sin saber de diseño.</p>
         </header>
         <ol class="steps">
-          @for (step of steps; track step.title; let i = $index) {
+          @for (step of steps; track step.title) {
             <li>
-              <span class="n" aria-hidden="true">0{{ i + 1 }}</span>
               <h3>{{ step.title }}</h3>
-              <p class="muted">{{ step.text }}</p>
+              <p>{{ step.text }}</p>
             </li>
           }
         </ol>
       </div>
     </section>
 
-    <section class="editorial" aria-labelledby="ba-title">
+    <section class="block tone" aria-labelledby="ba-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">Antes y después</p>
-          <div>
-            <h2 id="ba-title" class="title-xl">El mismo cuarto, <em>vacío y resuelto.</em></h2>
-            <p class="lead">Arrastra la raya. A la izquierda, las paredes tal como las mides; a la derecha, lo que la app propone para ese espacio.</p>
-          </div>
+        <header class="head">
+          <h2 id="ba-title">El mismo cuarto, vacío y resuelto.</h2>
+          <p class="head-lead">Arrastra la raya. A la izquierda, las paredes tal como las mides; a la derecha, lo que la app propone para ese espacio.</p>
         </header>
         <app-before-after
           before="landing/cuarto-vacio"
@@ -165,100 +161,88 @@ const FAQ = [
       </div>
     </section>
 
-    <section id="editor" class="editorial" aria-labelledby="features-title">
+    <section id="editor" class="block" aria-labelledby="features-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">El editor</p>
-          <div>
-            <h2 id="features-title" class="title-xl">No es una imagen. <em>Es un cuarto que puedes tocar.</em></h2>
-            <p class="lead">Estas son capturas de la app tal como la vas a usar.</p>
-          </div>
+        <header class="head">
+          <h2 id="features-title">Un cuarto que puedes tocar.</h2>
+          <p class="head-lead">No es una imagen: son capturas de la app tal como la vas a usar.</p>
         </header>
         <app-feature-gallery />
         <ul class="extras">
           <li>
             <h3>Otra distribución con un clic</h3>
-            <p class="muted">Cambia de pared y de piezas, pero nunca tapa una ventana ni bloquea la puerta.</p>
+            <p>Cambia de pared y de piezas, pero nunca tapa una ventana ni bloquea la puerta.</p>
           </li>
           <li>
             <h3>Un asistente que entiende el espacio</h3>
-            <p class="muted">Escribe "pon una lámpara junto al sofá". Él elige la pieza y la app calcula dónde cabe.</p>
+            <p>Escribe "pon una lámpara junto al sofá". Él elige la pieza y la app calcula dónde cabe.</p>
           </li>
           <li>
             <h3>Revisión del diseño</h3>
-            <p class="muted">Avisa si un pasillo queda en menos de 70 cm, si una puerta no abre o si algo tapa una ventana.</p>
+            <p>Avisa si un pasillo queda en menos de 70 cm, si una puerta no abre o si algo tapa una ventana.</p>
           </li>
           <li>
             <h3>Lista de compras</h3>
-            <p class="muted">Cada mueble con sus medidas y su precio estimado, y el total del cuarto. También en hoja de cálculo.</p>
+            <p>Cada mueble con sus medidas y su precio estimado, y el total del cuarto. También en hoja de cálculo.</p>
           </li>
         </ul>
       </div>
     </section>
 
-    <section id="estilos" class="editorial" aria-labelledby="styles-title">
+    <section id="estilos" class="block tone" aria-labelledby="styles-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">Estilos</p>
-          <div>
-            <h2 id="styles-title" class="title-xl">La misma sala, <em>seis maneras de vivirla.</em></h2>
-            <p class="lead">El estilo decide qué muebles y qué materiales propone la app. Puedes mezclar hasta cuatro y cambiarlos después.</p>
-          </div>
+        <header class="head">
+          <h2 id="styles-title">Seis maneras de vivir la sala.</h2>
+          <p class="head-lead">El estilo decide qué muebles y qué materiales propone la app. Puedes mezclar hasta cuatro y cambiarlos después.</p>
         </header>
         <app-style-showcase [signedIn]="auth.isAuthenticated()" />
       </div>
     </section>
 
-    <section id="plantillas" class="editorial" aria-labelledby="templates-title">
+    <section id="plantillas" class="block" aria-labelledby="templates-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">Plantillas</p>
-          <div>
-            <h2 id="templates-title" class="title-xl">Empieza por uno <em>ya hecho.</em></h2>
-            <p class="lead">Cada plantilla abre el editor sin pedir cuenta. Lo que cambies se queda en tu navegador hasta que decidas guardarlo.</p>
-          </div>
+        <header class="head">
+          <h2 id="templates-title">Empieza por uno ya hecho.</h2>
+          <p class="head-lead">Cada plantilla abre el editor sin pedir cuenta. Lo que cambies se queda en tu navegador hasta que decidas guardarlo.</p>
         </header>
         <app-template-mosaic />
-        <p class="after"><a class="arrow-link" routerLink="/plantillas">Ver todas las plantillas <app-icon name="arrowRight" /></a></p>
+        <p class="after"><a class="btn btn-lg square" routerLink="/plantillas">Ver todas las plantillas <app-icon name="arrowRight" /></a></p>
       </div>
     </section>
 
-    <section class="editorial" aria-labelledby="reads-title">
+    <section class="block" aria-labelledby="reads-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">De tu foto</p>
-          <div>
-            <h2 id="reads-title" class="title-xl">Qué reconoce <em>y qué solo estima.</em></h2>
-            <p class="lead">Una foto no trae cinta métrica. La app te dice qué leyó con seguridad y qué es aproximado, para que corrijas lo segundo en un minuto.</p>
-          </div>
+        <header class="head">
+          <h2 id="reads-title">Qué reconoce y qué estima.</h2>
+          <p class="head-lead">Una foto no trae cinta métrica. La app te dice qué leyó con seguridad y qué es aproximado, para que corrijas lo segundo en un minuto.</p>
         </header>
         <div class="reads">
           <ul class="read-list">
             @for (r of reads; track r.title) {
               <li>
                 <h3>{{ r.title }}</h3>
-                <p class="muted">{{ r.text }}</p>
+                <p>{{ r.text }}</p>
                 <span class="level" [class.approx]="!r.exact">{{ r.exact ? 'Fiable' : 'Aproximado' }}</span>
               </li>
             }
           </ul>
-          <p class="fine muted note">No identifica marcas ni modelos exactos, ni los objetos pequeños que haya sobre los muebles.</p>
+          <p class="note">No identifica marcas ni modelos exactos, ni los objetos pequeños que haya sobre los muebles.</p>
         </div>
         <app-stats-band class="stats" />
       </div>
     </section>
 
-    <section id="preguntas" class="editorial" aria-labelledby="faq-title">
+    <section id="preguntas" class="block tone" aria-labelledby="faq-title">
       <div class="container" appReveal>
-        <header class="spread">
-          <p class="eyebrow">Preguntas</p>
-          <h2 id="faq-title" class="title-xl">Lo que se pregunta <em>antes de empezar.</em></h2>
+        <header class="head">
+          <h2 id="faq-title">Antes de empezar.</h2>
+          <p class="head-lead">Lo que más se pregunta sobre fotos, medidas, privacidad y precio.</p>
         </header>
         <div class="faq-list">
           @for (item of faq; track item.q) {
             <details>
               <summary>{{ item.q }}</summary>
-              <p class="muted">{{ item.a }}</p>
+              <p>{{ item.a }}</p>
             </details>
           }
         </div>
@@ -268,18 +252,18 @@ const FAQ = [
     <section class="closing deep" aria-labelledby="closing-title">
       <div class="container closing-grid" appReveal>
         <div>
-          <h2 id="closing-title" class="display">Empieza con el cuarto <em>que tienes.</em></h2>
-          <p class="lead">Una foto o tres medidas bastan para verlo en 3D. Gratis y sin instalar nada.</p>
+          <h2 id="closing-title">Empieza con el cuarto que tienes.</h2>
+          <p class="closing-lead">Una foto o tres medidas bastan para verlo en 3D. Gratis y sin instalar nada.</p>
           <div class="closing-cta">
             <a class="btn btn-lg light" [routerLink]="start()">Diseñar mi cuarto</a>
-            <a class="arrow-link" [routerLink]="['/demo', template]">Probar sin cuenta <app-icon name="arrowRight" /></a>
+            <a class="btn btn-lg outline" [routerLink]="['/demo', template]">Probar sin cuenta <app-icon name="arrowRight" /></a>
           </div>
         </div>
         <img
           src="landing/cuarto-noche-800.webp"
           srcset="landing/cuarto-noche-800.webp 800w, landing/cuarto-noche-1600.webp 1600w"
           sizes="(max-width: 900px) 100vw, 560px"
-          alt=""
+          alt="La sala de noche, alumbrada solo por su lámpara colgante."
           width="1600"
           height="1000"
           loading="lazy"
@@ -434,35 +418,69 @@ const FAQ = [
     h3 {
       margin: 0;
       font-size: var(--text-lg);
-      font-weight: 500;
+      font-weight: 600;
     }
     p {
       margin: 0;
     }
 
-    /* Tres pasos sobre un filete: sin tarjetas, el número manda. */
+    /* Secciones antiguas: título grande a la izquierda, entrada a la derecha; las superficies se separan por tono. */
+    .block {
+      padding-block: clamp(80px, 9vw, 160px);
+    }
+    .block.tone {
+      background: var(--surface-2);
+    }
+    .head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--space-4) clamp(40px, 6vw, 96px);
+      align-items: end;
+      margin-bottom: clamp(40px, 5vw, 72px);
+    }
+    .head h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.1rem, 3.8vw, 3.6rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+    }
+    .head-lead {
+      font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
+      line-height: 1.5;
+      max-width: 52ch;
+      color: var(--text);
+    }
+
+    /* Tres pasos como bloques de tono, sin números ni filetes. */
     .steps {
       list-style: none;
       margin: 0;
       padding: 0;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-6);
-      border-top: 1px solid var(--rule);
+      gap: var(--space-4);
     }
     .steps li {
       display: grid;
-      gap: var(--space-2);
+      gap: var(--space-3);
       align-content: start;
-      padding-top: var(--space-5);
+      padding: clamp(24px, 3vw, 40px);
+      background: var(--surface-2);
     }
-    .n {
+    .steps h3 {
       font-family: var(--font-display);
-      font-size: var(--text-3xl);
-      font-weight: 380;
-      line-height: 1;
-      color: var(--accent);
-      margin-bottom: var(--space-3);
+      font-weight: 500;
+      font-size: var(--text-xl);
+    }
+    .steps p,
+    .extras p,
+    .read-list p,
+    details p {
+      line-height: 1.55;
+      max-width: 60ch;
+      color: var(--text);
     }
 
     .extras {
@@ -471,67 +489,77 @@ const FAQ = [
       padding: 0;
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-5) var(--space-6);
+      gap: var(--space-6);
     }
     .extras li {
       display: grid;
       gap: var(--space-2);
       align-content: start;
-      padding-top: var(--space-4);
-      border-top: 1px solid var(--rule);
     }
 
     .after {
       margin-top: var(--space-6);
     }
+    .btn.square {
+      border-radius: 0;
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--bg);
+    }
+    .btn.square:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
 
-    /* Lo que lee de la foto: una lista con filetes, y a la derecha de cada fila su fiabilidad. */
+    /* Lo que lee de la foto: filas alternas por tono y, a la derecha de cada una, su fiabilidad. */
     .read-list {
       list-style: none;
       margin: 0;
       padding: 0;
-      border-top: 1px solid var(--rule);
     }
     .read-list li {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto;
       gap: var(--space-3) var(--space-6);
       align-items: baseline;
-      padding: var(--space-4) 0;
-      border-bottom: 1px solid var(--rule);
+      padding: var(--space-4) var(--space-5);
+    }
+    .read-list li:nth-child(odd) {
+      background: var(--surface-2);
     }
     .level {
-      font-size: var(--text-xs);
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: var(--text-base);
+      font-weight: 600;
       color: var(--primary);
     }
     .level.approx {
-      color: var(--accent);
+      /* Mezclado con la tinta para pasar 4,5:1 también sobre las filas de tono. */
+      color: color-mix(in srgb, var(--accent) 80%, var(--text));
     }
     .note {
       margin-top: var(--space-4);
+      color: var(--text);
     }
     .stats {
       display: block;
       margin-top: clamp(var(--space-6), 5vw, 72px);
     }
 
+    /* Preguntas como bloques sobre el fondo de la sección, sin filetes. */
     .faq-list {
-      border-top: 1px solid var(--rule);
-      columns: 2;
-      column-gap: var(--space-7);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+      align-items: start;
     }
     details {
-      break-inside: avoid;
-      border-bottom: 1px solid var(--rule);
+      background: var(--bg);
     }
     summary {
       display: flex;
       justify-content: space-between;
       gap: var(--space-4);
-      padding: var(--space-4) 0;
+      padding: var(--space-4) var(--space-5);
       font-family: var(--font-display);
       font-size: var(--text-lg);
       cursor: pointer;
@@ -553,36 +581,44 @@ const FAQ = [
       transform: rotate(45deg);
     }
     details p {
-      padding: 0 var(--space-6) var(--space-4) 0;
+      padding: 0 var(--space-5) var(--space-5);
     }
 
-    /* Cierre: la única sección profunda de la página. */
+    /* Cierre: la foto de noche y la última invitación sobre el fondo profundo. */
     .closing {
-      padding-block: var(--section-y);
+      padding-block: clamp(96px, 10vw, 180px);
     }
     .closing-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-      gap: var(--space-6) var(--space-7);
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: var(--space-6) clamp(40px, 6vw, 96px);
       align-items: center;
     }
-    .closing .display {
-      font-size: var(--text-3xl);
-      max-width: 14ch;
+    .closing h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.1rem, 3.8vw, 3.6rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      color: var(--on-deep);
     }
-    .closing .lead {
+    .closing-lead {
       margin-top: var(--space-4);
+      font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
+      line-height: 1.5;
       max-width: 44ch;
+      color: var(--on-deep);
     }
     .closing-cta {
       display: flex;
       flex-wrap: wrap;
-      gap: var(--space-4) var(--space-5);
+      gap: var(--space-3);
       align-items: center;
       margin-top: var(--space-6);
     }
-    .closing .arrow-link {
-      color: var(--on-deep);
+    .closing .btn {
+      border-radius: 0;
     }
     .btn.light {
       background: var(--on-deep);
@@ -593,30 +629,36 @@ const FAQ = [
       background: #ffffff;
       border-color: #ffffff;
     }
+    .btn.outline {
+      background: transparent;
+      border: 2px solid var(--on-deep);
+      color: var(--on-deep);
+    }
+    .btn.outline:hover {
+      background: var(--on-deep);
+      color: var(--deep);
+    }
     .closing img {
+      display: block;
       width: 100%;
       height: auto;
       aspect-ratio: 16 / 10;
       object-fit: cover;
-      border-radius: var(--radius-lg);
     }
 
     @media (max-width: 900px) {
+      .head,
       .steps,
-      .closing-grid {
+      .closing-grid,
+      .faq-list {
         grid-template-columns: 1fr;
-      }
-      .steps {
-        gap: 0;
       }
       .extras {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .faq-list {
-        columns: 1;
-      }
       .read-list li {
         grid-template-columns: minmax(0, 1fr) auto;
+        padding-inline: var(--space-4);
       }
       .read-list p {
         grid-column: 1 / -1;

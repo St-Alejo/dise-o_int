@@ -52,7 +52,7 @@ describe('StyleShowcaseComponent', () => {
     expect(tabs).toHaveLength(STYLE_IDS.length);
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(el.querySelector('img')!.getAttribute('src')).toBe(`landing/estilo-${STYLE_IDS[0]}.webp`);
-    expect(el.querySelector('a.arrow-link')!.getAttribute('href')).toContain('/registro');
+    expect(el.querySelector('a.start')!.getAttribute('href')).toContain('/registro');
   });
 
   it('la flecha derecha cambia de estilo y lleva el foco', () => {

@@ -42,7 +42,6 @@ export function sliderText(percent: number, before: string, after: string): stri
       position: relative;
       aspect-ratio: 16 / 10;
       overflow: hidden;
-      border-radius: var(--radius-lg);
       background: var(--surface-2);
       --pos: 50%;
     }
@@ -60,14 +59,11 @@ export function sliderText(percent: number, before: string, after: string): stri
     .tag {
       position: absolute;
       top: var(--space-4);
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: color-mix(in srgb, #10201f 72%, transparent);
+      padding: 8px 14px;
+      background: #10201f;
       color: #f5f1e8;
-      font-size: var(--text-xs);
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: var(--text-base);
+      font-weight: 600;
       pointer-events: none;
     }
     .left {
@@ -84,7 +80,6 @@ export function sliderText(percent: number, before: string, after: string): stri
       width: 2px;
       margin-left: -1px;
       background: #f5f1e8;
-      box-shadow: 0 0 0 1px rgb(16 32 31 / 25%);
       pointer-events: none;
     }
     .knob {
@@ -96,7 +91,10 @@ export function sliderText(percent: number, before: string, after: string): stri
       margin: -22px 0 0 -22px;
       border-radius: 50%;
       background: #f5f1e8;
-      box-shadow: 0 2px 10px rgb(16 32 31 / 35%);
+      transition: transform 0.2s var(--ease);
+    }
+    .frame:hover .knob {
+      transform: scale(1.08);
     }
     /* Dos puntas de flecha dibujadas con bordes: no hace falta un icono. */
     .knob::before,

@@ -16,7 +16,7 @@ const DETAILS: Record<StyleId, readonly string[]> = {
   clasico: ['Maderas oscuras', 'Molduras', 'Tapicería'],
 };
 
-/** A dónde lleva "Empezar con este estilo": al asistente, pasando antes por el registro si hace falta. */
+/** A dónde lleva el botón "Empezar en estilo …": al asistente, pasando antes por el registro si hace falta. */
 export function styleLink(style: StyleId, signedIn: boolean): { path: string; query: Record<string, string> } {
   return signedIn
     ? { path: '/proyectos/nuevo', query: { estilo: style } }
@@ -121,10 +121,10 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
               </div>
             }
           </dl>
-          <p class="fine muted">Precios estimados del catálogo: la app no vende nada.</p>
+          <p>Precios estimados del catálogo: la app no vende nada.</p>
         }
-        <a class="arrow-link" [routerLink]="link().path" [queryParams]="link().query" [attr.aria-label]="'Empezar con el estilo ' + current().label">
-          Empezar con este estilo <app-icon name="arrowRight" />
+        <a class="btn btn-primary start" [routerLink]="link().path" [queryParams]="link().query">
+          Empezar en estilo {{ current().label.toLowerCase() }} <app-icon name="arrowRight" />
         </a>
       </div>
     </div>
@@ -133,33 +133,32 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
     :host {
       display: block;
     }
+    /* Pestañas llenas, como las del editor: la elegida en tinta. */
     .tabs {
       display: flex;
-      gap: var(--space-5);
-      overflow-x: auto;
-      border-bottom: 1px solid var(--rule);
+      flex-wrap: wrap;
+      gap: var(--space-2);
       margin-bottom: var(--space-6);
-      scrollbar-width: none;
     }
     .tab {
-      flex: none;
       min-height: 48px;
-      padding: 0 2px;
+      padding: 0 var(--space-4);
       border: 0;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      background: none;
-      color: var(--text-muted);
+      background: var(--surface-2);
+      color: var(--text);
       font-family: var(--font-display);
       font-size: var(--text-lg);
       cursor: pointer;
+      transition:
+        background 0.2s var(--ease),
+        color 0.2s var(--ease);
     }
     .tab:hover {
-      color: var(--text);
+      background: color-mix(in srgb, var(--text) 12%, var(--surface-2));
     }
     .tab[aria-selected='true'] {
-      color: var(--text);
-      border-bottom-color: var(--accent);
+      background: var(--text);
+      color: var(--bg);
     }
     .panel {
       display: grid;
@@ -180,19 +179,16 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
       width: min(34%, 240px);
       display: grid;
       gap: 6px;
-      padding: 6px 6px 8px;
-      border-radius: var(--radius-sm);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-      color: var(--text-muted);
-      font-size: var(--text-xs);
+      padding: 8px 8px 10px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: var(--text-sm);
     }
     .real img {
       width: 100%;
       height: auto;
       aspect-ratio: 3 / 2;
       object-fit: cover;
-      border-radius: 4px;
     }
     .real span {
       padding-inline: 2px;
@@ -202,7 +198,6 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
       height: auto;
       aspect-ratio: 3 / 2;
       object-fit: cover;
-      border-radius: var(--radius-lg);
       background: var(--surface-2);
     }
     .copy {
@@ -222,43 +217,43 @@ export function piecesFor(style: StyleId, catalog: readonly Piece[], count = 3):
       gap: 6px;
     }
     .swatches span {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: 1px solid var(--rule);
+      width: 40px;
+      height: 40px;
     }
     .details {
       list-style: none;
       padding: 0;
       display: flex;
       flex-wrap: wrap;
-      gap: 6px var(--space-4);
-      color: var(--text-muted);
-      font-size: var(--text-sm);
+      gap: 6px;
+      color: var(--text);
+      font-size: var(--text-base);
     }
-    .details li::before {
-      content: '— ';
-      color: var(--accent);
+    .details li {
+      padding: 4px 10px;
+      background: var(--surface-2);
     }
     .pieces {
       width: 100%;
       margin-top: var(--space-2);
-      border-top: 1px solid var(--rule);
     }
+    /* Filas separadas por un paso de tono, sin filetes. */
     .pieces div {
       display: flex;
       justify-content: space-between;
       gap: var(--space-4);
-      padding: 10px 0;
-      border-bottom: 1px solid var(--rule);
+      padding: 10px 12px;
+    }
+    .pieces div:nth-child(odd) {
+      background: var(--surface-2);
     }
     .pieces dd {
       margin: 0;
       font-variant-numeric: tabular-nums;
-      color: var(--text-muted);
     }
-    .arrow-link {
+    .start {
       margin-top: var(--space-3);
+      border-radius: 0;
     }
     @media (max-width: 900px) {
       .panel {
