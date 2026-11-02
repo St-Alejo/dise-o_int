@@ -10,6 +10,7 @@ import {
   DEFAULT_STYLES,
   type DesignBrief,
   type TechnicalSpec,
+  type DrawingSetInput,
   type DesignProject,
   type DesignProjectVersion,
   type GenerateStylesRequest,
@@ -188,6 +189,11 @@ export class ProjectsService {
 
   buildShoppingList(project: ProjectRecord): Promise<ShoppingList> {
     return this.reports.buildShoppingList(project);
+  }
+
+  /** Datos para los planos técnicos del Modo Pro. */
+  drawingInput(actor: Actor, id: string, date: string): Promise<DrawingSetInput> {
+    return this.reports.drawingInput(actor, id, date);
   }
 
   dossier(actor: Actor, id: string): Promise<ProjectDossier> {

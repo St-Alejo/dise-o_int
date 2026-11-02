@@ -1,7 +1,8 @@
 import { renderHomeDossierPdf, renderProjectDossierPdf } from '../src/modules/projects/shopping-list.pdf.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { createRectangularShell, moveWall, technicalOf } from '@interiores/shared-types';
+import { availableSheets, createRectangularShell, drawingSet, moveWall, technicalOf } from '@interiores/shared-types';
+import { renderDrawingSetPdf } from '../src/modules/projects/drawings.pdf.js';
 import {
   NotFoundError,
   QuotaExceededError,
@@ -349,6 +350,20 @@ describe('ProjectsService', () => {
       await expect(service.setTechnical(bob, p.id, null)).rejects.toBeInstanceOf(NotFoundError);
       expect((await service.duplicate(alice, p.id)).technical?.titleBlock.client).toBe('Ana Ruiz');
       expect((await service.setTechnical(alice, p.id, null)).technical).toBeNull();
+    });
+
+    it('los planos técnicos salen de la planta, la ficha y los muebles, en SVG, DXF y PDF', async () => {
+      const p = await readyProject();
+      await service.setTechnical(alice, p.id, technicalOf({ titleBlock: { client: 'Ana Ruiz' }, section: { a: { x: -1, z: 1 }, b: { x: 9, z: 1 } } }));
+      const input = await service.drawingInput(alice, p.id, '2026-11-01');
+      expect(input.pieces.length).toBe(p.furniturePlacements.length);
+      expect(availableSheets(input.spec)).toContain('section');
+      const sheets = drawingSet(input);
+      expect(sheets.length).toBeGreaterThanOrEqual(6);
+      const pdf = await renderDrawingSetPdf(sheets, input.roomName);
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      expect(pdf.toString('latin1').match(/\/Type \/Page[^s]/g)).toHaveLength(sheets.length);
+      await expect(service.drawingInput(bob, p.id, '2026-11-01')).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 

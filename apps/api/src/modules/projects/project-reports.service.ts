@@ -1,4 +1,16 @@
-import { arrangeHome, describeVariant, effectiveDimensions, footprint, ROOM_TYPE_LABELS, RoomPlan, type ShoppingList, STYLES } from '@interiores/shared-types';
+import {
+  arrangeHome,
+  describeVariant,
+  effectiveDimensions,
+  footprint,
+  ROOM_TYPE_LABELS,
+  RoomPlan,
+  STYLES,
+  technicalOf,
+  type DesignPiece,
+  type DrawingSetInput,
+  type ShoppingList,
+} from '@interiores/shared-types';
 import { ValidationError } from '../../common/errors.js';
 import type { ICatalogRepository, IProjectRepository, ProjectRecord } from '../../ports/index.js';
 import type { HomeDossier, ProjectDossier } from './shopping-list.pdf.js';
@@ -46,6 +58,38 @@ export class ProjectReports {
         }),
       ),
     };
+  }
+
+  /**
+   * Lo que necesitan los planos técnicos: la planta, la ficha (o la de por defecto), los acabados
+   * y cada mueble con sus medidas reales. `date` es la del día, para el rótulo.
+   */
+  async drawingInput(actor: Actor, id: string, date: string): Promise<DrawingSetInput> {
+    const project = await this.access.own(actor, id);
+    const shell = this.access.requireShell(project);
+    return { shell, spec: technicalOf(project.technical ?? null), pieces: await this.piecesOf(project), finishes: project.finishes, roomName: project.name, date };
+  }
+
+  /** Los muebles del cuarto como piezas de diseño (las mismas que usa la revisión del diseño). */
+  async piecesOf(project: ProjectRecord): Promise<DesignPiece[]> {
+    const items = new Map((await this.catalog.findByIds(project.placements.map((p) => p.catalogItemId))).map((i) => [i.id, i]));
+    return project.placements.flatMap((p): DesignPiece[] => {
+      const item = items.get(p.catalogItemId);
+      if (!item) return [];
+      return [
+        {
+          id: p.id,
+          name: item.name,
+          mount: item.mount,
+          category: item.category,
+          ...(item.subcategory ? { subcategory: item.subcategory } : {}),
+          position: p.position,
+          rotationY: p.rotationY,
+          dims: effectiveDimensions({ x: item.widthM, y: item.heightM, z: item.depthM }, p),
+          ...(p.supportId ? { supportId: p.supportId } : {}),
+        },
+      ];
+    });
   }
 
   private async dossierOf(project: ProjectRecord): Promise<ProjectDossier> {

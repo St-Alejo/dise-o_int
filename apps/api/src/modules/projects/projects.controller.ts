@@ -31,6 +31,14 @@ import {
   SetBudgetRequestSchema,
   SetBriefRequestSchema,
   SetTechnicalRequestSchema,
+  SHEET_IDS,
+  availableSheets,
+  drawingSet,
+  renderDxf,
+  renderSvg,
+  sheetFor,
+  viewFor,
+  type SheetId,
   SetHomePositionRequestSchema,
   SetHomeRequestSchema,
   UpdateProjectRequestSchema,
@@ -68,6 +76,8 @@ import { openApiSchema, ZodPipe } from '../../common/zod.js';
 import { CurrentUser, RequestId, type AuthPrincipal } from '../auth/auth.decorators.js';
 import { ProjectsService, type Actor } from './projects.service.js';
 import { renderHomeDossierPdf, renderProjectDossierPdf, renderShoppingListPdf } from './shopping-list.pdf.js';
+import { renderDrawingSetPdf } from './drawings.pdf.js';
+import { ValidationError } from '../../common/errors.js';
 
 /** Tope duro de Multer; el límite configurable (UPLOAD_MAX_MB) lo aplica PhotoProcessor. */
 const MULTER_HARD_LIMIT = 50 * 1024 * 1024;
@@ -362,6 +372,36 @@ export class ProjectsController {
       .setHeader('content-disposition', `attachment; filename="proyecto-${id.slice(0, 8)}.pdf"`)
       .setHeader('cache-control', 'no-store')
       .send(pdf);
+  }
+
+  /**
+   * Planos técnicos del Modo Pro: `set.pdf` es el juego entero; `<lámina>.svg` una lámina para la
+   * vista previa; `<lámina>.dxf` sus vistas en metros reales para CAD.
+   */
+  @Get(':id/drawings/:file')
+  @Throttle(perMinute(20))
+  async drawing(@CurrentUser() user: AuthPrincipal, @Param('id', uuid) id: string, @Param('file') file: string, @Res() res: Response): Promise<void> {
+    const match = /^([a-z]+)\.(svg|dxf|pdf)$/.exec(file);
+    const sheet = match?.[1] as SheetId | 'set' | undefined;
+    const ext = match?.[2];
+    if (!sheet || !ext || (sheet !== 'set' && !SHEET_IDS.includes(sheet as SheetId)) || (sheet === 'set') !== (ext === 'pdf')) {
+      throw new ValidationError('Lámina no válida: usa set.pdf, <lámina>.svg o <lámina>.dxf');
+    }
+    const input = await this.service.drawingInput(this.actor(user), id, new Date().toISOString().slice(0, 10));
+    const base = `planos-${id.slice(0, 8)}`;
+    res.setHeader('cache-control', 'no-store');
+    if (ext === 'pdf') {
+      const pdf = await renderDrawingSetPdf(drawingSet(input), input.roomName);
+      res.type('application/pdf').setHeader('content-disposition', `attachment; filename="${base}.pdf"`).send(pdf);
+      return;
+    }
+    if (!availableSheets(input.spec).includes(sheet as SheetId)) throw new ValidationError('Esa lámina no existe en este proyecto (¿falta trazar el corte?)');
+    if (ext === 'svg') {
+      res.type('image/svg+xml').send(renderSvg(sheetFor(sheet as SheetId, input)!));
+      return;
+    }
+    const dxf = renderDxf(viewFor(sheet as SheetId, input), { scale: input.spec.sheet.scale });
+    res.type('application/dxf').setHeader('content-disposition', `attachment; filename="${base}-${sheet}.dxf"`).send(Buffer.from(dxf, 'latin1'));
   }
 
   @Get(':id/shopping-list.pdf')
