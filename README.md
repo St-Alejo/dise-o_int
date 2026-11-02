@@ -41,6 +41,7 @@ Un botón **Modo Pro** en la cabecera (preferencia de la cuenta) añade al edito
   - Un solo modelo de dibujo y un renderizador por formato (Composite + Visitor): lo que se ve es lo que se imprime y lo que abre el CAD.
 - **Normativa y ergonomía** ([ADR-0030](docs/adr/0030-normativa-e-iluminacion.md)). Perfiles "Buenas prácticas (Neufert)" y "Colombia — orientativo": paso libre, vanos, giro de silla de ruedas, altura libre, luz y ventilación natural, holguras de uso, triángulo de cocina y alturas de trabajo, cada hallazgo con lo medido, lo exigido y su fuente (reglas Specification).
   - **Cálculo de iluminación** punto a punto de las lámparas y factor de luz diurna, con mapa de calor de noche y de día. Informe en PDF.
+- **Cantidades y presupuesto de obra** ([ADR-0031](docs/adr/0031-computo-y-presupuesto-de-obra.md)). Cómputo métrico desde el modelo (piso, muros netos, revestimientos, cielo raso, guardaescoba, tabiques), APU de referencia en COP editables por proyecto, desperdicio según el dibujo (Strategy), materiales a comprar (cajas, bultos, galones), AIU, cronograma por fases y total de obra más mobiliario contra el tope. Descargas en CSV y PDF.
 
 ## Diseño de la interfaz
 
