@@ -42,6 +42,7 @@ Un botón **Modo Pro** en la cabecera (preferencia de la cuenta) añade al edito
 - **Normativa y ergonomía** ([ADR-0030](docs/adr/0030-normativa-e-iluminacion.md)). Perfiles "Buenas prácticas (Neufert)" y "Colombia — orientativo": paso libre, vanos, giro de silla de ruedas, altura libre, luz y ventilación natural, holguras de uso, triángulo de cocina y alturas de trabajo, cada hallazgo con lo medido, lo exigido y su fuente (reglas Specification).
   - **Cálculo de iluminación** punto a punto de las lámparas y factor de luz diurna, con mapa de calor de noche y de día. Informe en PDF.
 - **Cantidades y presupuesto de obra** ([ADR-0031](docs/adr/0031-computo-y-presupuesto-de-obra.md)). Cómputo métrico desde el modelo (piso, muros netos, revestimientos, cielo raso, guardaescoba, tabiques), APU de referencia en COP editables por proyecto, desperdicio según el dibujo (Strategy), materiales a comprar (cajas, bultos, galones), AIU, cronograma por fases y total de obra más mobiliario contra el tope. Descargas en CSV y PDF.
+- **Instalaciones** ([ADR-0032](docs/adr/0032-instalaciones.md)). Puntos eléctricos e hidrosanitarios con propuesta automática según los muebles (tomas por perímetro y junto a mesas de noche, escritorio y TV, GFCI cerca del agua, interruptor del lado de la chapa, luz por luminaria, agua y desagüe por aparato), circuitos con tope del 80 %, cuadro de cargas NTC 2050, láminas de plano eléctrico e hidrosanitario (capas `E-*`/`P-*` en DXF) y reglas RETIE en la normativa.
 
 ## Diseño de la interfaz
 
@@ -133,6 +134,9 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | Builder + Composite | `packages/furniture-kit/src/builder.ts` (piezas y grupos anidados por slot de material) |
 | Composite + Visitor (dibujo técnico) | `packages/shared-types/src/pro/drawing/model.ts` (capas y entidades) con renderizadores `svg.ts`, `dxf.ts` y `apps/api/.../drawings.pdf.ts` |
 | Builder (láminas) | `DrawingBuilder` y `composeSheet` en `pro/drawing/` |
+| Specification (normativa) | `pro/compliance/rules.ts`: cada regla decide si aplica y evalúa el cuarto; los perfiles (`profiles.ts`) cambian los valores sin tocar las reglas |
+| Strategy (desperdicio) | `WasteStrategy` / `PATTERN_WASTE` en `pro/takeoff/rates.ts` |
+| Factory (símbolos) | `drawSymbol` en `pro/installations/plan-symbols.ts`: un símbolo normalizado por tipo de punto |
 | Flyweight | caché de modelos por medidas (`buildCached`), de geometrías/materiales en GPU (`ParametricRenderer`) y de texturas del piso (`TextureLibrary`) |
 
 ## Robustez (más allá del documento)
