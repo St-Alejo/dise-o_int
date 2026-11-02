@@ -39,3 +39,4 @@ Thumbs.db
 
 # Modelo de intención entrenado (se genera con python -m interiores_ai.ml.train)
 services/ai/models/
+.tmp-pro/
