@@ -77,7 +77,7 @@ export class ProjectReports {
     const project = await this.access.own(actor, id);
     const shell = this.access.requireShell(project);
     const spec = technicalOf(project.technical ?? null);
-    return { shell, pieces: await this.piecesOf(project), roomType: project.roomType, compliance: spec.compliance, roomName: project.name, ...(hour === undefined ? {} : { hour }) };
+    return { shell, pieces: await this.piecesOf(project), roomType: project.roomType, compliance: spec.compliance, installations: spec.installations, roomName: project.name, ...(hour === undefined ? {} : { hour }) };
   }
 
   /** Lo que necesita el presupuesto de obra: planta, acabados, ficha, mobiliario (de la lista de compras) y tope. */

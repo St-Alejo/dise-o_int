@@ -20,7 +20,7 @@ export class ComplianceService {
     const shell = this.store.shell();
     const project = this.store.project();
     if (!shell || !project) return null;
-    return checkCompliance({ shell, pieces: this.store.designPieces(), roomType: project.roomType, compliance: this.store.technical().compliance, hour: this.hour() });
+    return checkCompliance({ shell, pieces: this.store.designPieces(), roomType: project.roomType, compliance: this.store.technical().compliance, installations: this.store.technical().installations, hour: this.hour() });
   });
 
   /** Lo que no cumple o merece un aviso: lo que se muestra también en la revisión del diseño. */
