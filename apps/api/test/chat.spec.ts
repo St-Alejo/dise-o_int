@@ -443,8 +443,13 @@ function scriptedFetch(answers: unknown[]) {
   const fn: FetchLike = async (_url, init) => {
     bodies.push(JSON.parse(init.body) as Record<string, unknown>);
     const next = answers.shift();
-    if (typeof next === 'number') return { ok: false, status: next, json: async () => ({}), text: async () => 'rate limited' };
-    return { ok: true, status: 200, json: async () => next, text: async () => '' };
+    const noHeaders = { get: () => null };
+    if (typeof next === 'number') return { ok: false, status: next, headers: noHeaders, json: async () => ({}), text: async () => 'rate limited' };
+    if (next && typeof next === 'object' && 'retryAfter' in next) {
+      const retryAfter = String((next as { retryAfter: number }).retryAfter);
+      return { ok: false, status: 429, headers: { get: (h: string) => (h === 'retry-after' ? retryAfter : null) }, json: async () => ({}), text: async () => 'rate limited' };
+    }
+    return { ok: true, status: 200, headers: noHeaders, json: async () => next, text: async () => '' };
   };
   return { fn, bodies };
 }
@@ -485,6 +490,29 @@ describe('GroqDesignAgent', () => {
     now = 61_000;
     expect(agent.available).toBe(true);
     expect(new GroqDesignAgent({ apiKey: undefined, model: 'm' }).available).toBe(false);
+  });
+
+  it('a mitad del bucle, un 429 espera lo que pide Groq dentro de un presupuesto por mensaje', async () => {
+    const waits: number[] = [];
+    const sleep = async (ms: number) => void waits.push(ms);
+    const tool = completion(null, [{ name: 'set_finishes', args: { floor: 'stone-marble-white' } }]);
+    const ok = scriptedFetch([tool, { retryAfter: 7.2 }, { retryAfter: 30 }, completion('Listo, mármol.')]);
+    const agent = new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: ok.fn, sleep });
+    expect((await agent.run(input())).reply).toBe('Listo, mármol.');
+    expect(waits).toEqual([7200, 30_000]);
+    expect(ok.bodies).toHaveLength(4);
+    expect(agent.available).toBe(true); // las esperas no cuentan para el cortacircuitos
+
+    // Agotado el presupuesto (90 s) se responde sin Groq.
+    const long = scriptedFetch([tool, { retryAfter: 50 }, { retryAfter: 50 }]);
+    await expect(new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: long.fn, sleep }).run(input())).rejects.toBeInstanceOf(AgentUnavailableError);
+    expect(long.bodies).toHaveLength(3);
+
+    // En la primera vuelta no se espera nada.
+    waits.length = 0;
+    const first = scriptedFetch([{ retryAfter: 2 }]);
+    await expect(new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: first.fn, sleep }).run(input())).rejects.toBeInstanceOf(AgentUnavailableError);
+    expect(waits).toEqual([]);
   });
 });
 
