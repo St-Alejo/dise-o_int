@@ -21,7 +21,7 @@ import type { NluParseResponse } from '@interiores/shared-types';
 import { PhotoProcessor } from '../src/infrastructure/imaging/photo-processor.js';
 import { MemoryFileStorage } from '../src/infrastructure/storage/memory-file-storage.js';
 import type { ChatAgents } from '../src/modules/chat/chat.service.js';
-import { GroqDesignAgent, buildGroqTools, type FetchLike } from '../src/modules/chat/groq.agent.js';
+import { GroqDesignAgent, buildGroqTools, selectGroqTools, type FetchLike } from '../src/modules/chat/groq.agent.js';
 import { LocalNluDesignAgent, specName } from '../src/modules/chat/local-nlu.agent.js';
 import { FakeAi, FakeQuota } from './fakes.js';
 
@@ -445,6 +445,10 @@ function scriptedFetch(answers: unknown[]) {
     const next = answers.shift();
     const noHeaders = { get: () => null };
     if (typeof next === 'number') return { ok: false, status: next, headers: noHeaders, json: async () => ({}), text: async () => 'rate limited' };
+    if (next && typeof next === 'object' && 'status' in next) {
+      const { status, body } = next as { status: number; body: string };
+      return { ok: false, status, headers: noHeaders, json: async () => ({}), text: async () => body };
+    }
     if (next && typeof next === 'object' && 'retryAfter' in next) {
       const retryAfter = String((next as { retryAfter: number }).retryAfter);
       return { ok: false, status: 429, headers: { get: (h: string) => (h === 'retry-after' ? retryAfter : null) }, json: async () => ({}), text: async () => 'rate limited' };
@@ -490,6 +494,36 @@ describe('GroqDesignAgent', () => {
     now = 61_000;
     expect(agent.available).toBe(true);
     expect(new GroqDesignAgent({ apiKey: undefined, model: 'm' }).available).toBe(false);
+  });
+
+  it('manda a Groq solo las herramientas que pide el mensaje (cabe en 8.000 tokens/min)', async () => {
+    const names = (text: string) => selectGroqTools(text);
+    const core = names('pon una lámpara junto al sofá');
+    expect(core).toEqual(expect.arrayContaining(['search_catalog', 'add_item', 'move_item', 'set_finishes', 'recommend']));
+    expect(core).not.toContain('set_finish_spec');
+    expect(core).not.toContain('estimate_works');
+    expect(names('baldosa brillante azul en el BAÑO')).toEqual(expect.arrayContaining(['set_finish_spec', 'set_wall_tiles', 'add_zone']));
+    expect(names('¿cuánto cuesta la obra?')).toContain('estimate_works');
+    expect(names('no cambies el piso')).toEqual(expect.arrayContaining(['pin', 'unpin']));
+    expect(names('agranda la cama')).toContain('resize_item');
+    const all = JSON.stringify(buildGroqTools()).length;
+    expect(JSON.stringify(buildGroqTools(core)).length).toBeLessThan(all / 2);
+
+    const { fn, bodies } = scriptedFetch([completion('Hecho.')]);
+    await new GroqDesignAgent({ apiKey: 'k', model: 'openai/gpt-oss-120b', fetch: fn }).run(input());
+    const body = bodies[0]!;
+    expect((body['tools'] as { function: { name: string } }[]).map((t) => t.function.name)).toEqual(names('piso de mármol'));
+    expect(body).toMatchObject({ reasoning_effort: 'low', max_tokens: 700 });
+  });
+
+  it('si en la vuelta final el modelo insiste en una herramienta, conserva lo hecho', async () => {
+    const tool = completion(null, [{ name: 'set_finishes', args: { floor: 'stone-marble-white' } }]);
+    const rejected = { status: 400, body: '{"error":{"code":"tool_use_failed"}}' };
+    const { fn } = scriptedFetch([tool, rejected]);
+    const tb = toolbox();
+    const { reply } = await new GroqDesignAgent({ apiKey: 'k', model: 'm', fetch: fn, maxToolTurns: 2 }).run(input(tb));
+    expect(reply).toMatch(/apliqué los cambios/);
+    expect(tb.operations()).toEqual([expect.objectContaining({ op: 'finishes' })]);
   });
 
   it('a mitad del bucle, un 429 espera lo que pide Groq dentro de un presupuesto por mensaje', async () => {
