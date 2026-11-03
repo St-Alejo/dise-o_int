@@ -262,6 +262,31 @@
                   "type": "null"
                 }
               ]
+            },
+            "preview": {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "minimum": 16,
+                  "maximum": 8192
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 16,
+                  "maximum": 8192
+                },
+                "samples": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "width",
+                "height",
+                "samples"
+              ]
             }
           },
           "required": [

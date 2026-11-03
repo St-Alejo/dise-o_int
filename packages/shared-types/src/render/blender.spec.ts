@@ -3,6 +3,8 @@ import {
   BlenderJobSchema,
   BlenderPlanSchema,
   CreateBlenderRenderFieldsSchema,
+  EXPORT_PREVIEW_SAMPLES,
+  EXPORT_PREVIEW_WIDTH,
   ROLE_MATERIAL,
   SCENE_ROLES,
   blenderPlan,
@@ -88,6 +90,24 @@ describe('plan de Blender', () => {
     expect(draft!.samples).toBeLessThan(good!.samples);
     expect(good!.samples).toBeLessThan(final!.samples);
     expect(final!.adaptiveThreshold).toBeLessThan(draft!.adaptiveThreshold);
+  });
+
+  it('un render normal no lleva miniatura: renderiza lo pedido', () => {
+    expect(blenderPlan(spec, lights).preview).toBeUndefined();
+  });
+
+  it('exportar deja el .blend en calidad final y solo renderiza una miniatura rápida', () => {
+    const plan = blenderPlan({ ...spec, quality: 'draft', purpose: 'export' }, lights);
+    expect(BlenderPlanSchema.parse(plan)).toEqual(plan);
+    expect(plan.cycles).toEqual(cyclesSettings('final'));
+    expect(plan).toMatchObject({ width: 2560, height: 1440 });
+    expect(plan.preview).toEqual({ width: EXPORT_PREVIEW_WIDTH, height: Math.round((EXPORT_PREVIEW_WIDTH * 1440) / 2560), samples: EXPORT_PREVIEW_SAMPLES });
+  });
+
+  it('la miniatura de un formato vertical respeta su proporción', () => {
+    const plan = blenderPlan({ ...spec, aspect: '9:16', purpose: 'export' }, lights);
+    expect(plan.preview!.height).toBe(EXPORT_PREVIEW_WIDTH);
+    expect(plan.preview!.width).toBeLessThan(plan.preview!.height);
   });
 });
 

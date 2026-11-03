@@ -57,6 +57,11 @@ export const RenderSpecSchema = z.object({
   aspect: RenderAspectSchema,
   quality: RenderQualitySchema,
   engine: RenderEngineSchema,
+  /**
+   * Solo Cycles. `export`: lo que se quiere es el `.blend` para abrirlo en Blender, no la imagen
+   * (se renderiza una miniatura para la galería). Sin valor = `render`.
+   */
+  purpose: z.enum(['render', 'export']).optional(),
 });
 export type RenderSpec = z.infer<typeof RenderSpecSchema>;
 

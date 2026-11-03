@@ -145,8 +145,19 @@ export const BlenderPlanSchema = z.object({
   }),
   lamps: z.object({ positions: z.array(Vector3Schema), watts: finite, kelvin: finite }),
   ceiling: z.object({ position: Vector3Schema, watts: finite, kelvin: finite }).nullable(),
+  /**
+   * Exportar a Blender: se renderiza solo esta miniatura y el `.blend` se guarda con el tamaño y
+   * las muestras de arriba, listo para el render final en el Blender de quien lo descarga.
+   */
+  preview: z
+    .object({ width: z.number().int().min(16).max(8192), height: z.number().int().min(16).max(8192), samples: z.number().int().min(1) })
+    .optional(),
 });
 export type BlenderPlan = z.infer<typeof BlenderPlanSchema>;
+
+/** Lado largo (px) y muestras de la miniatura que acompaña a un `.blend` exportado. */
+export const EXPORT_PREVIEW_WIDTH = 960;
+export const EXPORT_PREVIEW_SAMPLES = 48;
 
 /**
  * Claves que comparten la API y el nodo Blender (Python las repite tal cual):
@@ -257,6 +268,8 @@ export function blenderPlan(spec: RenderSpec, lights: BlenderLights): BlenderPla
   const time = spec.timeOfDay;
   const kelvin = MOOD_KELVIN[lights.mood];
   const ceilingWatts = round(CEILING_WATTS[time] * LEVEL[lights.level]);
+  const exporting = spec.purpose === 'export';
+  const scale = EXPORT_PREVIEW_WIDTH / Math.max(width, height);
   return {
     width,
     height,
@@ -268,7 +281,8 @@ export function blenderPlan(spec: RenderSpec, lights: BlenderLights): BlenderPla
       sensorFit: landscape ? 'HORIZONTAL' : 'VERTICAL',
       shiftY: round(shiftY, 4),
     },
-    cycles: cyclesSettings(spec.quality),
+    // Un .blend exportado es para el render definitivo: lleva la calidad final, sea cual sea la elegida.
+    cycles: cyclesSettings(exporting ? 'final' : spec.quality),
     world: {
       ...SUN_BY_TIME[time],
       sunDirection: normalize(lights.sunDirection),
@@ -276,6 +290,7 @@ export function blenderPlan(spec: RenderSpec, lights: BlenderLights): BlenderPla
     },
     lamps: { positions: lights.lamps, watts: lampWatts(time, lights.level), kelvin },
     ceiling: lights.ceiling && ceilingWatts > 0 ? { position: lights.ceiling, watts: ceilingWatts, kelvin: kelvin + 300 } : null,
+    ...(exporting ? { preview: { width: Math.round(width * scale), height: Math.round(height * scale), samples: EXPORT_PREVIEW_SAMPLES } } : {}),
   };
 }
 
