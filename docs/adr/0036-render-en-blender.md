@@ -50,7 +50,13 @@ duplicar materiales y luces, y cada render costaría dinero.
   bandas negras.
 - **Caras coincidentes = manchas negras.** La base del sofá atravesaba los brazos; Cycles pintaba de
   negro la zona solapada. Se corrigió en la receta (`furniture-kit`), no en Blender.
-- **Exposición por hora** calibrada con la sala de prueba: de día 2,1, de tarde 1,1 y de noche 0,4.
+- **Exposición automática.** Una exposición fija por hora quemaba los cuartos blancos (dormitorio,
+  cocina) y apagaba los oscuros. Ahora Blender hace un pre-render de 128 px y 16 muestras, mide la
+  media logarítmica de la luminancia y lleva la escena a la clave de la hora (`exposureKey`: día 0,5,
+  tarde 0,36, noche 0,2). La corrección queda a ±2,5 pasos de la exposición del preset (día 2,1,
+  tarde 1,1, noche 0,4) para que la noche siga siendo noche. Calibrado con la sala, el dormitorio y
+  la cocina de las plantillas × día, tarde y noche. El tinte cálido del dormitorio y la cocina es
+  físico (piso terracota y lámparas de 2700 K) y se deja.
 - **Antes y después en la galería:** se empareja un render con el del otro motor hecho desde la misma
   vista (cámara a 2 cm, misma focal, hora y proporción).
 - En WSL2 Blender no detecta OptiX: el nodo usa CUDA. Un borrador 2K tarda 20–40 s en la RTX 4070.
