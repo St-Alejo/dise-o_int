@@ -31,8 +31,11 @@ export const RENDER_QUALITIES = { draft: 64, good: 256, final: 1024 } as const;
 export const RenderQualitySchema = z.enum(['draft', 'good', 'final']);
 export type RenderQuality = z.infer<typeof RenderQualitySchema>;
 
-/** Motor: trazado de rayos (luz rebotada, reflejos) o raster de alta calidad (respaldo y vídeo). */
-export const RenderEngineSchema = z.enum(['pathtracer', 'raster']);
+/**
+ * Motor: trazado de rayos en el navegador (luz rebotada, reflejos), raster de alta calidad (respaldo
+ * y vídeo) o Cycles en el nodo Blender (ADR-0036).
+ */
+export const RenderEngineSchema = z.enum(['pathtracer', 'raster', 'cycles']);
 export type RenderEngine = z.infer<typeof RenderEngineSchema>;
 
 /** Objetivos habituales en fotografía de interiores (equivalente a full frame). */

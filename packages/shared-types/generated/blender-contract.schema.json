@@ -1,0 +1,311 @@
+{
+  "$comment": "Generado por scripts/export-json-schema.mjs — no editar a mano",
+  "schemas": {
+    "BlenderJob": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "renderId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "sceneKey": {
+          "type": "string"
+        },
+        "outputPrefix": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 8192
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 8192
+            },
+            "camera": {
+              "type": "object",
+              "properties": {
+                "position": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ]
+                },
+                "target": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ]
+                },
+                "focalMm": {
+                  "type": "number"
+                },
+                "sensorMm": {
+                  "type": "number"
+                },
+                "sensorFit": {
+                  "type": "string",
+                  "enum": [
+                    "HORIZONTAL",
+                    "VERTICAL"
+                  ]
+                },
+                "shiftY": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "position",
+                "target",
+                "focalMm",
+                "sensorMm",
+                "sensorFit",
+                "shiftY"
+              ]
+            },
+            "cycles": {
+              "type": "object",
+              "properties": {
+                "samples": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "adaptiveThreshold": {
+                  "type": "number"
+                },
+                "maxBounces": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "clampIndirect": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "samples",
+                "adaptiveThreshold",
+                "maxBounces",
+                "clampIndirect"
+              ]
+            },
+            "world": {
+              "type": "object",
+              "properties": {
+                "sunDirection": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ]
+                },
+                "sunElevationDeg": {
+                  "type": "number"
+                },
+                "sunStrength": {
+                  "type": "number"
+                },
+                "sunColor": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "skyStrength": {
+                  "type": "number"
+                },
+                "exposure": {
+                  "type": "number"
+                },
+                "look": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sunDirection",
+                "sunElevationDeg",
+                "sunStrength",
+                "sunColor",
+                "skyStrength",
+                "exposure",
+                "look"
+              ]
+            },
+            "lamps": {
+              "type": "object",
+              "properties": {
+                "positions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "z": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ]
+                  }
+                },
+                "watts": {
+                  "type": "number"
+                },
+                "kelvin": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "positions",
+                "watts",
+                "kelvin"
+              ]
+            },
+            "ceiling": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y",
+                        "z"
+                      ]
+                    },
+                    "watts": {
+                      "type": "number"
+                    },
+                    "kelvin": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "position",
+                    "watts",
+                    "kelvin"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "camera",
+            "cycles",
+            "world",
+            "lamps",
+            "ceiling"
+          ]
+        }
+      },
+      "required": [
+        "renderId",
+        "projectId",
+        "sceneKey",
+        "outputPrefix",
+        "plan"
+      ]
+    },
+    "BlenderResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "imageKey": {
+          "type": "string"
+        },
+        "previewKey": {
+          "type": "string"
+        },
+        "blendKey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "device": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "imageKey",
+        "previewKey",
+        "blendKey",
+        "seconds",
+        "device"
+      ]
+    }
+  }
+}
