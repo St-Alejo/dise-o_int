@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import math
 import shutil
 import signal
 import time
@@ -39,7 +40,7 @@ class ProgressThrottle:
         self._report = report
         self._interval_s = interval_s
         self._last_pct = -1
-        self._last_at = 0.0
+        self._last_at = -math.inf  # el primer aviso siempre sale (monotonic puede ser pequeño)
 
     async def __call__(self, pct: int) -> None:
         now = time.monotonic()

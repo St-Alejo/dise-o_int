@@ -103,6 +103,18 @@ async def test_el_avance_solo_sube_y_no_satura_redis() -> None:
     assert sent == [10]
 
 
+async def test_el_primer_avance_sale_aunque_la_maquina_acabe_de_arrancar(monkeypatch: pytest.MonkeyPatch) -> None:
+    # time.monotonic() cuenta desde el arranque: en un runner nuevo vale pocos segundos.
+    monkeypatch.setattr("interiores_blender.worker.time.monotonic", lambda: 5.0)
+    sent: list[int] = []
+
+    async def report(pct: int) -> None:
+        sent.append(pct)
+
+    await ProgressThrottle(report, interval_s=60)(10)
+    assert sent == [10]
+
+
 def test_el_latido_cumple_su_modelo() -> None:
     beat = Heartbeat.model_validate_json(heartbeat_payload("CUDA"))
     assert beat.device == "CUDA"
