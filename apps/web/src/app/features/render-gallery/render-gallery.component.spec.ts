@@ -7,7 +7,7 @@ import { RendersApi } from '../../core/api/renders.api';
 import { ProgressService } from '../../core/realtime/progress.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { DesignProjectStore } from '../project/design-project.store';
-import { applyRenderProgress, downloadName, engineLabel, specLabel } from './gallery';
+import { applyRenderProgress, comparisonFor, downloadName, engineLabel, specLabel } from './gallery';
 import { RenderGalleryComponent } from './render-gallery.component';
 
 const spec = { ...defaultRenderSpec({ position: { x: 1, y: 1.6, z: 3 }, target: { x: 2, y: 1, z: 0 }, focalMm: 24, straightVerticals: true }), timeOfDay: 'evening' as const, engine: 'cycles' as const };
@@ -57,6 +57,29 @@ describe('galería: etiquetas y avance', () => {
     expect(applyRenderProgress(map, event({ pct: 10, at: '2026-11-03T10:00:01.000Z' }))).toBe(map);
     map = applyRenderProgress(map, event({ status: 'completed', pct: 100, at: '2026-11-03T10:00:30.000Z' }));
     expect(map.has('r1')).toBe(false);
+  });
+});
+
+describe('galería: antes y después', () => {
+  const ready = (over: Partial<Render>) => render({ status: 'ready', url: `/api/media/${over.id}.jpg`, mediaType: 'image/jpeg', ...over });
+  const blender = ready({ id: 'b1' });
+  const browser = ready({ id: 'n1', provider: 'pathtracer', spec: { ...spec, engine: 'pathtracer' }, createdAt: '2026-11-03T09:00:00.000Z' });
+
+  it('empareja Blender con el render del navegador de la misma vista, en los dos sentidos', () => {
+    const newer = ready({ id: 'n2', provider: 'pathtracer', createdAt: '2026-11-03T09:30:00.000Z' });
+    expect(comparisonFor(blender, [blender, browser, newer])).toEqual({ browser: newer, blender });
+    expect(comparisonFor(browser, [blender, browser])).toEqual({ browser, blender });
+  });
+
+  it('no empareja otra vista, otra hora, dos del mismo motor ni lo que no está listo', () => {
+    const moved = { ...spec, camera: { ...spec.camera, position: { x: 1.2, y: 1.6, z: 3 } } };
+    expect(comparisonFor(blender, [ready({ id: 'n1', provider: 'pathtracer', spec: moved })])).toBeNull();
+    expect(comparisonFor(blender, [ready({ id: 'n1', provider: 'pathtracer', spec: { ...spec, timeOfDay: 'night' } })])).toBeNull();
+    expect(comparisonFor(blender, [ready({ id: 'b2' })])).toBeNull();
+    expect(comparisonFor(blender, [render({ id: 'n1', provider: 'pathtracer' })])).toBeNull();
+    // A una cámara que se movió un centímetro todavía la cuenta como la misma vista.
+    const nudged = { ...spec, camera: { ...spec.camera, position: { x: 1.01, y: 1.6, z: 3 } } };
+    expect(comparisonFor(blender, [ready({ id: 'n1', provider: 'pathtracer', spec: nudged })])?.browser.id).toBe('n1');
   });
 });
 
@@ -133,5 +156,24 @@ describe('RenderGalleryComponent', () => {
     fixture.detectChanges();
     const links = [...(fixture.nativeElement as HTMLElement).querySelectorAll('a')].map((a) => a.getAttribute('download'));
     expect(links).toEqual(['sala-blender-tarde.png', 'sala-blender-tarde.blend']);
+  });
+
+  it('al abrir un render de Blender con su pareja del navegador muestra el antes y después', async () => {
+    const blender = render({ status: 'ready', url: '/api/media/r1.jpg', mediaType: 'image/jpeg' });
+    const browser = render({ id: 'n1', status: 'ready', url: '/api/media/n1.jpg', mediaType: 'image/jpeg', provider: 'pathtracer' });
+    api.list.mockResolvedValue([blender, browser]);
+    const fixture = await mount();
+    fixture.componentInstance.open();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[aria-label="Ver en grande: Blender"]')!.click();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect([...el.querySelectorAll('.compare img')].map((i) => i.getAttribute('src'))).toEqual(['/api/media/r1.jpg', '/api/media/n1.jpg']);
+    const slider = el.querySelector<HTMLInputElement>('input[type="range"]')!;
+    slider.value = '20';
+    slider.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector<HTMLElement>('.compare')!.style.getPropertyValue('--split')).toBe('20%');
   });
 });

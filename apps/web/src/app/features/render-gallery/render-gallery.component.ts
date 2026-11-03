@@ -6,7 +6,7 @@ import { ProgressService } from '../../core/realtime/progress.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { DialogComponent } from '../../shared/ui/dialog.component';
 import { DesignProjectStore } from '../project/design-project.store';
-import { applyRenderProgress, downloadName, engineLabel, specLabel, type PendingProgress } from './gallery';
+import { applyRenderProgress, comparisonFor, downloadName, engineLabel, specLabel, type PendingProgress } from './gallery';
 
 const DATE = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -24,12 +24,30 @@ const DATE = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hou
       <div class="modal-body">
         @if (selected(); as r) {
           <figure class="full">
-            @if (r.mediaType?.startsWith('video/')) {
+            @if (comparison(); as c) {
+              <!-- Antes y después: el render del navegador encima, recortado hasta el deslizador. -->
+              <div class="compare" [style.--split]="split() + '%'">
+                <img [src]="c.blender.url" alt="Render en Blender" />
+                <img class="before" [src]="c.browser.url" [alt]="'Render del navegador (' + engineLabel(c.browser) + ')'" />
+                <span class="tag left">{{ engineLabel(c.browser) }}</span>
+                <span class="tag right">Blender</span>
+              </div>
+              <label class="slider">
+                <span>Navegador</span>
+                <input type="range" min="0" max="100" [value]="split()" (input)="split.set(+$any($event.target).value)" aria-label="Antes y después: navegador o Blender" />
+                <span>Blender</span>
+              </label>
+            } @else if (r.mediaType?.startsWith('video/')) {
               <video [src]="r.url" controls autoplay></video>
             } @else {
               <img [src]="r.url" [alt]="'Render ' + engineLabel(r)" />
             }
-            <figcaption>{{ engineLabel(r) }} · {{ specLabel(r.spec) }}</figcaption>
+            <figcaption>
+              {{ engineLabel(r) }} · {{ specLabel(r.spec) }}
+              @if (!comparison() && r.provider === 'cycles') {
+                · Guarda en el estudio un render del navegador desde esta misma vista para compararlos.
+              }
+            </figcaption>
           </figure>
         } @else if (loading()) {
           <p class="muted">Cargando la galería…</p>
@@ -198,6 +216,51 @@ const DATE = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hou
       object-fit: contain;
       background: var(--surface-2);
     }
+    .compare {
+      position: relative;
+      display: grid;
+      background: var(--surface-2);
+    }
+    .compare img {
+      grid-area: 1 / 1;
+    }
+    .compare .before {
+      clip-path: inset(0 calc(100% - var(--split, 50%)) 0 0);
+    }
+    .compare::after {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 var(--split, 50%);
+      width: 2px;
+      translate: -1px 0;
+      background: var(--surface);
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+      pointer-events: none;
+    }
+    .tag {
+      position: absolute;
+      top: var(--space-2);
+      padding: 2px var(--space-2);
+      font-size: var(--text-sm);
+      background: rgb(0 0 0 / 0.55);
+      color: #fff;
+    }
+    .tag.left {
+      left: var(--space-2);
+    }
+    .tag.right {
+      right: var(--space-2);
+    }
+    .slider {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }
+    .slider input {
+      flex: 1;
+    }
     .full figcaption {
       color: var(--text-muted);
     }
@@ -218,6 +281,12 @@ export class RenderGalleryComponent {
   protected readonly selected = signal<Render | null>(null);
   protected readonly confirming = signal<string | null>(null);
   protected readonly deleting = signal<string | null>(null);
+  /** Hasta dónde (%) se ve el render del navegador en el antes/después. */
+  protected readonly split = signal(50);
+  protected readonly comparison = computed(() => {
+    const r = this.selected();
+    return r ? comparisonFor(r, this.renders()) : null;
+  });
   /** Renders en Blender que aún no terminan (para el contador del botón). */
   readonly inProgress = computed(() => this.renders().filter((r) => r.provider === 'cycles' && r.status === 'pending').length);
 

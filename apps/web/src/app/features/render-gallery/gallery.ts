@@ -51,3 +51,44 @@ export function downloadName(project: string, render: Render, ext: string): stri
   const parts = [project, engineLabel(render), render.spec ? TIME_LABELS[render.spec.timeOfDay] : null];
   return `${fileSlug(parts.filter(Boolean).join(' '), 'render')}.${ext}`;
 }
+
+/** Distancia (m) hasta la que dos cámaras cuentan como la misma vista. */
+const SAME_VIEW_M = 0.02;
+
+/** Un antes/después: el render del navegador y el de Blender de la misma vista. */
+export interface Comparison {
+  browser: Render;
+  blender: Render;
+}
+
+/**
+ * Busca la pareja de un render para compararlos: misma cámara, hora y proporción, uno del navegador
+ * y otro de Blender. Si hay varias, la más reciente.
+ */
+export function comparisonFor(render: Render, all: readonly Render[]): Comparison | null {
+  if (!isStill(render)) return null;
+  const blender = render.provider === CYCLES;
+  const match = all
+    .filter((r) => r.id !== render.id && isStill(r) && (r.provider === CYCLES) !== blender && sameView(render.spec!, r.spec!))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  if (!match) return null;
+  return blender ? { browser: match, blender: render } : { browser: render, blender: match };
+}
+
+const CYCLES = 'cycles';
+
+function isStill(r: Render): boolean {
+  return r.status === 'ready' && !!r.url && !!r.spec && r.kind === 'path' && !r.mediaType?.startsWith('video/');
+}
+
+function sameView(a: RenderSpec, b: RenderSpec): boolean {
+  const near = (p: { x: number; y: number; z: number }, q: { x: number; y: number; z: number }) =>
+    Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) <= SAME_VIEW_M;
+  return (
+    a.timeOfDay === b.timeOfDay &&
+    a.aspect === b.aspect &&
+    Math.abs(a.camera.focalMm - b.camera.focalMm) < 0.5 &&
+    near(a.camera.position, b.camera.position) &&
+    near(a.camera.target, b.camera.target)
+  );
+}
