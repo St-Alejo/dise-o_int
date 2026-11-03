@@ -1,0 +1,59 @@
+{
+  "width": 64,
+  "height": 64,
+  "camera": {
+    "position": {
+      "x": 0,
+      "y": 1.4,
+      "z": 1.2
+    },
+    "target": {
+      "x": 0,
+      "y": 1.3,
+      "z": -1.5
+    },
+    "focalMm": 20,
+    "sensorMm": 36,
+    "sensorFit": "HORIZONTAL",
+    "shiftY": 0
+  },
+  "cycles": {
+    "samples": 8,
+    "adaptiveThreshold": 0.01,
+    "maxBounces": 12,
+    "clampIndirect": 10
+  },
+  "world": {
+    "sunStrength": 3.2,
+    "sunColor": "#ffbe7d",
+    "skyStrength": 0.6,
+    "exposure": 1.1,
+    "look": "AgX - Medium High Contrast",
+    "sunDirection": {
+      "x": -0.7694,
+      "y": -0.5584,
+      "z": -0.3102
+    },
+    "sunElevationDeg": 33.95
+  },
+  "lamps": {
+    "positions": [
+      {
+        "x": -1,
+        "y": 1.6,
+        "z": 0
+      }
+    ],
+    "watts": 40,
+    "kelvin": 3000
+  },
+  "ceiling": {
+    "position": {
+      "x": 0,
+      "y": 2.45,
+      "z": 0
+    },
+    "watts": 60,
+    "kelvin": 3300
+  }
+}
