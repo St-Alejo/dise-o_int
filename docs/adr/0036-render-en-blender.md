@@ -32,9 +32,25 @@ duplicar materiales y luces, y cada render costaría dinero.
 ## Consecuencias
 - En la nube (Railway) no hay render Blender mientras no exista un nodo con GPU. El mismo contenedor
   podrá conectarse más adelante como "nodo de render" a la cola de producción.
-- Se añade una imagen pesada (CUDA más Blender 4.2 LTS) que no entra en el E2E de CI. El E2E usa un
+- Se añade una imagen pesada (CUDA más Blender 4.5 LTS) que no entra en el E2E de CI. El E2E usa un
   worker falso que contesta en `render-jobs`, y la imagen solo se prueba con un humo en CPU cuando
   cambia `services/blender/**`.
 - Junto al PNG se guarda el `.blend`, para quien quiera retocarlo en su Blender. Ambos viven bajo
   `projects/{id}/renders/{rid}.*` y se borran con el render, el proyecto y la retención.
 - La foto realista con IA del plan v9 (Fase 2) pasa a ser el ADR-0037.
+
+## Cierre (Fase 5)
+- **Lo que la cámara ve "fuera" del cuarto.** En la vista general Cycles dibujaba lo que el visor no:
+  el revés del techo y las paredes, el cielo negro bajo el horizonte y los rincones encerrados por las
+  paredes recortadas. Se resolvió en `look.py`: la cámara atraviesa el revés de lo opaco de una cara
+  (`camera_sees_through_back`), ve el fondo claro del visor en vez del cielo (`BACKDROP_HEX`; la luz
+  sigue saliendo del cielo) y, con la cámara fuera de la caja (`inside_room`), las paredes recortadas
+  se quitan del todo.
+- **Bisel solo en sólidos cerrados** (`bevel_radius`): en cortinas de doble cara el nodo Bevel dejaba
+  bandas negras.
+- **Caras coincidentes = manchas negras.** La base del sofá atravesaba los brazos; Cycles pintaba de
+  negro la zona solapada. Se corrigió en la receta (`furniture-kit`), no en Blender.
+- **Exposición por hora** calibrada con la sala de prueba: de día 2,1, de tarde 1,1 y de noche 0,4.
+- **Antes y después en la galería:** se empareja un render con el del otro motor hecho desde la misma
+  vista (cámara a 2 cm, misma focal, hora y proporción).
+- En WSL2 Blender no detecta OptiX: el nodo usa CUDA. Un borrador 2K tarda 20–40 s en la RTX 4070.

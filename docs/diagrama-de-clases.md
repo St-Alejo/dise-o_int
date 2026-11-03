@@ -412,3 +412,78 @@ classDiagram
 
 El chat usa estas mismas funciones como herramientas de solo lectura de la `DesignToolbox`
 (`estimate_works`, `check_compliance`, `suggest_installations`, `list_drawings`, en `pro/assistant.ts`).
+
+## 8. Render en Blender: cola propia y nodo opcional (ADR-0036)
+
+```mermaid
+classDiagram
+  class RenderStudioComponent {
+    +sendToBlender()
+    +checkNode()
+  }
+  class RenderGalleryComponent {
+    +track(render)
+    +open()
+  }
+  class RendersApi {
+    +renderInBlender(projectId, spec, lights, scene)
+    +renderNode()
+  }
+  class BlenderRendersService {
+    +create(actor, projectId, spec, lights, scene)
+  }
+  class RendersService {
+    +remove()
+  }
+  class RenderJobsListener {
+    -progress()
+    -settle()
+    +reconcile()
+  }
+  class IRenderJobQueue {
+    <<interface>>
+    +enqueue(job)
+    +node()
+    +info(id)
+    +cancel(id)
+  }
+  class BullMqRenderJobQueue
+  class IQuota {
+    <<interface>>
+  }
+  class RenderJobHandler {
+    +handle(job, report, cancelled)
+  }
+  class BlenderRunner {
+    +run(scene, plan, out, onProgress, isCancelled)
+  }
+  class S3Storage
+  class look {
+    <<module>>
+    +recipe_for(role, material)
+    +camera_sees_through_back()
+    +bevel_radius()
+    +inside_room()
+  }
+
+  RenderStudioComponent --> RendersApi
+  RenderGalleryComponent --> RendersApi
+  RendersApi ..> BlenderRendersService : POST /renders/blender
+  BlenderRendersService --> IRenderJobQueue
+  BlenderRendersService --> IQuota
+  RendersService --> IRenderJobQueue
+  IRenderJobQueue <|.. BullMqRenderJobQueue
+  RenderJobsListener --> IQuota
+  BullMqRenderJobQueue ..> RenderJobHandler : cola render-jobs
+  RenderJobHandler --> BlenderRunner
+  RenderJobHandler --> S3Storage
+  BlenderRunner ..> look : render_scene.py
+```
+
+- **Puertos y adaptadores** — la API solo conoce `IRenderJobQueue`; BullMQ es el adaptador. El nodo
+  Python no escribe en Postgres: `RenderJobsListener` (proceso worker) es quien pasa el `Render` a
+  `ready` o `failed` y publica el avance.
+- **Inyección del comando** — `BlenderRunner` recibe qué ejecutar; en las pruebas es un Blender
+  simulado (`tests/fake_blender.py`) con la misma salida.
+- **Funciones puras** — `look.py` decide materiales, luces y qué ve la cámara sin depender de `bpy`,
+  así se prueba con pytest y lo usa `render_scene.py` dentro de Blender.

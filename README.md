@@ -21,6 +21,7 @@ Sube una foto de tu cuarto, o dibújalo en tres pasos, y obtén:
 - **Cuarto a tu medida.** Escribe ancho, largo y alto exactos (al subir la foto o después, en "Medidas del cuarto") y ubica puertas y ventanas; los muebles se reacomodan sin borrarse. Si no tienes metro, calibra con una sola medida conocida.
 - **Probar sin cuenta.** [`/plantillas`](apps/web/src/app/features/demo) abre cuartos ya amueblados en el editor completo, sin registrarse; lo que se cambie queda en el navegador y, al crear la cuenta, se guarda en ella ([ADR-0019](docs/adr/0019-decoracion-demo-y-plantillas.md)).
 - **Imagen del visor.** Oclusión ambiental y contorno de lo seleccionado, paredes en corte en vez de translúcidas, luz de día, de tarde y de noche, y calidad que baja sola si el equipo va justo. La vista cenital es ortográfica: un plano a escala sobre el que se sigue editando ([ADR-0018](docs/adr/0018-imagen-del-visor.md), [ADR-0022](docs/adr/0022-cierre-del-plan-v6.md)).
+- **Render en Blender (opcional).** Desde el estudio de render, el motor "Blender (fotorrealista)" manda la escena a un nodo con GPU que la renderiza con Cycles: materiales afinados por papel, bordes biselados, luz portal en las ventanas y denoiser. Se sigue editando mientras tanto; la galería muestra el avance en vivo, el PNG, el `.blend` para retocarlo y un antes/después contra el render del navegador desde la misma vista ([ADR-0036](docs/adr/0036-render-en-blender.md)).
 - **Presentar y exportar.** Modo presentación a pantalla completa, imagen en alta resolución y un PDF del proyecto con ficha, plano acotado y lista de compras.
 - **Presupuesto.** Un tope por cuarto, guardado con el proyecto, con aviso al acercarse o pasarse y el total por categoría.
 - **Viviendas.** Varios cuartos agrupados, con lo que suman, una planta conjunta donde se colocan a escala y se pegan unos a otros, y la vivienda entera en un PDF ([ADR-0021](docs/adr/0021-viviendas.md)).
@@ -73,6 +74,14 @@ Después abre **http://localhost:8080** (el puerto se cambia con `WEB_PORT` en `
 
 > **Windows y rutas con acentos:** `docker compose build` falla si la ruta del proyecto tiene caracteres no ASCII (por ejemplo, "diseño"). El error es `x-docker-expose-session-sharedkey`. Por eso existe `scripts/build-images.sh`, que usa `docker build` directamente.
 
+### Render en Blender (opcional, necesita GPU NVIDIA)
+
+```bash
+docker compose --profile gpu up -d blender   # el nodo se anuncia solo; el estudio habilita "Blender"
+```
+
+Requisitos, tiempos y por qué no corre en Railway: [`docs/deploy.md` § Nodo de render Blender](docs/deploy.md#4-nodo-de-render-blender-opcional).
+
 ### Modo desarrollo (recarga en caliente)
 
 ```bash
@@ -114,6 +123,7 @@ Todos los puertos se pueden cambiar con `DEV_*_PORT`.
 | `apps/api` | NestJS 12 **hexagonal**. Casos de uso contra *puertos* (`src/ports`); los adaptadores (Prisma, S3, BullMQ, Redis, HTTP a la IA) se enlazan en `CoreModule`. Incluye auth JWT, subida segura, versiones, compartir, PDF, progreso por WebSocket y el **worker** (`src/worker.ts`). |
 | `apps/web` | Angular 22 (standalone, signals, zoneless). `ThreeViewportComponent` aísla el render loop; `SceneService` es la **Facade** de Three.js; `DesignProjectStore` es la única fuente de verdad; edición con el patrón **Command** (deshacer/rehacer), también de la planta; el plano editable (SVG) y el visor comparten ese estado; AR con `<model-viewer>`. |
 | `services/ai` | FastAPI. Tiene proveedores **Strategy** (`mock` sin GPU ↔ `vision` ↔ `replicate`) para el análisis del cuarto y los estilos, más un **motor de layout por reglas** (minimización greedy de costo, con semilla para dar variantes) listo para cambiarlo por ATISS. |
+| `services/blender` | Nodo de render opcional (ADR-0036): worker Python con `bullmq` que consume la cola `render-jobs`, lanza Blender en segundo plano (`blender/render_scene.py`) y sube PNG, JPG y `.blend` a S3. Las reglas del *look* (`look.py`) son funciones puras probadas sin Blender. |
 | `infra/nginx` | Origen único, CSP estricta, caché de assets y resolución DNS dinámica del upstream. |
 | `e2e` | Prueba de humo del backend, Playwright + axe (UI y accesibilidad) y prueba de resiliencia. |
 

@@ -98,6 +98,47 @@ Proyecto `interiores-ia` · web pública: https://web-production-2bde9.up.railwa
   repetibles (retención de 24 h) se ejecutan una sola vez aunque haya N workers.
 - **ai**: CPU-bound en modo mock; con Replicate es I/O-bound. Escalar réplicas según latencia.
 
+## 4. Nodo de render Blender (opcional)
+
+El motor "Blender (fotorrealista)" del estudio necesita un **nodo de render**: el contenedor
+`blender` (`services/blender`, ADR-0036). La app funciona sin él; el estudio muestra la opción
+deshabilitada con su motivo y la API responde 503 si alguien la pide igual.
+
+```bash
+docker compose --profile gpu up -d blender      # encenderlo
+docker compose --profile gpu stop blender       # apagarlo (termina el render en curso, hasta 2 min)
+```
+
+**Requisitos (Windows):** driver NVIDIA reciente, Docker Desktop con el backend WSL2 y la GPU
+visible en contenedores (`docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi`
+debe listarla). En Linux: driver + NVIDIA Container Toolkit.
+
+**Cómo se conecta:** solo necesita Redis y S3, con las mismas variables que la API. Cada 10 s deja
+un latido en Redis (`render-node:heartbeat`, caduca a los 30 s), que es lo que consulta
+`GET /api/render-node`. Consume la cola `render-jobs` de a un render por vez.
+
+| Variable | Valor por defecto | Para qué |
+|---|---|---|
+| `CYCLES_DEVICE` | `AUTO` | `OPTIX`, `CUDA` o `CPU`. En WSL2 Blender no detecta OptiX y usa CUDA. |
+| `BLENDER_MAX_SAMPLES` | sin tope | Limita las muestras (equipos más lentos). |
+| `RENDER_TIMEOUT_S` | 1800 | Corta un render colgado (segundos). |
+| `RENDER_SCENE_MAX_MB` (API) | 40 | Tamaño máximo del `.glb` que sube la web. |
+| `BLENDER_RENDERS_PER_DAY` (API) | 20 | Cuota por usuario; se devuelve si el render falla. |
+
+**Tiempos de referencia (RTX 4070 Laptop, CUDA):** borrador 2K en 20–40 s. Si
+otro programa usa la GPU (otro Blender abierto, un juego, un proceso de Python con CUDA), el render
+compite por ella y puede tardar cinco veces más: no es un fallo del nodo.
+
+**Por qué no corre en Railway:** Railway no ofrece GPU, y Cycles en CPU tarda minutos por imagen
+con un contenedor que habría que pagar encendido todo el día. Por eso el nodo es opcional y aparte:
+cualquier máquina con GPU que llegue al Redis y al S3 de producción puede conectarse como nodo, sin
+cambiar la API ni la web.
+
+**En CI** no hay GPU: el E2E usa `blender-fake` (perfil `e2e-render`, mismo contrato) y la imagen
+real solo pasa un humo en CPU (`services/blender/tests/smoke/run.sh`) cuando cambia
+`services/blender/**`. Para que no consuman la misma cola, no se encienden `blender` y
+`blender-fake` a la vez.
+
 ## Checklist de producción
 
 - [ ] Secretos generados (`./scripts/init-env.sh`) y guardados en el gestor de secretos del proveedor.
