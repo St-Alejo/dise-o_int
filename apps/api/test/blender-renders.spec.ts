@@ -102,6 +102,14 @@ describe('render en Blender (ADR-0036)', () => {
     expect(quota.used.get('alice')).toBe(1);
   });
 
+  it('exportar a Blender guarda el propósito y encola una miniatura con el .blend en calidad final', async () => {
+    const render = await blender.create(alice, projectId, { ...fields, spec: { ...spec, purpose: 'export' } }, glb());
+    expect(render.spec).toMatchObject({ engine: 'cycles', purpose: 'export' });
+    const { job } = await queue.info(render.id);
+    expect(job!.plan.preview).toMatchObject({ width: 960 });
+    expect(job!.plan.cycles.samples).toBe(2048);
+  });
+
   it('sin nodo encendido responde 503 y no gasta cuota', async () => {
     queue.alive = false;
     await expect(blender.create(alice, projectId, fields, glb())).rejects.toBeInstanceOf(DependencyError);
