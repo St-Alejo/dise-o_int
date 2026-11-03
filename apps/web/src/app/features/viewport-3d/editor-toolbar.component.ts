@@ -73,6 +73,12 @@ export const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = 
             <strong>Lista de compras</strong>
             <span class="muted">Para abrir en una hoja de cálculo (CSV)</span>
           </button>
+          @if (!demo()) {
+            <button type="button" class="menu-item" (click)="blenderExport.emit(); exportMenu.open = false" [disabled]="!store.shell() || viewMode() === 'plan'">
+              <strong>Archivo de Blender</strong>
+              <span class="muted">Materiales, luces y cámara listos: ábrelo y pulsa F12 (.blend)</span>
+            </button>
+          }
         </div>
       </details>
       <button type="button" class="btn btn-sm" (click)="studio.emit()" [disabled]="!store.shell() || viewMode() === 'plan'" appTooltip="Una imagen realista del cuarto: luz rebotada, sombras suaves y el cielo por las ventanas"><app-icon name="camera" /> Render realista</button>
@@ -146,6 +152,13 @@ export const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = 
       width: 260px;
       padding: 6px;
       box-shadow: var(--shadow);
+    }
+    /* En escritorio "Exportar" queda hacia el borde derecho: el menú se abre hacia dentro. */
+    @media (min-width: 720px) {
+      .menu-items {
+        left: auto;
+        right: 0;
+      }
     }
     .menu-item {
       display: grid;
@@ -224,6 +237,8 @@ export class EditorToolbarComponent {
   readonly present = output<void>();
   /** Abrir el estudio de render (imagen realista). */
   readonly studio = output<void>();
+  /** Abrir el estudio para exportar un .blend (la cámara se encuadra allí). */
+  readonly blenderExport = output<void>();
   /** Abrir la galería de renders del proyecto. */
   readonly gallery = output<void>();
   readonly shortcuts = output<void>();

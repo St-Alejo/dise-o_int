@@ -152,7 +152,10 @@ const QUALITIES: readonly { id: RenderQuality; label: string; hint: string }[] =
             {{ exporting() ? 'Exportando…' : 'Descargar escena 3D' }}
           </button>
           @if (engine() === 'blender') {
-            <button type="button" class="btn btn-primary" (click)="sendToBlender()" [disabled]="sending()">{{ sending() ? 'Enviando la escena…' : 'Renderizar en Blender' }}</button>
+            <button type="button" class="btn" (click)="sendToBlender('export')" [disabled]="!!sending()" title="Un .blend con materiales, luces, cielo y cámara ya puestos: ábrelo en Blender y pulsa F12">
+              {{ sending() === 'export' ? 'Preparando el .blend…' : 'Exportar a Blender (.blend)' }}
+            </button>
+            <button type="button" class="btn btn-primary" (click)="sendToBlender('render')" [disabled]="!!sending()">{{ sending() === 'render' ? 'Enviando la escena…' : 'Renderizar en Blender' }}</button>
           } @else {
             <button type="button" class="btn btn-primary" (click)="start()">{{ studio.phase() === 'done' ? 'Volver a renderizar' : 'Renderizar' }}</button>
           }
@@ -264,7 +267,10 @@ export class RenderStudioComponent {
   protected readonly exporting = signal(false);
   protected readonly engine = signal<EngineChoice>('browser');
   protected readonly node = signal<RenderNodeStatus | null>(null);
-  protected readonly sending = signal(false);
+  /** Qué se está mandando al nodo (para el texto del botón), o null. */
+  protected readonly sending = signal<'render' | 'export' | null>(null);
+  /** Se abrió para exportar a Blender: en cuanto se sepa que hay nodo, se elige ese motor. */
+  private wantsBlender = false;
   protected readonly engines = computed((): SegmentOption<EngineChoice>[] => {
     const node = this.node();
     return [
@@ -299,9 +305,11 @@ export class RenderStudioComponent {
     effect(() => this.studio.attachPreview(this.previewRef()?.nativeElement ?? null));
   }
 
-  open(): void {
+  /** `blender`: se abre para exportar o renderizar en Blender (si el nodo está encendido). */
+  open(options: { blender?: boolean } = {}): void {
     this.time.set(this.scene.timeOfDay());
     this.saved.set(false);
+    this.wantsBlender = !!options.blender;
     this.dialog().open();
     if (this.canSave()) void this.checkNode();
   }
@@ -311,6 +319,7 @@ export class RenderStudioComponent {
     const node = await this.renders.renderNode();
     this.node.set(node);
     if (!node.available) this.engine.set('browser');
+    else if (this.wantsBlender) this.engine.set('blender');
   }
 
   protected round(n: number): number {
@@ -363,26 +372,30 @@ export class RenderStudioComponent {
     }
   }
 
-  /** Exporta la escena tal como se ve y la manda al nodo Blender; el resultado llega a la galería. */
-  protected async sendToBlender(): Promise<void> {
+  /**
+   * Exporta la escena tal como se ve y la manda al nodo Blender; el resultado llega a la galería.
+   * `export`: lo que se quiere es el .blend listo para abrir (el nodo solo hace una miniatura).
+   */
+  protected async sendToBlender(purpose: 'render' | 'export'): Promise<void> {
     const projectId = this.store.project()?.id;
     if (!projectId || this.sending()) return;
-    this.sending.set(true);
+    this.sending.set(purpose);
     try {
-      const spec = this.spec();
+      const spec: RenderSpec = { ...this.spec(), purpose };
       const scene = await this.studio.exportScene(spec);
       if (!scene) return this.toast.error('El visor 3D aún no está listo: abre la vista 3D y vuelve a intentarlo.');
       const render = await this.renders.renderInBlender(projectId, spec, scene.lights, scene.glb);
       this.sent.emit(render);
       this.dialog().close();
-      this.toast.show('Render enviado a Blender. Te avisamos cuando esté listo.', 'success', 6000, { label: 'Ver galería', run: () => this.gallery.emit() });
+      const message = purpose === 'export' ? 'Preparando tu archivo de Blender. Te avisamos para descargarlo.' : 'Render enviado a Blender. Te avisamos cuando esté listo.';
+      this.toast.show(message, 'success', 6000, { label: 'Ver galería', run: () => this.gallery.emit() });
     } catch (err) {
       const error = ApiError.from(err);
       // 503: el nodo se apagó entre abrir el estudio y pulsar; se refleja en la opción.
       if (error.status === 503) void this.checkNode();
       this.toast.error(error.status > 0 ? error.userMessage : 'No se pudo mandar la escena a Blender.');
     } finally {
-      this.sending.set(false);
+      this.sending.set(null);
     }
   }
 

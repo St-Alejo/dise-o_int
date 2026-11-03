@@ -99,6 +99,8 @@ export class FurnitureView {
 
   private createNode(p: FurniturePlacement, item: CatalogItem): FurnitureNode {
     const group = new THREE.Group();
+    // El nombre viaja al exportar: en el Outliner de Blender se ve "Sofá en L", no "Node_45".
+    group.name = item.name;
     group.userData['placementId'] = p.id;
     const node: FurnitureNode = { group, catalogItemId: p.catalogItemId, shapeKey: shapeKeyOf(p) };
     this.nodes.set(p.id, node);

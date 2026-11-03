@@ -8,6 +8,14 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Descarga un archivo que ya está en el servidor (una URL firmada), con el nombre dado. */
+export function downloadUrl(url: string, filename: string): void {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+}
+
 /** Nombre de archivo seguro a partir de un texto libre: sin acentos, espacios ni símbolos. */
 export function fileSlug(text: string, fallback = 'proyecto'): string {
   const slug = text

@@ -3,10 +3,11 @@ import type { JobProgressEvent, Render } from '@interiores/shared-types';
 import type { Subscription } from 'rxjs';
 import { RendersApi } from '../../core/api/renders.api';
 import { ProgressService } from '../../core/realtime/progress.service';
+import { downloadUrl } from '../../core/ui/download';
 import { ToastService } from '../../core/ui/toast.service';
 import { DialogComponent } from '../../shared/ui/dialog.component';
 import { DesignProjectStore } from '../project/design-project.store';
-import { applyRenderProgress, comparisonFor, downloadName, engineLabel, specLabel, type PendingProgress } from './gallery';
+import { applyRenderProgress, comparisonFor, downloadName, engineLabel, isBlendExport, specLabel, type PendingProgress } from './gallery';
 
 const DATE = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -90,8 +91,12 @@ const DATE = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hou
                 <div class="actions">
                   @if (r.status === 'ready' && r.url) {
                     @if (r.downloads; as files) {
-                      <a class="btn btn-sm" [href]="files.png" [attr.download]="fileName(r, 'png')">PNG</a>
-                      <a class="btn btn-sm" [href]="files.blend" [attr.download]="fileName(r, 'blend')" title="La escena para abrirla y retocarla en Blender">.blend</a>
+                      @if (isBlendExport(r)) {
+                        <a class="btn btn-sm btn-primary" [href]="files.blend" [attr.download]="fileName(r, 'blend')" title="Ábrelo en Blender y pulsa F12 para el render final">Descargar .blend</a>
+                      } @else {
+                        <a class="btn btn-sm" [href]="files.png" [attr.download]="fileName(r, 'png')">PNG</a>
+                        <a class="btn btn-sm" [href]="files.blend" [attr.download]="fileName(r, 'blend')" title="La escena para abrirla y retocarla en Blender">.blend</a>
+                      }
                     } @else {
                       <a class="btn btn-sm" [href]="r.url" [attr.download]="fileName(r, extension(r))">Descargar</a>
                     }
@@ -291,6 +296,7 @@ export class RenderGalleryComponent {
   readonly inProgress = computed(() => this.renders().filter((r) => r.provider === 'cycles' && r.status === 'pending').length);
 
   protected readonly engineLabel = engineLabel;
+  protected readonly isBlendExport = isBlendExport;
   protected readonly specLabel = specLabel;
 
   private readonly projectId = computed(() => this.store.project()?.id ?? null);
@@ -385,13 +391,24 @@ export class RenderGalleryComponent {
     this.pending.update((map) => applyRenderProgress(map, event));
     if (event.status === 'active') return;
     // El historial repite finales viejos: solo se anuncia lo que esta galería tenía como pendiente.
-    const live = this.renders().some((r) => r.id === event.jobId && r.status === 'pending');
-    void this.load();
-    if (!live) return;
+    const live = this.renders().find((r) => r.id === event.jobId && r.status === 'pending');
+    if (!live) return void this.load();
     if (event.status === 'completed') {
-      this.toast.show('Tu render en Blender está listo', 'success', 8000, { label: 'Ver', run: () => this.open() });
+      void this.load().then(() => this.announceReady(live.id));
     } else {
+      void this.load();
       this.toast.error(event.error ?? 'El render en Blender no se pudo terminar.', { label: 'Ver', run: () => this.open() });
     }
+  }
+
+  /** Aviso de render terminado; si era un .blend exportado, la descarga va en el propio aviso. */
+  private announceReady(renderId: string): void {
+    const render = this.renders().find((r) => r.id === renderId);
+    const blend = render && isBlendExport(render) ? render.downloads?.blend : undefined;
+    if (!render || !blend) return void this.toast.show('Tu render en Blender está listo', 'success', 8000, { label: 'Ver', run: () => this.open() });
+    this.toast.show('Tu archivo de Blender está listo', 'success', 12000, {
+      label: 'Descargar .blend',
+      run: () => downloadUrl(blend, this.fileName(render, 'blend')),
+    });
   }
 }

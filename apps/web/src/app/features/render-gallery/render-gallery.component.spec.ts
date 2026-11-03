@@ -50,6 +50,13 @@ describe('galería: etiquetas y avance', () => {
     expect(downloadName('Sala de estar', render(), 'blend')).toBe('sala-de-estar-blender-tarde.blend');
   });
 
+  it('un .blend exportado se nombra como archivo, listo para renderizar', () => {
+    const exported = render({ spec: { ...spec, purpose: 'export' } });
+    expect(engineLabel(exported)).toBe('Archivo de Blender');
+    expect(specLabel(exported.spec)).toBe('Tarde · 2K · Listo para renderizar');
+    expect(downloadName('Sala', exported, 'blend')).toBe('sala-archivo-de-blender-tarde.blend');
+  });
+
   it('lleva el avance de Blender y lo olvida al terminar; ignora otros trabajos y eventos viejos', () => {
     let map = applyRenderProgress(new Map(), event());
     expect(map.get('r1')?.pct).toBe(40);
@@ -77,6 +84,8 @@ describe('galería: antes y después', () => {
     expect(comparisonFor(blender, [ready({ id: 'n1', provider: 'pathtracer', spec: { ...spec, timeOfDay: 'night' } })])).toBeNull();
     expect(comparisonFor(blender, [ready({ id: 'b2' })])).toBeNull();
     expect(comparisonFor(blender, [render({ id: 'n1', provider: 'pathtracer' })])).toBeNull();
+    // Un .blend exportado solo trae una miniatura: no sirve de "después".
+    expect(comparisonFor(browser, [ready({ id: 'b3', spec: { ...spec, purpose: 'export' } })])).toBeNull();
     // A una cámara que se movió un centímetro todavía la cuenta como la misma vista.
     const nudged = { ...spec, camera: { ...spec.camera, position: { x: 1.01, y: 1.6, z: 3 } } };
     expect(comparisonFor(blender, [ready({ id: 'n1', provider: 'pathtracer', spec: nudged })])?.browser.id).toBe('n1');
@@ -122,6 +131,20 @@ describe('RenderGalleryComponent', () => {
     await fixture.whenStable();
     expect(toast.show).toHaveBeenCalledWith('Tu render en Blender está listo', 'success', 8000, expect.objectContaining({ label: 'Ver' }));
     expect(fixture.componentInstance.inProgress()).toBe(0);
+  });
+
+  it('al terminar un .blend exportado el aviso trae la descarga', async () => {
+    api.list.mockResolvedValue([render({ spec: { ...spec, purpose: 'export' } })]);
+    const fixture = await mount();
+    const files = { png: '/api/media/x.png', blend: '/api/media/x.blend' };
+    api.list.mockResolvedValue([render({ status: 'ready', url: '/api/media/x.jpg', mediaType: 'image/jpeg', spec: { ...spec, purpose: 'export' }, downloads: files })]);
+    events.next(event({ status: 'completed', stage: 'done', pct: 100 }));
+    await fixture.whenStable();
+    expect(toast.show).toHaveBeenCalledWith('Tu archivo de Blender está listo', 'success', 12000, expect.objectContaining({ label: 'Descargar .blend' }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    toast.show.mock.calls[0]![3].run();
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
   });
 
   it('no vuelve a anunciar finales viejos que repite el historial', async () => {

@@ -5,9 +5,15 @@ const TIME_LABELS: Record<RenderSpec['timeOfDay'], string> = { day: 'Día', even
 const QUALITY_LABELS: Record<RenderSpec['quality'], string> = { draft: 'Borrador', good: 'Buena', final: 'Final' };
 const RESOLUTION_LABELS: Record<RenderSpec['resolution'], string> = { '1080p': '1080p', '2k': '2K', '4k': '4K' };
 
+/** Un `.blend` exportado para abrir en Blender (trae solo una miniatura como imagen). */
+export function isBlendExport(render: Pick<Render, 'spec'>): boolean {
+  return render.spec?.purpose === 'export';
+}
+
 /** Con qué se hizo cada render, en palabras. */
-export function engineLabel(render: Pick<Render, 'kind' | 'provider'>): string {
+export function engineLabel(render: Pick<Render, 'kind' | 'provider'> & Partial<Pick<Render, 'spec'>>): string {
   if (render.kind === 'video') return 'Recorrido';
+  if (render.spec && isBlendExport({ spec: render.spec })) return 'Archivo de Blender';
   if (render.kind === 'photoreal') return 'Foto con IA';
   switch (render.provider) {
     case 'cycles':
@@ -22,7 +28,9 @@ export function engineLabel(render: Pick<Render, 'kind' | 'provider'>): string {
 /** "Tarde · 2K · Buena": lo que se eligió en el estudio. */
 export function specLabel(spec: RenderSpec | null): string {
   if (!spec) return '';
-  return [TIME_LABELS[spec.timeOfDay], RESOLUTION_LABELS[spec.resolution], QUALITY_LABELS[spec.quality]].join(' · ');
+  // El .blend exportado sale siempre en calidad final: lo que importa es que está listo para F12.
+  const quality = spec.purpose === 'export' ? 'Listo para renderizar' : QUALITY_LABELS[spec.quality];
+  return [TIME_LABELS[spec.timeOfDay], RESOLUTION_LABELS[spec.resolution], quality].join(' · ');
 }
 
 /** Lo que se sabe de un render que todavía se está haciendo en el nodo Blender. */
@@ -77,8 +85,9 @@ export function comparisonFor(render: Render, all: readonly Render[]): Compariso
 
 const CYCLES = 'cycles';
 
+/** Una imagen terminada con la que comparar (un .blend exportado solo trae una miniatura). */
 function isStill(r: Render): boolean {
-  return r.status === 'ready' && !!r.url && !!r.spec && r.kind === 'path' && !r.mediaType?.startsWith('video/');
+  return r.status === 'ready' && !!r.url && !!r.spec && r.kind === 'path' && !r.mediaType?.startsWith('video/') && !isBlendExport(r);
 }
 
 function sameView(a: RenderSpec, b: RenderSpec): boolean {

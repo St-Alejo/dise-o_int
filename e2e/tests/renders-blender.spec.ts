@@ -49,3 +49,33 @@ test('mandar el cuarto a Blender y verlo terminado en la galería', async ({ pag
   await gallery.getByRole('button', { name: 'Sí, borrar' }).click();
   await expect(gallery.getByText('Aún no hay renders')).toBeVisible();
 });
+
+test('exportar a Blender desde el menú y descargar el .blend desde el aviso', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile', 'El estudio de render es de escritorio');
+  const headers = await apiSession(page, 'blender-export');
+  const node = await (await page.request.get('/api/render-node', { headers })).json();
+  test.skip(!node.available, 'No hay nodo Blender (COMPOSE_PROFILES=e2e-render levanta el falso)');
+
+  const created = await page.request.post('/api/projects', {
+    headers,
+    multipart: { name: 'Sala para exportar', roomType: 'living', styles: 'moderno', roomSpec: JSON.stringify(ROOM) },
+  });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  const { id } = await created.json();
+  await expect.poll(async () => (await (await page.request.get(`/api/projects/${id}`, { headers })).json()).status, { timeout: 60_000 }).toBe('ready');
+
+  await page.goto(`/proyectos/${id}?vista=3d`);
+  await expect(page.locator('app-three-viewport canvas')).toBeVisible({ timeout: 30_000 });
+  // El menú abre el estudio con Blender ya elegido (la cámara se encuadra allí).
+  await page.locator('summary', { hasText: 'Exportar' }).click();
+  await page.getByRole('button', { name: /Archivo de Blender/ }).click();
+  await expect(page.getByRole('button', { name: 'Blender (fotorrealista)' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Exportar a Blender (.blend)' }).click();
+  await expect(page.getByText('Preparando tu archivo de Blender')).toBeVisible();
+
+  const ready = page.getByText('Tu archivo de Blender está listo');
+  await expect(ready).toBeVisible({ timeout: 60_000 });
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Descargar .blend' }).click();
+  expect((await download).suggestedFilename()).toBe('sala-para-exportar-archivo-de-blender-dia.blend');
+});
