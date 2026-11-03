@@ -46,6 +46,30 @@ export function classifyMesh(mesh: THREE.Mesh): SceneExtras {
 }
 
 /**
+ * Lado máximo de las texturas en el GLB. Casi todas son de repetición (piso, tela, madera), así que
+ * 1024 basta, y con 2048 en PNG una sala pesaba ~37 MB.
+ */
+export const EXPORT_TEXTURE_SIZE = 1024;
+
+/**
+ * Las texturas de los materiales, con el formato en que conviene guardarlas: JPEG (diez veces más
+ * ligero) salvo el color de un material con transparencia, que necesita su canal alfa.
+ */
+export function textureFormats(materials: Iterable<THREE.Material>): Map<THREE.Texture, 'image/jpeg' | 'image/png'> {
+  const formats = new Map<THREE.Texture, 'image/jpeg' | 'image/png'>();
+  for (const material of materials) {
+    const needsAlpha = material.transparent || material.alphaTest > 0;
+    for (const [key, value] of Object.entries(material)) {
+      if (!(value instanceof THREE.Texture)) continue;
+      const format = key === 'map' && needsAlpha ? 'image/png' : 'image/jpeg';
+      // La misma textura en dos materiales: si uno necesita alfa, gana PNG.
+      if (formats.get(value) !== 'image/png') formats.set(value, format);
+    }
+  }
+  return formats;
+}
+
+/**
  * Exporta el cuarto visible a GLB con el papel de cada malla en sus extras. No toca lo que se ve:
  * lo fingido se oculta solo durante la exportación y las marcas se quitan al terminar.
  */
@@ -68,12 +92,24 @@ export async function exportRoomGlb(scene: THREE.Scene): Promise<ArrayBuffer> {
       tagged.push(o);
     });
   }
+  const materials = new Set(tagged.flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])));
+  const formats = textureFormats(materials);
+  // El exportador lee el formato de `userData.mimeType`; se devuelve el que tuviera.
+  const savedFormats = [...formats].map(([texture, format]) => {
+    const before: unknown = texture.userData['mimeType'];
+    texture.userData['mimeType'] = format;
+    return [texture, before] as const;
+  });
   try {
     const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
-    const result = await new GLTFExporter().parseAsync(roots, { binary: true, onlyVisible: true, maxTextureSize: 2048 });
+    const result = await new GLTFExporter().parseAsync(roots, { binary: true, onlyVisible: true, maxTextureSize: EXPORT_TEXTURE_SIZE });
     if (!(result instanceof ArrayBuffer)) throw new Error('El exportador no devolvió un GLB');
     return result;
   } finally {
+    for (const [texture, before] of savedFormats) {
+      if (before === undefined) delete texture.userData['mimeType'];
+      else texture.userData['mimeType'] = before;
+    }
     for (const o of hidden) o.visible = true;
     for (const o of tagged) {
       delete o.userData[SCENE_EXTRA_KEYS.role];

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { classifyMesh, exportRoomGlb, isFakeShading } from './scene-export';
+import { classifyMesh, exportRoomGlb, isFakeShading, textureFormats } from './scene-export';
 
 const box = (name = '', material: THREE.Material = new THREE.MeshStandardMaterial()) => {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
@@ -77,6 +77,26 @@ describe('papel de cada malla para Blender', () => {
     expect(isFakeShading(r.shade)).toBe(true);
     expect(isFakeShading(box('contact-shadow'))).toBe(true);
     expect(isFakeShading(r.seat)).toBe(false);
+  });
+});
+
+describe('formato de las texturas', () => {
+  it('JPEG para todo salvo el color de un material transparente', () => {
+    const wood = new THREE.Texture();
+    const normal = new THREE.Texture();
+    const leaves = new THREE.Texture();
+    const opaque = new THREE.MeshStandardMaterial({ map: wood, normalMap: normal });
+    const cutout = new THREE.MeshStandardMaterial({ map: leaves, transparent: true });
+    const formats = textureFormats([opaque, cutout]);
+    expect(formats.get(wood)).toBe('image/jpeg');
+    expect(formats.get(normal)).toBe('image/jpeg');
+    expect(formats.get(leaves)).toBe('image/png');
+  });
+
+  it('si una textura compartida necesita alfa en algún material, queda en PNG', () => {
+    const shared = new THREE.Texture();
+    const formats = textureFormats([new THREE.MeshStandardMaterial({ map: shared, transparent: true }), new THREE.MeshStandardMaterial({ map: shared })]);
+    expect(formats.get(shared)).toBe('image/png');
   });
 });
 
