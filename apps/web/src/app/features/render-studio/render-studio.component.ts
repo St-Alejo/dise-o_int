@@ -269,8 +269,6 @@ export class RenderStudioComponent {
   protected readonly node = signal<RenderNodeStatus | null>(null);
   /** Qué se está mandando al nodo (para el texto del botón), o null. */
   protected readonly sending = signal<'render' | 'export' | null>(null);
-  /** Se abrió para exportar a Blender: en cuanto se sepa que hay nodo, se elige ese motor. */
-  private wantsBlender = false;
   protected readonly engines = computed((): SegmentOption<EngineChoice>[] => {
     const node = this.node();
     return [
@@ -305,13 +303,25 @@ export class RenderStudioComponent {
     effect(() => this.studio.attachPreview(this.previewRef()?.nativeElement ?? null));
   }
 
-  /** `blender`: se abre para exportar o renderizar en Blender (si el nodo está encendido). */
-  open(options: { blender?: boolean } = {}): void {
+  open(): void {
     this.time.set(this.scene.timeOfDay());
     this.saved.set(false);
-    this.wantsBlender = !!options.blender;
     this.dialog().open();
     if (this.canSave()) void this.checkNode();
+  }
+
+  /**
+   * Exportar a Blender en un clic: la vista del visor a la hora del editor, sin abrir el estudio.
+   * El .blend se descarga solo cuando el nodo termina (lo hace la galería).
+   */
+  async quickExport(): Promise<void> {
+    if (!this.canSave() || this.sending()) return;
+    const node = await this.renders.renderNode().catch(() => null);
+    if (!node?.available) return this.toast.error('Blender está apagado ahora: enciende el nodo de render y vuelve a intentarlo.');
+    this.time.set(this.scene.timeOfDay());
+    this.camera.set('current');
+    this.engine.set('blender');
+    await this.sendToBlender('export');
   }
 
   private async checkNode(): Promise<void> {
@@ -319,7 +329,6 @@ export class RenderStudioComponent {
     const node = await this.renders.renderNode();
     this.node.set(node);
     if (!node.available) this.engine.set('browser');
-    else if (this.wantsBlender) this.engine.set('blender');
   }
 
   protected round(n: number): number {
@@ -387,7 +396,7 @@ export class RenderStudioComponent {
       const render = await this.renders.renderInBlender(projectId, spec, scene.lights, scene.glb);
       this.sent.emit(render);
       this.dialog().close();
-      const message = purpose === 'export' ? 'Preparando tu archivo de Blender. Te avisamos para descargarlo.' : 'Render enviado a Blender. Te avisamos cuando esté listo.';
+      const message = purpose === 'export' ? 'Preparando tu archivo de Blender: se descarga solo en unos segundos.' : 'Render enviado a Blender. Te avisamos cuando esté listo.';
       this.toast.show(message, 'success', 6000, { label: 'Ver galería', run: () => this.gallery.emit() });
     } catch (err) {
       const error = ApiError.from(err);

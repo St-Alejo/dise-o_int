@@ -83,6 +83,7 @@ export const VIEWS: readonly { id: ViewMode; label: string; title: string }[] = 
       </details>
       <button type="button" class="btn btn-sm" (click)="studio.emit()" [disabled]="!store.shell() || viewMode() === 'plan'" appTooltip="Una imagen realista del cuarto: luz rebotada, sombras suaves y el cielo por las ventanas"><app-icon name="camera" /> Render realista</button>
       @if (!demo()) {
+        <button type="button" class="btn btn-sm" (click)="blenderExport.emit()" [disabled]="!store.shell() || viewMode() === 'plan'" appTooltip="Descarga este cuarto como archivo de Blender, con materiales, luces y cámara listos: ábrelo y pulsa F12"><app-icon name="cube" /> Blender</button>
         <button type="button" class="btn btn-sm" (click)="gallery.emit()" appTooltip="Los renders guardados y los que se están haciendo en Blender"><app-icon name="picture" /> Galería</button>
       }
       <button type="button" class="btn btn-sm" (click)="present.emit()" [disabled]="!store.shell()" appTooltip="Enseña el cuarto a pantalla completa, vista por vista (flechas para avanzar)">Presentar</button>
@@ -237,7 +238,7 @@ export class EditorToolbarComponent {
   readonly present = output<void>();
   /** Abrir el estudio de render (imagen realista). */
   readonly studio = output<void>();
-  /** Abrir el estudio para exportar un .blend (la cámara se encuadra allí). */
+  /** Exportar la vista actual a un .blend en un clic (se descarga solo al terminar). */
   readonly blenderExport = output<void>();
   /** Abrir la galería de renders del proyecto. */
   readonly gallery = output<void>();

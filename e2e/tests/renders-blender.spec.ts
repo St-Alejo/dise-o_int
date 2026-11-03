@@ -66,16 +66,16 @@ test('exportar a Blender desde el menú y descargar el .blend desde el aviso', a
 
   await page.goto(`/proyectos/${id}?vista=3d`);
   await expect(page.locator('app-three-viewport canvas')).toBeVisible({ timeout: 30_000 });
-  // El menú abre el estudio con Blender ya elegido (la cámara se encuadra allí).
+  // Un clic en «Blender» y el .blend se descarga solo al terminar, sin pasar por el estudio.
+  const download = page.waitForEvent('download', { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Blender', exact: true }).click();
+  await expect(page.getByText('Preparando tu archivo de Blender')).toBeVisible();
+  expect((await download).suggestedFilename()).toBe('sala-para-exportar-archivo-de-blender-dia.blend');
+  await expect(page.getByText('Tu archivo de Blender se está descargando')).toBeVisible();
+
+  // Desde el menú «Exportar» también es un clic.
+  const again = page.waitForEvent('download', { timeout: 60_000 });
   await page.locator('summary', { hasText: 'Exportar' }).click();
   await page.getByRole('button', { name: /Archivo de Blender/ }).click();
-  await expect(page.getByRole('button', { name: 'Blender (fotorrealista)' })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Exportar a Blender (.blend)' }).click();
-  await expect(page.getByText('Preparando tu archivo de Blender')).toBeVisible();
-
-  const ready = page.getByText('Tu archivo de Blender está listo');
-  await expect(ready).toBeVisible({ timeout: 60_000 });
-  const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Descargar .blend' }).click();
-  expect((await download).suggestedFilename()).toBe('sala-para-exportar-archivo-de-blender-dia.blend');
+  expect((await again).suggestedFilename()).toMatch(/\.blend$/);
 });

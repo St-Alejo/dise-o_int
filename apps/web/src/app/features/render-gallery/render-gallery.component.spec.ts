@@ -133,17 +133,18 @@ describe('RenderGalleryComponent', () => {
     expect(fixture.componentInstance.inProgress()).toBe(0);
   });
 
-  it('al terminar un .blend exportado el aviso trae la descarga', async () => {
+  it('al terminar un .blend exportado lo descarga solo y el aviso permite repetirlo', async () => {
     api.list.mockResolvedValue([render({ spec: { ...spec, purpose: 'export' } })]);
     const fixture = await mount();
     const files = { png: '/api/media/x.png', blend: '/api/media/x.blend' };
     api.list.mockResolvedValue([render({ status: 'ready', url: '/api/media/x.jpg', mediaType: 'image/jpeg', spec: { ...spec, purpose: 'export' }, downloads: files })]);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     events.next(event({ status: 'completed', stage: 'done', pct: 100 }));
     await fixture.whenStable();
-    expect(toast.show).toHaveBeenCalledWith('Tu archivo de Blender está listo', 'success', 12000, expect.objectContaining({ label: 'Descargar .blend' }));
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(toast.show).toHaveBeenCalledWith(expect.stringContaining('se está descargando'), 'success', 12000, expect.objectContaining({ label: 'Descargar otra vez' }));
     toast.show.mock.calls[0]![3].run();
-    expect(click).toHaveBeenCalled();
+    expect(click).toHaveBeenCalledTimes(2);
     click.mockRestore();
   });
 

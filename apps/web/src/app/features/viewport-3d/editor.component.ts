@@ -72,7 +72,7 @@ function initialView(): ViewMode {
       (review)="panel.showReview()"
       (present)="presentation.start()"
       (studio)="studio.open()"
-      (blenderExport)="studio.open({ blender: true })"
+      (blenderExport)="studio.quickExport()"
       (gallery)="openGallery()"
       (shortcuts)="shortcuts.open()"
     />

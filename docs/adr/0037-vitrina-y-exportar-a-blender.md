@@ -25,8 +25,10 @@ vea bien, sin tener que configurar luces, cámara ni render.
   luces y el mundo de la escena (Blender no conserva el modo *Rendered* al reabrir un archivo), EEVEE
   con trazado de rayos para que el visor ya se parezca al render; salida en `//render.png` y un texto
   `LEEME` con los atajos (F12, Z → Rendered, Numpad 0).
-- **En la web:** «Exportar → Archivo de Blender» en el editor abre el estudio con Blender elegido; al
-  terminar, un aviso ofrece «Descargar .blend» y la galería lo muestra como «Archivo de Blender».
+- **En la web, un clic:** el botón «Blender» de la barra del editor (y «Exportar → Archivo de
+  Blender») exporta la vista actual a la hora del editor sin abrir el estudio; cuando el nodo termina,
+  el `.blend` se descarga solo y el aviso permite repetir la descarga. Quien quiera otra cámara u hora
+  lo hace desde el estudio («Exportar a Blender (.blend)»). En la galería queda como «Archivo de Blender».
 
 ## Consecuencias
 - Rehacer la vitrina es un comando (`node e2e/scripts/make-showcase.mjs <api> <salida>`); si cambia

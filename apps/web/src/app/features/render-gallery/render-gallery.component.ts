@@ -401,14 +401,13 @@ export class RenderGalleryComponent {
     }
   }
 
-  /** Aviso de render terminado; si era un .blend exportado, la descarga va en el propio aviso. */
+  /** Aviso de render terminado; un .blend exportado se descarga solo (el aviso permite repetirlo). */
   private announceReady(renderId: string): void {
     const render = this.renders().find((r) => r.id === renderId);
     const blend = render && isBlendExport(render) ? render.downloads?.blend : undefined;
     if (!render || !blend) return void this.toast.show('Tu render en Blender está listo', 'success', 8000, { label: 'Ver', run: () => this.open() });
-    this.toast.show('Tu archivo de Blender está listo', 'success', 12000, {
-      label: 'Descargar .blend',
-      run: () => downloadUrl(blend, this.fileName(render, 'blend')),
-    });
+    const download = () => downloadUrl(blend, this.fileName(render, 'blend'));
+    download();
+    this.toast.show('Tu archivo de Blender se está descargando: ábrelo y pulsa F12', 'success', 12000, { label: 'Descargar otra vez', run: download });
   }
 }
