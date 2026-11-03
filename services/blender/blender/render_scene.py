@@ -27,6 +27,7 @@ sys.path.insert(0, os.environ.get("INTERIORES_BLENDER_SRC", str(Path(__file__).r
 from interiores_blender.look import (
     DROP_NAMES,
     MaterialRecipe,
+    camera_sees_through_back,
     clamp_roughness,
     hex_to_linear,
     kelvin_to_linear,
@@ -91,7 +92,7 @@ def set_input(bsdf: bpy.types.Node, name: str, value: object) -> None:
         socket.default_value = value
 
 
-def upgrade_material(material: bpy.types.Material, recipe: MaterialRecipe) -> None:
+def upgrade_material(material: bpy.types.Material, recipe: MaterialRecipe, see_through_back: bool = False) -> None:
     """Aplica la receta sobre el Principled BSDF que creó el importador glTF."""
     bsdf, out = principled_of(material)
     if bsdf is None or out is None:
@@ -164,6 +165,20 @@ def upgrade_material(material: bpy.types.Material, recipe: MaterialRecipe) -> No
         links.new(surface, mix.inputs[1])
         links.new(clear.outputs["BSDF"], mix.inputs[2])
         surface = mix.outputs["Shader"]
+    if see_through_back:
+        # Como en el visor: un rayo de cámara que llega por el revés de techo o pared lo atraviesa.
+        path = node(tree, "ShaderNodeLightPath", x, y + 850)
+        geometry = node(tree, "ShaderNodeNewGeometry", x, y + 1050)
+        both = node(tree, "ShaderNodeMath", x + 200, y + 900)
+        both.operation = "MULTIPLY"
+        clear = node(tree, "ShaderNodeBsdfTransparent", x + 200, y + 1100)
+        mix = node(tree, "ShaderNodeMixShader", out.location.x - 200, out.location.y + 400)
+        links.new(path.outputs["Is Camera Ray"], both.inputs[0])
+        links.new(geometry.outputs["Backfacing"], both.inputs[1])
+        links.new(both.outputs["Value"], mix.inputs["Fac"])
+        links.new(surface, mix.inputs[1])
+        links.new(clear.outputs["BSDF"], mix.inputs[2])
+        surface = mix.outputs["Shader"]
     links.new(surface, out.inputs["Surface"])
 
 
@@ -180,7 +195,8 @@ def upgrade_materials(meshes: list[bpy.types.Object]) -> dict[str, int]:
             if material is None or material.name in done:
                 continue
             done.add(material.name)
-            upgrade_material(material, recipe_for(role, kind))
+            see_through = camera_sees_through_back(role, material.use_backface_culling)
+            upgrade_material(material, recipe_for(role, kind), see_through)
     return roles
 
 

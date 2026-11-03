@@ -81,6 +81,20 @@ def recipe_for(role: str | None, material: str | None) -> MaterialRecipe:
     return base
 
 
+#: La "caja" del cuarto: en el visor se dibuja por una sola cara, así que desde fuera no tapa la vista.
+SHELL_ROLES = frozenset({"wall", "ceiling", "floor", "trim"})
+
+
+def camera_sees_through_back(role: str | None, single_sided: bool) -> bool:
+    """¿La cámara debe atravesar la cara trasera de esta superficie?
+
+    Con la cámara fuera del cuarto (la vista general desde arriba) el visor no dibuja el revés del
+    techo ni de las paredes; Cycles dibuja las dos caras y el techo taparía todo. Solo para la cámara:
+    para la luz siguen siendo sólidas y el techo sigue dando sombra.
+    """
+    return single_sided and role in SHELL_ROLES
+
+
 def clamp_roughness(value: float, recipe: MaterialRecipe) -> float:
     if recipe.roughness_min is not None:
         value = max(value, recipe.roughness_min)

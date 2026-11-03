@@ -4,6 +4,7 @@ import pytest
 
 from interiores_blender.look import (
     MaterialRecipe,
+    camera_sees_through_back,
     clamp_roughness,
     hex_to_linear,
     kelvin_to_linear,
@@ -101,3 +102,12 @@ def test_sin_alto_no_hay_portal() -> None:
 )
 def test_avance_desde_la_salida_de_blender(line: str, pct: int | None) -> None:
     assert progress_pct(line) == pct
+
+
+def test_la_camara_atraviesa_el_reves_de_la_caja_del_cuarto_como_en_el_visor() -> None:
+    assert camera_sees_through_back("ceiling", single_sided=True)
+    assert camera_sees_through_back("wall", single_sided=True)
+    # Un material de doble cara se ve igual por los dos lados en el visor; los muebles nunca.
+    assert not camera_sees_through_back("wall", single_sided=False)
+    assert not camera_sees_through_back("furniture", single_sided=True)
+    assert not camera_sees_through_back(None, single_sided=True)
