@@ -212,8 +212,9 @@ export function cyclesSettings(quality: RenderQuality): BlenderPlan['cycles'] {
  * entrando por una ventana) y exposición en EV para compensar que de noche casi todo es lámpara.
  */
 export const SUN_BY_TIME: Record<RenderTime, Omit<BlenderPlan['world'], 'sunDirection' | 'sunElevationDeg'>> = {
-  // Calibrado con la sala de prueba en la RTX 4070: con menos exposición el interior queda en penumbra.
-  day: { sunStrength: 4.5, sunColor: '#fff3e0', skyStrength: 1, exposure: 1.6, look: 'AgX - Medium High Contrast' },
+  // Calibrado con la sala de prueba en la RTX 4070: de día, sin sol directo por la ventana, con menos
+  // exposición el interior queda gris y en penumbra.
+  day: { sunStrength: 4.5, sunColor: '#fff3e0', skyStrength: 1, exposure: 2.1, look: 'AgX - Medium High Contrast' },
   evening: { sunStrength: 3.2, sunColor: '#ffbe7d', skyStrength: 0.6, exposure: 1.1, look: 'AgX - Medium High Contrast' },
   night: { sunStrength: 0, sunColor: '#1b2238', skyStrength: 0.05, exposure: 0.4, look: 'AgX - Medium High Contrast' },
 };
