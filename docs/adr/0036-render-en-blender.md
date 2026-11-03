@@ -37,7 +37,7 @@ duplicar materiales y luces, y cada render costaría dinero.
   cambia `services/blender/**`.
 - Junto al PNG se guarda el `.blend`, para quien quiera retocarlo en su Blender. Ambos viven bajo
   `projects/{id}/renders/{rid}.*` y se borran con el render, el proyecto y la retención.
-- La foto realista con IA del plan v9 (Fase 2) pasa a ser el ADR-0037.
+- La foto realista con IA del plan v9 (Fase 2) queda para un ADR posterior.
 
 ## Cierre (Fase 5)
 - **Lo que la cámara ve "fuera" del cuarto.** En la vista general Cycles dibujaba lo que el visor no:
