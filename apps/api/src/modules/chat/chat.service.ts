@@ -29,6 +29,16 @@ export interface ChatAgents {
 }
 export const CHAT_AGENTS = Symbol('ChatAgents');
 
+/** Sin IA y ante un pedido abierto: qué sí entiende el asistente básico. */
+export const BASIC_HELP = [
+  'Sin la IA solo puedo hacer cambios concretos, por ejemplo:',
+  '• "pon una lámpara de pie junto al sofá"',
+  '• "pinta las paredes de verde salvia" · "piso de roble"',
+  '• "pon una alfombra bajo la mesa de centro"',
+  '• "quita la alfombra" · "gira el sofá" · "agranda la cama"',
+  'Las ideas abiertas, como "hazlo más acogedor", vuelve a pedírmelas en un rato.',
+].join('\n');
+
 /** Lo que necesita "hazlo como esta foto": dónde guardarla, cómo normalizarla y quién la lee. */
 export interface ReferenceDeps {
   ai: IAiClient;
@@ -110,7 +120,10 @@ export class ChatService {
       }
     }
     const toolbox = newToolbox();
-    const { reply } = await this.agents.rules.run({ ...input, toolbox });
+    const { reply, understood } = await this.agents.rules.run({ ...input, toolbox });
+    // La IA no respondió y las reglas no entendieron nada (un pedido abierto): se explica qué sí
+    // se puede pedir sin IA, en vez de "No encontré «...» en el catálogo".
+    if (note && understood === false) return { reply: `${note}${BASIC_HELP}`, operations: [], agent: 'rules' };
     return { reply: `${note}${reply}`, operations: toolbox.operations(), agent: 'rules' };
   }
 

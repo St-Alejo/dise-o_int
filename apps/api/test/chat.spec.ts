@@ -12,7 +12,7 @@ import { StaleRevisionError } from '../src/common/errors.js';
 import type { ProjectRecord } from '../src/ports/index.js';
 import type { CatalogService } from '../src/modules/catalog/catalog.service.js';
 import type { ProjectsService } from '../src/modules/projects/projects.service.js';
-import { ChatService } from '../src/modules/chat/chat.service.js';
+import { BASIC_HELP, ChatService } from '../src/modules/chat/chat.service.js';
 import { ClaudeDesignAgent, buildTools, historyToMessages, type MessagesApi } from '../src/modules/chat/claude.agent.js';
 import { AgentDeclinedError, AgentUnavailableError, type DesignAgent } from '../src/modules/chat/design-agent.js';
 import { RuleBasedDesignAgent, parsePlacement, splitClauses } from '../src/modules/chat/rule-based.agent.js';
@@ -44,6 +44,7 @@ const CATALOG: CatalogItem[] = [
   item({ id: 'floor-lamp', name: 'Lámpara de pie', category: 'lighting', subcategory: 'floor-lamp', tags: ['lampara', 'pie'], dimensionsM: { x: 0.4, y: 1.6, z: 0.4 } }),
   item({ id: 'rug', name: 'Alfombra rectangular', category: 'textile', subcategory: 'rug', tags: ['alfombra', 'tapete'], dimensionsM: { x: 2, y: 0.01, z: 1.4 } }),
   item({ id: 'desk', name: 'Escritorio', category: 'table', subcategory: 'desk', tags: ['escritorio'], dimensionsM: { x: 1.2, y: 0.75, z: 0.6 }, allowsUnder: true }),
+  item({ id: 'coffee', name: 'Mesa de centro', category: 'table', subcategory: 'coffee-table', tags: ['mesa de centro'], dimensionsM: { x: 1.1, y: 0.42, z: 0.6 } }),
   item({ id: 'chair', name: 'Silla', category: 'chair', tags: ['silla'], dimensionsM: { x: 0.45, y: 0.85, z: 0.5 }, tucksUnder: true }),
   item({ id: 'art', name: 'Cuadro abstracto', category: 'wall-decor', mount: 'wall', tags: ['cuadro', 'arte'], elevationDefaultM: 1.3, dimensionsM: { x: 0.8, y: 0.6, z: 0.03 } }),
   item({
@@ -364,6 +365,23 @@ describe('ChatService', () => {
 
     expect((await svc.chat({ userId: 'alice' }, 'p1', req('quita la alfombra; hazlo más acogedor'))).agent).toBe('claude');
     expect(calls).toBe(1);
+  });
+
+  it('sin IA, un pedido abierto recibe ayuda con ejemplos (no "no encontré … en el catálogo")', async () => {
+    const down: DesignAgent = { kind: 'claude', available: true, run: async () => Promise.reject(new AgentUnavailableError('429')) };
+    const res = await service(down).svc.chat({ userId: 'alice' }, 'p1', req('Quiero que la sala se sienta más acogedora y cálida para leer de noche'));
+    expect(res.agent).toBe('rules');
+    expect(res.reply).toMatch(/no está disponible/);
+    expect(res.reply).toContain(BASIC_HELP);
+    expect(res.reply).not.toMatch(/No encontré|✗/);
+    expect(res.operations).toEqual([]);
+
+    // Cada ejemplo de la ayuda lo resuelve de verdad el asistente básico.
+    for (const example of BASIC_HELP.match(/"[^"]+"/g)!.map((s) => s.slice(1, -1)).filter((s) => !s.startsWith('hazlo'))) {
+      const { reply, ops } = await rules(example, toolbox([...SCENE(), place('coffee1', 'coffee', 1.6, 2.8)]));
+      expect(reply, example).not.toMatch(/✗/);
+      expect(ops.length, example).toBeGreaterThan(0);
+    }
   });
 
   it('revisión vieja → 409', async () => {

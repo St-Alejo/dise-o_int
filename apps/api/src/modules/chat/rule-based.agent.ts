@@ -101,7 +101,7 @@ export class RuleBasedDesignAgent implements DesignAgent {
   async run({ message, toolbox }: DesignAgentInput): Promise<DesignAgentResult> {
     const session = new RuleSession(toolbox);
     for (const clause of splitClauses(message)) session.handle(clause);
-    return { reply: session.reply() };
+    return { reply: session.reply(), understood: session.understoodCount > 0 };
   }
 
   /**
@@ -254,6 +254,9 @@ export class RuleSession {
     const { count, object, relation, ref, wallId } = parsePlacement(rest);
     if (!object) return;
     const item = this.findCatalogItem(object);
+    // "quiero que la sala se sienta más acogedora" no es un mueble que falte en el catálogo: es un
+    // pedido abierto que las reglas no entienden (y así la respuesta lo dice, con ejemplos).
+    if (!item && looksLikeSentence(object)) return;
     this.understood++;
     if (!item) {
       this.problems.push(`No encontré "${object}" en el catálogo`);
@@ -427,6 +430,11 @@ export class RuleSession {
     const same = candidates.filter((p) => p.catalogItemId === best.id);
     return same.find((p) => p.id === this.lastId) ?? same[same.length - 1] ?? null;
   }
+}
+
+/** Una frase ("que se sienta acogedora", "algo para leer de noche") y no el nombre de un mueble. */
+function looksLikeSentence(object: string): boolean {
+  return /^(?:que|algo|como|mas|menos)\b/.test(object) || object.split(/\s+/).length > 5;
 }
 
 function strip(text: string, verbRe: RegExp): string {

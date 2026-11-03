@@ -16,6 +16,8 @@ export interface DesignAgentInput {
 
 export interface DesignAgentResult {
   reply: string;
+  /** false = no entendió ninguna orden (el asistente por reglas ante un pedido abierto). */
+  understood?: boolean;
 }
 
 export interface DesignAgent {
