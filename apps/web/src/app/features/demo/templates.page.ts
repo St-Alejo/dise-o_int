@@ -24,7 +24,7 @@ import { RevealDirective } from '../../shared/ui/reveal.directive';
                 <img [src]="'/escenas/' + t.id + '.webp'" [alt]="'Vista 3D de la plantilla ' + t.name" width="960" height="640" loading="lazy" decoding="async" />
               </span>
               <span class="body">
-                <span class="kind">{{ roomLabels[t.roomType] }} · {{ styles[t.styleId].label }}@if (t.pro) { <span class="badge badge-accent">Pro</span>}</span>
+                <span class="kind">{{ roomLabels[t.roomType] }} · {{ styles[t.styleId].label }}@if (t.pro) { <span class="badge badge-accent">Pro</span>}@if (t.featured) { <span class="badge badge-accent">Destacada</span>}</span>
                 <span class="name">{{ t.name }}</span>
                 <span class="summary">{{ t.summary }}</span>
                 <span class="go">Abrir en el editor <app-icon name="arrowRight" /></span>

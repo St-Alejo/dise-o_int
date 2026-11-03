@@ -12,6 +12,14 @@ describe('plantillas amuebladas', () => {
     expect(furnishedTemplateInfo('no-existe')).toBeUndefined();
   });
 
+  it('los diseños de vitrina van primero: uno por ambiente, cada uno con un estilo distinto', () => {
+    const featured = FURNISHED_TEMPLATES.filter((t) => t.featured);
+    expect(featured).toHaveLength(6);
+    expect(FURNISHED_TEMPLATES.slice(0, 6)).toEqual(featured);
+    expect(new Set(featured.map((t) => t.roomType)).size).toBe(6);
+    expect(new Set(featured.map((t) => t.styleId)).size).toBe(6);
+  });
+
   it('la plantilla profesional trae su ficha técnica con instalaciones y cajetín', () => {
     const pro = FURNISHED_TEMPLATES.filter((t) => t.pro);
     expect(pro.map((t) => t.id)).toEqual(['dormitorio-obra']);
