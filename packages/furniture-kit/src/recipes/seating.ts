@@ -91,7 +91,8 @@ export const sofaL: FurnitureRecipe = {
     // La base termina donde empieza el brazo (caras coincidentes = manchas negras en Cycles).
     b.box(SLOTS.upholstery.slot, w - arm, baseH, mainD, [side * arm / 2, legH, z0], 0.02);
     b.box(SLOTS.upholstery.slot, chaiseW, baseH, d - mainD, [side * (w / 2 - chaiseW / 2), legH, -d / 2 + mainD + (d - mainD) / 2], 0.02);
-    b.box(SLOTS.upholstery.slot, w - arm, h - seatTop, backD, [-side * arm / 2, seatTop, -d / 2 + backD / 2], 0.04);
+    // El respaldo va del brazo al extremo de la chaise; si entrara en el brazo, sus caras coincidirían.
+    b.box(SLOTS.upholstery.slot, w - arm, h - seatTop, backD, [side * arm / 2, seatTop, -d / 2 + backD / 2], 0.04);
     // Brazo del lado sin chaise.
     b.box(SLOTS.upholstery.slot, arm, Math.min(h - legH, baseH + cushionH + 0.18), mainD, [-side * (w / 2 - arm / 2), legH, z0], 0.04);
     const mainInner = w - arm - chaiseW;
