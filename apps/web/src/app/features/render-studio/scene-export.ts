@@ -76,6 +76,18 @@ export function textureFormats(materials: Iterable<THREE.Material>): Map<THREE.T
 export async function exportRoomGlb(scene: THREE.Scene): Promise<ArrayBuffer> {
   const roots = EXPORT_ROOTS.map((name) => scene.getObjectByName(name)).filter((o): o is THREE.Object3D => !!o?.visible);
   if (!roots.length) throw new Error('No hay cuarto que exportar');
+  // Las paredes que el estudio recorta para ver dentro viajan igual, marcadas como invisibles para
+  // la cámara: en Blender siguen tapando el sol y rebotando luz, y el cuarto no queda abierto.
+  const ghosts: THREE.Object3D[] = [];
+  for (const root of roots) {
+    root.traverse((o) => {
+      if (o.userData['ghost'] === true && !o.visible) ghosts.push(o);
+    });
+  }
+  for (const o of ghosts) o.visible = true;
+  const ghostMeshes = new Set<THREE.Object3D>();
+  for (const o of ghosts) o.traverse((child) => ghostMeshes.add(child));
+
   const hidden: THREE.Object3D[] = [];
   const tagged: THREE.Mesh[] = [];
   for (const root of roots) {
@@ -89,6 +101,7 @@ export async function exportRoomGlb(scene: THREE.Scene): Promise<ArrayBuffer> {
       const extras = classifyMesh(o);
       o.userData[SCENE_EXTRA_KEYS.role] = extras.role;
       o.userData[SCENE_EXTRA_KEYS.material] = extras.material;
+      if (ghostMeshes.has(o)) o.userData[SCENE_EXTRA_KEYS.cameraHidden] = true;
       tagged.push(o);
     });
   }
@@ -111,9 +124,11 @@ export async function exportRoomGlb(scene: THREE.Scene): Promise<ArrayBuffer> {
       else texture.userData['mimeType'] = before;
     }
     for (const o of hidden) o.visible = true;
+    for (const o of ghosts) o.visible = false;
     for (const o of tagged) {
       delete o.userData[SCENE_EXTRA_KEYS.role];
       delete o.userData[SCENE_EXTRA_KEYS.material];
+      delete o.userData[SCENE_EXTRA_KEYS.cameraHidden];
     }
   }
 }

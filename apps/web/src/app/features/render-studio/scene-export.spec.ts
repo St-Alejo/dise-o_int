@@ -117,6 +117,22 @@ describe('exportar el cuarto a GLB', () => {
     expect(r.shade.visible).toBe(true);
   });
 
+  it('la pared recortada viaja invisible para la cámara y vuelve a quedar oculta', async () => {
+    const r = room();
+    const cut = new THREE.Group();
+    cut.name = 'wall-w2';
+    cut.userData['ghost'] = true;
+    cut.visible = false; // así la deja beginStudio
+    const piece = box('', tagged('wall', 'paint'));
+    cut.add(piece);
+    r.scene.getObjectByName('room')!.add(cut);
+    const json = glbJson(await exportRoomGlb(r.scene));
+    const extras = json.nodes.map((n) => n.extras).filter((e) => e?.['renderCameraHidden'] === true);
+    expect(extras).toHaveLength(1);
+    expect(cut.visible).toBe(false);
+    expect(piece.userData['renderCameraHidden']).toBeUndefined();
+  });
+
   it('falla claro si no hay cuarto', async () => {
     await expect(exportRoomGlb(new THREE.Scene())).rejects.toThrow('No hay cuarto');
   });

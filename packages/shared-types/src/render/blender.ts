@@ -36,8 +36,11 @@ export const SCENE_MATERIALS = ['paint', 'wood', 'stone', 'tile', 'concrete', 'f
 export const SceneMaterialSchema = z.enum(SCENE_MATERIALS);
 export type SceneMaterial = z.infer<typeof SceneMaterialSchema>;
 
-/** Claves de `userData` que el exportador escribe en cada malla (llegan a Blender tal cual). */
-export const SCENE_EXTRA_KEYS = { role: 'renderRole', material: 'renderMaterial' } as const;
+/**
+ * Claves de `userData` que el exportador escribe en cada malla (llegan a Blender tal cual).
+ * `cameraHidden`: pared recortada para ver dentro; no se ve, pero tapa la luz.
+ */
+export const SCENE_EXTRA_KEYS = { role: 'renderRole', material: 'renderMaterial', cameraHidden: 'renderCameraHidden' } as const;
 
 export const SceneExtrasSchema = z.object({ role: SceneRoleSchema, material: SceneMaterialSchema });
 export type SceneExtras = z.infer<typeof SceneExtrasSchema>;
