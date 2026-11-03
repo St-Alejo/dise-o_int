@@ -5,6 +5,8 @@ export interface SegmentOption<T extends string = string> {
   label: string;
   /** Explicación al pasar el cursor. */
   title?: string;
+  /** Se ve pero no se puede elegir (el `title` dice por qué). */
+  disabled?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ export interface SegmentOption<T extends string = string> {
   template: `
     <div class="segmented" role="group" [attr.aria-label]="label()">
       @for (option of options(); track option.id) {
-        <button type="button" [attr.aria-pressed]="value() === option.id" [attr.title]="option.title ?? null" (click)="value.set(option.id)">
+        <button type="button" [attr.aria-pressed]="value() === option.id" [attr.title]="option.title ?? null" [disabled]="option.disabled ?? false" (click)="value.set(option.id)">
           {{ option.label }}
         </button>
       }
@@ -47,8 +49,12 @@ export interface SegmentOption<T extends string = string> {
       font-weight: 600;
       cursor: pointer;
     }
-    button:hover {
+    button:hover:not(:disabled) {
       color: var(--text);
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
     }
     button[aria-pressed='true'] {
       background: var(--text);

@@ -1,27 +1,33 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import {
+  CYCLES_SAMPLES,
   FOCAL_PRESETS_MM,
   RENDER_QUALITIES,
   renderSize,
   topDownCamera,
   type RenderAspect,
   type RenderCamera,
+  type Render,
+  type RenderNodeStatus,
   type RenderQuality,
   type RenderResolution,
   type RenderSpec,
   type RenderTime,
 } from '@interiores/shared-types';
+import { ApiError } from '../../core/api/api-error';
 import { RendersApi } from '../../core/api/renders.api';
 import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { ToastService } from '../../core/ui/toast.service';
 import { DialogComponent } from '../../shared/ui/dialog.component';
-import { SegmentedComponent } from '../../shared/ui/segmented.component';
+import { SegmentedComponent, type SegmentOption } from '../../shared/ui/segmented.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneService } from '../viewport-3d/scene.service';
 import { RenderStudioService, canvasBlob } from './render-studio.service';
 import { cameraFromViewer } from './studio-camera';
 
 type CameraChoice = 'current' | 'top';
+/** Dónde se hace la imagen: aquí mismo, o en el nodo con Blender (Cycles) si está encendido. */
+type EngineChoice = 'browser' | 'blender';
 
 const CAMERAS: readonly { id: CameraChoice; label: string }[] = [
   { id: 'current', label: 'Lo que ves ahora' },
@@ -68,6 +74,8 @@ const QUALITIES: readonly { id: RenderQuality; label: string; hint: string }[] =
             <figcaption class="placeholder">
               @if (studio.error(); as message) {
                 <span role="alert">{{ message }}</span>
+              } @else if (engine() === 'blender') {
+                Blender renderiza aparte, con la GPU del nodo: puedes seguir diseñando y verás el avance en la galería.
               } @else {
                 La imagen aparecerá aquí y se irá limpiando mientras se calcula la luz.
               }
@@ -98,6 +106,10 @@ const QUALITIES: readonly { id: RenderQuality; label: string; hint: string }[] =
         </div>
 
         <div class="controls">
+          @if (canSave()) {
+            <div class="opt"><span class="lbl">Motor</span><app-segmented label="Motor" [options]="engines()" [value]="engine()" (valueChange)="engine.set($event)" /></div>
+            <p class="hint">{{ engineHint() }}</p>
+          }
           <div class="opt"><span class="lbl">Cámara</span><app-segmented label="Cámara" [options]="cameras" [value]="camera()" (valueChange)="camera.set($event)" /></div>
           @if (camera() === 'current') {
             <label class="field">
@@ -119,7 +131,7 @@ const QUALITIES: readonly { id: RenderQuality; label: string; hint: string }[] =
           <div class="opt"><span class="lbl">Resolución</span><app-segmented label="Resolución" [options]="resolutions" [value]="resolution()" (valueChange)="resolution.set($event)" /></div>
           <div class="opt"><span class="lbl">Calidad</span><app-segmented label="Calidad" [options]="qualities" [value]="quality()" (valueChange)="quality.set($event)" /></div>
           <p class="hint">{{ qualityHint() }}</p>
-          @if (!studio.canPathTrace()) {
+          @if (engine() === 'browser' && !studio.canPathTrace()) {
             <p class="hint">Tu navegador no permite trazar rayos: la imagen saldrá con el raster de mejor calidad.</p>
           }
         </div>
@@ -139,7 +151,11 @@ const QUALITIES: readonly { id: RenderQuality; label: string; hint: string }[] =
           <button type="button" class="btn" (click)="downloadScene()" [disabled]="exporting()" title="El cuarto en 3D (.glb) para abrirlo en Blender u otro programa de render">
             {{ exporting() ? 'Exportando…' : 'Descargar escena 3D' }}
           </button>
-          <button type="button" class="btn btn-primary" (click)="start()">{{ studio.phase() === 'done' ? 'Volver a renderizar' : 'Renderizar' }}</button>
+          @if (engine() === 'blender') {
+            <button type="button" class="btn btn-primary" (click)="sendToBlender()" [disabled]="sending()">{{ sending() ? 'Enviando la escena…' : 'Renderizar en Blender' }}</button>
+          } @else {
+            <button type="button" class="btn btn-primary" (click)="start()">{{ studio.phase() === 'done' ? 'Volver a renderizar' : 'Renderizar' }}</button>
+          }
         }
       </div>
     </app-dialog>
@@ -220,6 +236,10 @@ export class RenderStudioComponent {
 
   /** En la demo no hay galería: solo se descarga. */
   readonly demo = input(false);
+  /** Se mandó un render a Blender (la galería lo muestra como pendiente). */
+  readonly sent = output<Render>();
+  /** Abrir la galería del proyecto. */
+  readonly gallery = output<void>();
 
   private readonly dialog = viewChild.required<DialogComponent>('dialog');
   private readonly previewRef = viewChild<ElementRef<HTMLCanvasElement>>('preview');
@@ -242,11 +262,35 @@ export class RenderStudioComponent {
   protected readonly saving = signal(false);
   protected readonly saved = signal(false);
   protected readonly exporting = signal(false);
+  protected readonly engine = signal<EngineChoice>('browser');
+  protected readonly node = signal<RenderNodeStatus | null>(null);
+  protected readonly sending = signal(false);
+  protected readonly engines = computed((): SegmentOption<EngineChoice>[] => {
+    const node = this.node();
+    return [
+      { id: 'browser', label: 'Navegador', title: 'Se dibuja aquí mismo, con tu tarjeta gráfica' },
+      {
+        id: 'blender',
+        label: 'Blender (fotorrealista)',
+        disabled: !node?.available,
+        title: node?.available ? 'Cycles en el nodo de render con GPU' : 'El nodo de render con Blender está apagado',
+      },
+    ];
+  });
+  protected readonly engineHint = computed(() => {
+    const node = this.node();
+    if (this.engine() === 'blender') return `Cycles con la GPU del nodo${node?.device ? ` (${node.device})` : ''}. Incluye el PNG y el archivo .blend para retocarlo.`;
+    if (!node) return 'Comprobando si el nodo de Blender está encendido…';
+    return node.available
+      ? 'Para la imagen más realista, elige Blender: se hace aparte y te avisamos al terminar.'
+      : 'Blender no está disponible ahora (el nodo de render está apagado): se usa el navegador.';
+  });
 
   protected readonly size = computed(() => renderSize(this.resolution(), this.aspect()));
   protected readonly aspectCss = computed(() => this.aspect().replace(':', ' / '));
   protected readonly qualityHint = computed(() => {
     const q = QUALITIES.find((x) => x.id === this.quality())!;
+    if (this.engine() === 'blender') return `Hasta ${CYCLES_SAMPLES[q.id]} muestras por píxel; Blender para antes donde la imagen ya está limpia.`;
     return `${q.hint} (${RENDER_QUALITIES[q.id]} muestras por píxel).`;
   });
   protected readonly canSave = computed(() => !this.demo() && !!this.store.project()?.id);
@@ -259,6 +303,14 @@ export class RenderStudioComponent {
     this.time.set(this.scene.timeOfDay());
     this.saved.set(false);
     this.dialog().open();
+    if (this.canSave()) void this.checkNode();
+  }
+
+  private async checkNode(): Promise<void> {
+    this.node.set(null);
+    const node = await this.renders.renderNode();
+    this.node.set(node);
+    if (!node.available) this.engine.set('browser');
   }
 
   protected round(n: number): number {
@@ -277,7 +329,7 @@ export class RenderStudioComponent {
       resolution: this.resolution(),
       aspect: this.aspect(),
       quality: this.quality(),
-      engine: 'pathtracer',
+      engine: this.engine() === 'blender' ? 'cycles' : 'pathtracer',
     };
   }
 
@@ -308,6 +360,29 @@ export class RenderStudioComponent {
       this.toast.error('No se pudo exportar la escena 3D.');
     } finally {
       this.exporting.set(false);
+    }
+  }
+
+  /** Exporta la escena tal como se ve y la manda al nodo Blender; el resultado llega a la galería. */
+  protected async sendToBlender(): Promise<void> {
+    const projectId = this.store.project()?.id;
+    if (!projectId || this.sending()) return;
+    this.sending.set(true);
+    try {
+      const spec = this.spec();
+      const scene = await this.studio.exportScene(spec);
+      if (!scene) return this.toast.error('El visor 3D aún no está listo: abre la vista 3D y vuelve a intentarlo.');
+      const render = await this.renders.renderInBlender(projectId, spec, scene.lights, scene.glb);
+      this.sent.emit(render);
+      this.dialog().close();
+      this.toast.show('Render enviado a Blender. Te avisamos cuando esté listo.', 'success', 6000, { label: 'Ver galería', run: () => this.gallery.emit() });
+    } catch (err) {
+      const error = ApiError.from(err);
+      // 503: el nodo se apagó entre abrir el estudio y pulsar; se refleja en la opción.
+      if (error.status === 503) void this.checkNode();
+      this.toast.error(error.status > 0 ? error.userMessage : 'No se pudo mandar la escena a Blender.');
+    } finally {
+      this.sending.set(false);
     }
   }
 

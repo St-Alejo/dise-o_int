@@ -15,9 +15,12 @@ export class ProgressService {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ProjectsApi);
   private socket: Socket | null = null;
+  /** Cuántos escuchan cada proyecto: la sala del servidor se deja solo cuando se va el último. */
+  private readonly watchers = new Map<string, number>();
 
   watch(projectId: string): Observable<JobProgressEvent> {
     return new Observable<JobProgressEvent>((subscriber) => {
+      this.watchers.set(projectId, (this.watchers.get(projectId) ?? 0) + 1);
       const seen = new Set<string>();
       const emit = (e: JobProgressEvent) => {
         const key = `${e.jobId}|${e.stage}|${e.pct}|${e.status}|${e.at}`;
@@ -59,7 +62,12 @@ export class ProgressService {
         clearTimeout(fallback);
         if (pollTimer) clearInterval(pollTimer);
         socket?.off('progress', onProgress);
-        socket?.emit('unsubscribe', { projectId });
+        const left = (this.watchers.get(projectId) ?? 1) - 1;
+        if (left > 0) this.watchers.set(projectId, left);
+        else {
+          this.watchers.delete(projectId);
+          socket?.emit('unsubscribe', { projectId });
+        }
       };
     });
   }

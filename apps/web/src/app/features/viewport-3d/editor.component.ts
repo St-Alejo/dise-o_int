@@ -16,6 +16,7 @@ import { ShortcutsDialogComponent } from './shortcuts-dialog.component';
 import { RecommendationCardComponent } from '../brief/recommendation-card.component';
 import { EditorTourComponent } from '../onboarding/editor-tour.component';
 import { PresentationOverlayComponent } from '../presentation/presentation-overlay.component';
+import { RenderGalleryComponent } from '../render-gallery/render-gallery.component';
 import { RenderStudioComponent } from '../render-studio/render-studio.component';
 import { ThreeViewportComponent } from './three-viewport.component';
 
@@ -53,6 +54,7 @@ function initialView(): ViewMode {
     ArViewerComponent,
     PresentationOverlayComponent,
     RenderStudioComponent,
+    RenderGalleryComponent,
     EditorTourComponent,
     EditorToolbarComponent,
     EditorPanelComponent,
@@ -70,6 +72,7 @@ function initialView(): ViewMode {
       (review)="panel.showReview()"
       (present)="presentation.start()"
       (studio)="studio.open()"
+      (gallery)="openGallery()"
       (shortcuts)="shortcuts.open()"
     />
 
@@ -123,7 +126,10 @@ function initialView(): ViewMode {
     <app-calibration-dialog #calibration />
     <app-ar-viewer #ar />
     <app-shortcuts-dialog #shortcuts />
-    <app-render-studio #studio [demo]="demo()" />
+    <app-render-studio #studio [demo]="demo()" (sent)="gallery()?.track($event)" (gallery)="openGallery()" />
+    @if (!demo()) {
+      <app-render-gallery />
+    }
   `,
   styles: `
     :host {
@@ -210,6 +216,8 @@ export class EditorComponent {
   readonly autoLayout = output<void>();
 
   private readonly shortcuts = viewChild.required<ShortcutsDialogComponent>('shortcuts');
+  /** Solo existe en un proyecto con cuenta (la demo no guarda renders). */
+  protected readonly gallery = viewChild(RenderGalleryComponent);
   private readonly wrap = viewChild.required<ElementRef<HTMLElement>>('wrap');
   /** Se está enseñando el cuarto a pantalla completa: el editor no atiende atajos. */
   protected readonly presenting = signal(false);
@@ -218,6 +226,10 @@ export class EditorComponent {
   protected readonly viewMode = signal<ViewMode>(initialView());
   protected readonly shell = this.store.shell;
   protected readonly confidence = computed(() => Math.round((this.shell()?.scaleConfidence ?? 0) * 100));
+
+  protected openGallery(): void {
+    this.gallery()?.open();
+  }
 
   protected ago(savedAt: number): string {
     return agoLabel(savedAt, Date.now());
