@@ -141,6 +141,39 @@ services:
     deploy: { resources: { limits: { cpus: "2.0", memory: 1G } } }
     logging: *logging
 
+  # Nodo de render con Blender (ADR-0036). Opcional: solo arranca con
+  #   docker compose --profile gpu up -d blender
+  # Necesita una GPU NVIDIA visible para Docker (driver + WSL2 en Windows). Sin ella,
+  # CYCLES_DEVICE=CPU renderiza igual, pero mucho más lento.
+  blender:
+    profiles: [gpu]
+    build: { context: services/blender, target: prod }
+    image: interiores-blender:local
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://storage:8333}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      CYCLES_DEVICE: ${CYCLES_DEVICE:-AUTO}
+      BLENDER_MAX_SAMPLES: ${BLENDER_MAX_SAMPLES:-}
+      RENDER_TIMEOUT_S: ${RENDER_TIMEOUT_S:-1800}
+    depends_on:
+      redis: { condition: service_healthy }
+      storage: { condition: service_healthy }
+    networks: [internal]
+    restart: unless-stopped
+    # Al apagarlo deja de anunciarse y espera al render en curso.
+    stop_grace_period: 2m
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+    logging: *logging
+
   # ------------------------------------------------------------------ tareas one-shot
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile, target: migrate }

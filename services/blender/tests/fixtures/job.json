@@ -1,0 +1,58 @@
+{
+  "renderId": "0b6c3a52-6c55-4a43-8d2f-0d1c1b4bb7a1",
+  "projectId": "5f1e9a7e-2a43-4c4e-9a3e-3c1d2b0e4f10",
+  "userId": "u-1",
+  "sceneKey": "projects/5f1e9a7e-2a43-4c4e-9a3e-3c1d2b0e4f10/renders/0b6c3a52-6c55-4a43-8d2f-0d1c1b4bb7a1.scene.glb",
+  "outputPrefix": "projects/5f1e9a7e-2a43-4c4e-9a3e-3c1d2b0e4f10/renders/0b6c3a52-6c55-4a43-8d2f-0d1c1b4bb7a1",
+  "plan": {
+    "width": 1920,
+    "height": 1080,
+    "camera": {
+      "position": {
+        "x": 0.35,
+        "y": 1.45,
+        "z": 5.2
+      },
+      "target": {
+        "x": 2.8,
+        "y": 1.45,
+        "z": 1.2
+      },
+      "focalMm": 20,
+      "sensorMm": 36,
+      "sensorFit": "HORIZONTAL",
+      "shiftY": -0.0533
+    },
+    "cycles": {
+      "samples": 128,
+      "adaptiveThreshold": 0.03,
+      "maxBounces": 8,
+      "clampIndirect": 10
+    },
+    "world": {
+      "sunStrength": 4.5,
+      "sunColor": "#fff3e0",
+      "skyStrength": 0.6,
+      "exposure": 0.3,
+      "look": "AgX - Medium High Contrast",
+      "sunDirection": {
+        "x": 0.5529,
+        "y": -0.6233,
+        "z": 0.5529
+      },
+      "sunElevationDeg": 38.56
+    },
+    "lamps": {
+      "positions": [
+        {
+          "x": 3.9,
+          "y": 1.45,
+          "z": 4.6
+        }
+      ],
+      "watts": 15,
+      "kelvin": 2700
+    },
+    "ceiling": null
+  }
+}
