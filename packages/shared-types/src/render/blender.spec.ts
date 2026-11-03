@@ -57,7 +57,7 @@ describe('plan de Blender', () => {
     const day = blenderPlan({ ...spec, timeOfDay: 'day' }, lights);
     const night = blenderPlan({ ...spec, timeOfDay: 'night' }, lights);
     expect(night.world.sunStrength).toBe(0);
-    expect(night.world.exposure).toBeGreaterThan(day.world.exposure);
+    expect(night.world.skyStrength).toBeLessThan(day.world.skyStrength);
     expect(night.lamps.watts).toBeGreaterThan(day.lamps.watts);
     expect(day.ceiling).toBeNull();
     expect(night.ceiling?.watts).toBeGreaterThan(0);

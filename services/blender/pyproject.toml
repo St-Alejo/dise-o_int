@@ -1,0 +1,52 @@
+[project]
+name = "interiores-blender"
+version = "0.1.0"
+description = "Nodo de render con Blender (Cycles): consume render-jobs y deja la imagen en S3 (ADR-0036)"
+# look.py también corre dentro del Python de Blender 4.5 (3.11).
+requires-python = ">=3.11"
+dependencies = [
+  "bullmq>=3.4,<4",
+  "boto3>=1.43,<2",
+  "pydantic>=2.13,<3",
+  "pydantic-settings>=2.15,<3",
+  "structlog>=26,<27",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9,<10",
+  "pytest-asyncio>=1.2",
+  "pytest-cov>=6",
+  "jsonschema>=4.26",
+  "ruff>=0.16",
+  "mypy>=2.3",
+  "boto3-stubs[s3]>=1.43",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/interiores_blender"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests", "blender"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+ignore_missing_imports = true
