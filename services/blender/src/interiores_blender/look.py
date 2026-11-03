@@ -81,18 +81,34 @@ def recipe_for(role: str | None, material: str | None) -> MaterialRecipe:
     return base
 
 
-#: La "caja" del cuarto: en el visor se dibuja por una sola cara, así que desde fuera no tapa la vista.
-SHELL_ROLES = frozenset({"wall", "ceiling", "floor", "trim"})
+#: Lo opaco que el visor dibuja por una sola cara: la "caja" del cuarto y las piezas sólidas. Vidrio
+#: y pantallas quedan fuera: ya dejan pasar la luz a su manera.
+OPAQUE_ROLES = frozenset({"wall", "ceiling", "floor", "trim", "door", "furniture"})
 
 
 def camera_sees_through_back(role: str | None, single_sided: bool) -> bool:
     """¿La cámara debe atravesar la cara trasera de esta superficie?
 
-    Con la cámara fuera del cuarto (la vista general desde arriba) el visor no dibuja el revés del
-    techo ni de las paredes; Cycles dibuja las dos caras y el techo taparía todo. Solo para la cámara:
-    para la luz siguen siendo sólidas y el techo sigue dando sombra.
+    El visor no dibuja el revés de un material de una cara: con la cámara fuera del cuarto (la vista
+    general desde arriba) el techo no tapa nada, y una tapa que le falta a un mueble deja ver lo que
+    hay detrás. Cycles dibuja las dos caras: el techo taparía todo y por el hueco del mueble se vería
+    su interior a oscuras. Solo para la cámara: para la luz siguen siendo sólidas.
     """
-    return single_sided and role in SHELL_ROLES
+    return single_sided and role in OPAQUE_ROLES
+
+
+#: Lo que la cámara ve directamente "fuera" (la vista general desde arriba): el fondo claro del visor.
+#: El cielo Nishita es negro bajo el horizonte y dejaba esquinas negras alrededor del cuarto.
+BACKDROP_HEX = "#e9e3da"
+
+
+def bevel_radius(recipe: MaterialRecipe, single_sided: bool) -> float:
+    """El bisel solo en sólidos cerrados (materiales de una cara).
+
+    En superficies abiertas de doble cara (cortinas, hojas) el nodo Bevel encuentra la cara de
+    enfrente dentro del radio y deja bandas negras.
+    """
+    return recipe.bevel if single_sided else 0.0
 
 
 def clamp_roughness(value: float, recipe: MaterialRecipe) -> float:

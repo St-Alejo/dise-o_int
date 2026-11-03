@@ -25,8 +25,10 @@ from mathutils import Vector  # type: ignore[import-not-found]
 
 sys.path.insert(0, os.environ.get("INTERIORES_BLENDER_SRC", str(Path(__file__).resolve().parents[1] / "src")))
 from interiores_blender.look import (
+    BACKDROP_HEX,
     DROP_NAMES,
     MaterialRecipe,
+    bevel_radius,
     camera_sees_through_back,
     clamp_roughness,
     hex_to_linear,
@@ -92,7 +94,7 @@ def set_input(bsdf: bpy.types.Node, name: str, value: object) -> None:
         socket.default_value = value
 
 
-def upgrade_material(material: bpy.types.Material, recipe: MaterialRecipe, see_through_back: bool = False) -> None:
+def upgrade_material(material: bpy.types.Material, recipe: MaterialRecipe, single_sided: bool, see_through_back: bool) -> None:
     """Aplica la receta sobre el Principled BSDF que creó el importador glTF."""
     bsdf, out = principled_of(material)
     if bsdf is None or out is None:
@@ -121,10 +123,11 @@ def upgrade_material(material: bpy.types.Material, recipe: MaterialRecipe, see_t
     normal_in = bsdf.inputs["Normal"]
     upstream = normal_in.links[0].from_socket if normal_in.is_linked else None
     x, y = bsdf.location.x - 300, bsdf.location.y - 400
-    if recipe.bevel > 0:
+    radius = bevel_radius(recipe, single_sided)
+    if radius > 0:
         bevel = node(tree, "ShaderNodeBevel", x, y)
         bevel.samples = 6
-        bevel.inputs["Radius"].default_value = recipe.bevel
+        bevel.inputs["Radius"].default_value = radius
         if upstream is not None:
             links.new(upstream, bevel.inputs["Normal"])
         upstream = bevel.outputs["Normal"]
@@ -195,8 +198,9 @@ def upgrade_materials(meshes: list[bpy.types.Object]) -> dict[str, int]:
             if material is None or material.name in done:
                 continue
             done.add(material.name)
-            see_through = camera_sees_through_back(role, material.use_backface_culling)
-            upgrade_material(material, recipe_for(role, kind), see_through)
+            single_sided = material.use_backface_culling
+            see_through = camera_sees_through_back(role, single_sided)
+            upgrade_material(material, recipe_for(role, kind), single_sided, see_through)
     return roles
 
 
@@ -247,6 +251,16 @@ def build_lights(plan: dict, meshes: list[bpy.types.Object]) -> int:
         sky.air_density = 1.0
         sky.dust_density = 1.5
         tree.links.new(sky.outputs["Color"], background.inputs["Color"])
+        # La cámara no ve el cielo directo (solo a través del vidrio): ve el fondo del visor.
+        backdrop = tree.nodes.new("ShaderNodeBackground")
+        backdrop.inputs["Color"].default_value = (*hex_to_linear(BACKDROP_HEX), 1.0)
+        path = tree.nodes.new("ShaderNodeLightPath")
+        mix = tree.nodes.new("ShaderNodeMixShader")
+        output = tree.nodes["World Output"]
+        tree.links.new(path.outputs["Is Camera Ray"], mix.inputs["Fac"])
+        tree.links.new(background.outputs["Background"], mix.inputs[1])
+        tree.links.new(backdrop.outputs["Background"], mix.inputs[2])
+        tree.links.new(mix.outputs["Shader"], output.inputs["Surface"])
         sun = add_light("Sol", "SUN", world_plan["sunStrength"], hex_to_linear(world_plan["sunColor"]))
         sun.data.angle = math.radians(1.2)  # el sol real mide ~0,5°; un poco más ablanda la sombra
         look_along(sun, direction)
