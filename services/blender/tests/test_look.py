@@ -8,6 +8,7 @@ from interiores_blender.look import (
     bevel_radius,
     camera_sees_through_back,
     clamp_roughness,
+    collection_for,
     hex_to_linear,
     inside_room,
     kelvin_to_linear,
@@ -142,3 +143,12 @@ def test_sin_bisel_en_superficies_abiertas() -> None:
     assert bevel_radius(tela, single_sided=True) == tela.bevel > 0
     # Cortinas: doble cara, el bisel las manchaba de negro.
     assert bevel_radius(tela, single_sided=False) == 0.0
+
+
+def test_el_blend_exportado_ordena_cada_objeto_en_su_coleccion() -> None:
+    assert collection_for("room", "EMPTY") == "Cuarto"
+    assert collection_for("room.001", "EMPTY") == "Cuarto"  # Blender renombra si el nombre ya existe
+    assert collection_for("sofa-l-modular", "EMPTY") == "Muebles"
+    assert collection_for("roomba-decorativa", "MESH") == "Muebles"
+    assert collection_for("Lámpara 1", "LIGHT") == "Luces"
+    assert collection_for("Cámara", "CAMERA") == "Cámara"

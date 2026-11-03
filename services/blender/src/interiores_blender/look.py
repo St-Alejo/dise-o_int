@@ -228,3 +228,32 @@ def portal_for(bbox_min: Vec3, bbox_max: Vec3, room_center: Vec3) -> Portal | No
 
 #: Nombres que no son parte del cuarto en sí y se descartan al importar.
 DROP_NAMES = ("contact-shadow", "corner-shade", "edge-shade", "gizmo", "guides", "selection-outline")
+
+
+#: Colecciones del `.blend` exportado, en el orden en que aparecen en el Outliner.
+COLLECTIONS = ("Cuarto", "Muebles", "Luces", "Cámara")
+#: Texto que acompaña al .blend exportado (se ve en el editor de texto de Blender).
+README_TEXT = """Escena exportada desde Interiores IA
+====================================
+
+Ya está todo listo: materiales, luces, cielo, cámara y ajustes de Cycles.
+
+- F12: render final con Cycles (calidad final, con denoiser). Image > Save As para guardarlo.
+- En el visor 3D, Z > Rendered: ver Cycles en vivo mientras mueves la cámara o cambias materiales.
+- Numpad 0: volver a la vista de la cámara.
+
+Colecciones: Cuarto (paredes, piso, techo, puertas y ventanas), Muebles (cada uno con su nombre
+del catálogo), Luces (sol, lámparas, techo y portales de las ventanas) y Cámara.
+La exposición ya viene medida para esta escena (Render > Color Management).
+"""
+#: Muestras del visor en modo Rendered: con el denoiser, suficiente para ver el resultado al abrir.
+VIEWPORT_SAMPLES = 96
+
+
+def collection_for(name: str, kind: str) -> str:
+    """Colección de un objeto raíz de la escena: el cuarto, cada mueble, las luces y la cámara."""
+    if kind == "LIGHT":
+        return "Luces"
+    if kind == "CAMERA":
+        return "Cámara"
+    return "Cuarto" if name.split(".")[0] == "room" else "Muebles"

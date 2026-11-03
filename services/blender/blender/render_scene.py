@@ -26,12 +26,16 @@ from mathutils import Vector  # type: ignore[import-not-found]
 sys.path.insert(0, os.environ.get("INTERIORES_BLENDER_SRC", str(Path(__file__).resolve().parents[1] / "src")))
 from interiores_blender.look import (
     BACKDROP_HEX,
+    COLLECTIONS,
     DROP_NAMES,
+    README_TEXT,
+    VIEWPORT_SAMPLES,
     MaterialRecipe,
     auto_exposure,
     bevel_radius,
     camera_sees_through_back,
     clamp_roughness,
+    collection_for,
     hex_to_linear,
     inside_room,
     kelvin_to_linear,
@@ -479,7 +483,59 @@ def add_glare(scene: bpy.types.Scene) -> None:
         scene.use_nodes = False
 
 
-def save_outputs(out: str, save_blend: bool) -> dict[str, str]:
+def organize_collections(scene: bpy.types.Scene) -> None:
+    """Cuarto, muebles, luces y cámara en su colección: el Outliner queda legible al abrir el .blend."""
+    targets = {}
+    for title in COLLECTIONS:
+        target = bpy.data.collections.new(title)
+        scene.collection.children.link(target)
+        targets[title] = target
+
+    def move(obj: bpy.types.Object, target: bpy.types.Collection) -> None:
+        for owner in list(obj.users_collection):
+            owner.objects.unlink(obj)
+        target.objects.link(obj)
+        for child in obj.children:
+            move(child, target)
+
+    for obj in [o for o in scene.objects if o.parent is None]:
+        move(obj, targets[collection_for(obj.name, obj.type)])
+
+
+def prepare_viewport(scene: bpy.types.Scene) -> None:
+    """Al abrir el .blend, el visor 3D mira por la cámara con la luz de la escena (EEVEE, al instante).
+
+    Blender siempre abre en Solid un visor guardado en Rendered (para no arrancar un render pesado
+    sin querer), así que se deja en Material Preview con el sol, las lámparas y el cielo del cuarto.
+    Cycles queda a un clic (Z → Rendered) o con F12, y el LEEME lo explica.
+    """
+    scene.cycles.preview_samples = VIEWPORT_SAMPLES
+    scene.cycles.use_preview_denoising = True
+    scene.render.filepath = "//render.png"
+    for screen in bpy.data.screens:
+        for area in screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            for space in area.spaces:
+                if space.type == "VIEW_3D":
+                    space.shading.type = "MATERIAL"
+                    space.shading.use_scene_lights = True
+                    space.shading.use_scene_world = True
+                    space.region_3d.view_perspective = "CAMERA"
+    # EEVEE (lo que se ve al abrir): reflejos y luz rebotada por trazado de rayos, sombras suaves.
+    eevee = scene.eevee
+    for attr, value in (("use_raytracing", True), ("use_shadows", True), ("use_gtao", True), ("shadow_ray_count", 2), ("shadow_step_count", 8)):
+        if hasattr(eevee, attr):
+            setattr(eevee, attr, value)
+    if hasattr(eevee, "ray_tracing_options"):
+        eevee.ray_tracing_options.resolution_scale = "2"
+    if hasattr(eevee, "fast_gi_method"):
+        eevee.fast_gi_method = "GLOBAL_ILLUMINATION"
+    note = bpy.data.texts.new("LEEME")
+    note.write(README_TEXT)
+
+
+def save_outputs(out: str, plan: dict, save_blend: bool) -> dict[str, str]:
     scene = bpy.context.scene
     files = {"image": f"{out}.png", "preview": f"{out}.jpg"}
     settings = scene.render.image_settings
@@ -488,6 +544,12 @@ def save_outputs(out: str, save_blend: bool) -> dict[str, str]:
     settings.color_depth = "8"
     settings.compression = 40
     scene.render.filepath = files["image"]
+    # Exportar: se renderiza solo la miniatura y el .blend conserva el tamaño y las muestras finales.
+    preview = plan.get("preview")
+    final = (scene.render.resolution_x, scene.render.resolution_y, plan["cycles"]["samples"])
+    if preview:
+        scene.render.resolution_x, scene.render.resolution_y = preview["width"], preview["height"]
+        scene.cycles.samples = preview["samples"]
     bpy.ops.render.render(write_still=True)
     result = bpy.data.images["Render Result"]
     settings.file_format = "JPEG"
@@ -495,6 +557,10 @@ def save_outputs(out: str, save_blend: bool) -> dict[str, str]:
     result.save_render(files["preview"], scene=scene)
     if save_blend:
         files["blend"] = f"{out}.blend"
+        scene.render.resolution_x, scene.render.resolution_y, scene.cycles.samples = final
+        settings.file_format = "PNG"
+        organize_collections(scene)
+        prepare_viewport(scene)
         bpy.ops.file.pack_all()
         bpy.ops.wm.save_as_mainfile(filepath=files["blend"], compress=True, copy=True)
     return files
@@ -512,7 +578,7 @@ def main() -> None:
     device = configure_render(plan)
     apply_auto_exposure(plan, Path(args.out).parent)
     print(f"[render] {len(meshes)} mallas {roles}, {portals} portales, {device}", flush=True)
-    files = save_outputs(args.out, args.save_blend)
+    files = save_outputs(args.out, plan, args.save_blend)
     summary = {"files": files, "device": device, "seconds": round(time.monotonic() - started, 1)}
     print(RESULT_PREFIX + json.dumps(summary), flush=True)
 
