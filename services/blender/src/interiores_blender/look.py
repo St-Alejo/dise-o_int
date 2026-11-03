@@ -111,6 +111,24 @@ def inside_room(point: Vec3, lo: Vec3, hi: Vec3) -> bool:
     return all(lo[i] <= point[i] <= hi[i] for i in range(3))
 
 
+#: Cuánto puede alejarse la exposición automática (en pasos) del valor fijo de la hora.
+EXPOSURE_RANGE_STOPS = 2.5
+
+
+def auto_exposure(log_mean: float, key: float, preset: float) -> float:
+    """Exposición (en pasos) que lleva la luminancia media de la escena a la `key` de la hora.
+
+    `log_mean` es la media geométrica de la luminancia lineal del pre-render (sin exposición). Un
+    cuarto blanco y uno de paredes oscuras reciben la misma luz, pero sin esto el blanco sale quemado
+    y el oscuro apagado. La corrección se limita alrededor de `preset`, así la noche sigue siendo
+    noche aunque la escena esté casi a oscuras.
+    """
+    if log_mean <= 0 or key <= 0:
+        return preset
+    wanted = math.log2(key / log_mean)
+    return round(min(preset + EXPOSURE_RANGE_STOPS, max(preset - EXPOSURE_RANGE_STOPS, wanted)), 2)
+
+
 def bevel_radius(recipe: MaterialRecipe, single_sided: bool) -> float:
     """El bisel solo en sólidos cerrados (materiales de una cara).
 

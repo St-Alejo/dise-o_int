@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .progress import RESULT_PREFIX, progress_pct
+from .progress import RESULT_PREFIX, ProgressReader
 
 ProgressFn = Callable[[int], Awaitable[None]]
 CancelFn = Callable[[], Awaitable[bool]]
@@ -53,6 +53,7 @@ class BlenderRunner:
         assert proc.stdout is not None
         summary: dict[str, object] | None = None
         tail: deque[str] = deque(maxlen=20)
+        reader = ProgressReader()
         started = time.monotonic()
         last_cancel_check = started
         try:
@@ -68,7 +69,7 @@ class BlenderRunner:
                     tail.append(line)
                     if line.startswith(RESULT_PREFIX):
                         summary = json.loads(line[len(RESULT_PREFIX) :])
-                    pct = progress_pct(line)
+                    pct = reader.feed(line)
                     if pct is not None:
                         await on_progress(pct)
                 now = time.monotonic()

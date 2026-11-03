@@ -4,6 +4,7 @@ import pytest
 
 from interiores_blender.look import (
     MaterialRecipe,
+    auto_exposure,
     bevel_radius,
     camera_sees_through_back,
     clamp_roughness,
@@ -123,6 +124,17 @@ def test_camara_dentro_o_fuera_del_cuarto() -> None:
     assert inside_room((2.0, -2.0, 1.5), lo, hi)
     assert not inside_room((7.0, -6.0, 5.0), lo, hi)  # vista general desde arriba
     assert not inside_room((2.0, -2.0, 3.5), lo, hi)  # sobre el techo
+
+
+def test_exposicion_automatica_lleva_la_escena_a_la_clave_de_la_hora() -> None:
+    # Una escena con media 0,05 y clave 0,2 necesita 2 pasos.
+    assert auto_exposure(0.05, key=0.2, preset=1.5) == 2.0
+    # Un cuarto blanco (mucho más luminoso) baja la exposición, pero no más de 2,5 pasos.
+    assert auto_exposure(6.4, key=0.2, preset=1.1) == -1.4
+    assert auto_exposure(0.3, key=0.2, preset=1.1) == round(math.log2(0.2 / 0.3), 2)
+    # Sin medida usable se queda con el valor fijo de la hora.
+    assert auto_exposure(0.0, key=0.2, preset=1.1) == 1.1
+    assert auto_exposure(0.05, key=0.0, preset=1.1) == 1.1
 
 
 def test_sin_bisel_en_superficies_abiertas() -> None:

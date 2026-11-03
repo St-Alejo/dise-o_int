@@ -28,6 +28,7 @@ from interiores_blender.look import (
     BACKDROP_HEX,
     DROP_NAMES,
     MaterialRecipe,
+    auto_exposure,
     bevel_radius,
     camera_sees_through_back,
     clamp_roughness,
@@ -39,7 +40,7 @@ from interiores_blender.look import (
     sun_rotation,
     to_blender,
 )
-from interiores_blender.progress import RESULT_PREFIX
+from interiores_blender.progress import MEASURE_END, MEASURE_START, RESULT_PREFIX
 
 
 def parse_args() -> argparse.Namespace:
@@ -418,6 +419,46 @@ def configure_render(plan: dict) -> str:
     return device
 
 
+def measure_log_mean(scene: bpy.types.Scene, work_dir: Path) -> float:
+    """Media geométrica de la luminancia lineal, con un pre-render diminuto y sin denoiser."""
+    import numpy as np  # viene con el Python de Blender
+
+    render, cycles, settings = scene.render, scene.cycles, scene.render.image_settings
+    saved = (render.resolution_x, render.resolution_y, cycles.samples, cycles.use_denoising, scene.use_nodes)
+    saved_settings = (settings.file_format, settings.color_depth, render.filepath)
+    width = 128
+    height = max(8, round(width * render.resolution_y / render.resolution_x))
+    path = work_dir / "medida-luz.exr"
+    print(f"{MEASURE_START} ({width}x{height})", flush=True)
+    try:
+        render.resolution_x, render.resolution_y = width, height
+        cycles.samples, cycles.use_denoising, scene.use_nodes = 16, False, False
+        settings.file_format, settings.color_depth = "OPEN_EXR", "32"
+        render.filepath = str(path)
+        bpy.ops.render.render(write_still=True)
+        image = bpy.data.images.load(str(path))
+        rgba = np.array(image.pixels[:], dtype=np.float32).reshape(-1, 4)
+        bpy.data.images.remove(image)
+        luminance = rgba[:, 0] * 0.2126 + rgba[:, 1] * 0.7152 + rgba[:, 2] * 0.0722
+        return float(np.exp(np.mean(np.log(np.maximum(luminance, 1e-4)))))
+    finally:
+        render.resolution_x, render.resolution_y, cycles.samples, cycles.use_denoising, scene.use_nodes = saved
+        settings.file_format, settings.color_depth, render.filepath = saved_settings
+        path.unlink(missing_ok=True)
+
+
+def apply_auto_exposure(plan: dict, work_dir: Path) -> None:
+    """Con `world.exposureKey` en el plan, la exposición se ajusta a lo luminoso que sea el cuarto."""
+    world = plan["world"]
+    key = world.get("exposureKey")
+    if not key:
+        return
+    scene = bpy.context.scene
+    log_mean = measure_log_mean(scene, work_dir)
+    scene.view_settings.exposure = auto_exposure(log_mean, key, world["exposure"])
+    print(f"{MEASURE_END}: media {log_mean:.3f}, exposición {scene.view_settings.exposure:.2f}", flush=True)
+
+
 def add_glare(scene: bpy.types.Scene) -> None:
     """Un halo suave alrededor de lo muy brillante (bombillas, reflejos del sol), como una lente."""
     try:
@@ -469,6 +510,7 @@ def main() -> None:
     portals = build_lights(plan, meshes)
     build_camera(plan)
     device = configure_render(plan)
+    apply_auto_exposure(plan, Path(args.out).parent)
     print(f"[render] {len(meshes)} mallas {roles}, {portals} portales, {device}", flush=True)
     files = save_outputs(args.out, args.save_blend)
     summary = {"files": files, "device": device, "seconds": round(time.monotonic() - started, 1)}
