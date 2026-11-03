@@ -183,6 +183,13 @@ services:
     command: ["node", "fake-render-node.mjs"]
     environment: *api-env
     volumes: ["./e2e/fake-render-node.mjs:/app/apps/api/fake-render-node.mjs:ro"]
+    # La imagen de la API trae un healthcheck HTTP que este proceso no sirve: sano = latido en Redis.
+    healthcheck:
+      test: ["CMD", "node", "-e", "new (require('ioredis'))(process.env.REDIS_URL).get('render-node:heartbeat').then((v) => process.exit(v ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
     depends_on:
       redis: { condition: service_healthy }
       storage: { condition: service_healthy }
