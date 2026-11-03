@@ -102,6 +102,15 @@ def camera_sees_through_back(role: str | None, single_sided: bool) -> bool:
 BACKDROP_HEX = "#e9e3da"
 
 
+def inside_room(point: Vec3, lo: Vec3, hi: Vec3) -> bool:
+    """¿La cámara está dentro de la caja del cuarto?
+
+    Desde fuera (la vista general) las paredes recortadas sobran: si siguieran tapando la luz, lo que
+    queda dentro de su volumen (el borde del piso, el canto de las paredes vecinas) saldría negro.
+    """
+    return all(lo[i] <= point[i] <= hi[i] for i in range(3))
+
+
 def bevel_radius(recipe: MaterialRecipe, single_sided: bool) -> float:
     """El bisel solo en sólidos cerrados (materiales de una cara).
 

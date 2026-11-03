@@ -32,6 +32,7 @@ from interiores_blender.look import (
     camera_sees_through_back,
     clamp_roughness,
     hex_to_linear,
+    inside_room,
     kelvin_to_linear,
     portal_for,
     recipe_for,
@@ -69,6 +70,23 @@ def import_scene(path: str) -> list[bpy.types.Object]:
             if obj.get("renderCameraHidden"):
                 obj.visible_camera = False
     return meshes
+
+
+def drop_cutaway_walls(plan: dict, meshes: list[bpy.types.Object]) -> list[bpy.types.Object]:
+    """Con la cámara fuera del cuarto, las paredes recortadas se quitan del todo, como en el visor."""
+    shell = [o for o in meshes if o.get("renderRole") in ("wall", "floor", "ceiling")] or meshes
+    pts = [o.matrix_world @ Vector(c) for o in shell for c in o.bound_box]
+    lo = (min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts))
+    hi = (max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts))
+    if inside_room(to_blender(plan["camera"]["position"]), lo, hi):
+        return meshes
+    kept = []
+    for obj in meshes:
+        if obj.get("renderCameraHidden"):
+            bpy.data.objects.remove(obj, do_unlink=True)
+        else:
+            kept.append(obj)
+    return kept
 
 
 def node(tree: bpy.types.NodeTree, kind: str, x: float, y: float) -> bpy.types.Node:
@@ -446,7 +464,7 @@ def main() -> None:
     started = time.monotonic()
     plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    meshes = import_scene(args.scene)
+    meshes = drop_cutaway_walls(plan, import_scene(args.scene))
     roles = upgrade_materials(meshes)
     portals = build_lights(plan, meshes)
     build_camera(plan)

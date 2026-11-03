@@ -8,6 +8,7 @@ from interiores_blender.look import (
     camera_sees_through_back,
     clamp_roughness,
     hex_to_linear,
+    inside_room,
     kelvin_to_linear,
     portal_for,
     recipe_for,
@@ -115,6 +116,13 @@ def test_la_camara_atraviesa_el_reves_de_lo_opaco_como_en_el_visor() -> None:
     assert not camera_sees_through_back("window-glass", single_sided=True)
     assert not camera_sees_through_back("lamp-shade", single_sided=True)
     assert not camera_sees_through_back(None, single_sided=True)
+
+
+def test_camara_dentro_o_fuera_del_cuarto() -> None:
+    lo, hi = (0.0, -4.0, 0.0), (4.5, 0.0, 2.6)
+    assert inside_room((2.0, -2.0, 1.5), lo, hi)
+    assert not inside_room((7.0, -6.0, 5.0), lo, hi)  # vista general desde arriba
+    assert not inside_room((2.0, -2.0, 3.5), lo, hi)  # sobre el techo
 
 
 def test_sin_bisel_en_superficies_abiertas() -> None:
