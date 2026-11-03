@@ -174,6 +174,22 @@ services:
           devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
     logging: *logging
 
+  # Nodo Blender FALSO para las pruebas E2E (sin GPU): mismo contrato, imagen de prueba.
+  #   COMPOSE_PROFILES=e2e-render docker compose up -d
+  blender-fake:
+    profiles: [e2e-render]
+    build: *api-build
+    image: interiores-api:local
+    command: ["node", "fake-render-node.mjs"]
+    environment: *api-env
+    volumes: ["./e2e/fake-render-node.mjs:/app/apps/api/fake-render-node.mjs:ro"]
+    depends_on:
+      redis: { condition: service_healthy }
+      storage: { condition: service_healthy }
+    networks: [internal]
+    restart: unless-stopped
+    logging: *logging
+
   # ------------------------------------------------------------------ tareas one-shot
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile, target: migrate }
