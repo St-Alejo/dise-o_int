@@ -63,6 +63,12 @@ describe('plan de Blender', () => {
     expect(night.ceiling?.watts).toBeGreaterThan(0);
   });
 
+  it('cada hora pide una luminancia media: la noche más baja que la tarde y la tarde que el día', () => {
+    const key = (timeOfDay: 'day' | 'evening' | 'night') => blenderPlan({ ...spec, timeOfDay }, lights).world.exposureKey!;
+    expect(key('night')).toBeLessThan(key('evening'));
+    expect(key('evening')).toBeLessThan(key('day'));
+  });
+
   it('el ambiente cambia la temperatura de las bombillas y el nivel su potencia', () => {
     const warm = blenderPlan(spec, lights);
     const cold = blenderPlan(spec, { ...lights, mood: 'fria' });

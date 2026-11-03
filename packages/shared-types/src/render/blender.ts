@@ -135,6 +135,12 @@ export const BlenderPlanSchema = z.object({
     skyStrength: finite,
     /** Exposición en pasos (EV) y aspecto de AgX. */
     exposure: finite,
+    /**
+     * Luminancia media (geométrica) que debe tener la imagen a esta hora. Blender la mide con un
+     * pre-render y ajusta la exposición hasta ±2,5 pasos de `exposure`: un cuarto blanco y uno oscuro
+     * salen igual de bien expuestos. Sin ella, `exposure` se usa tal cual.
+     */
+    exposureKey: z.number().positive().optional(),
     look: z.string(),
   }),
   lamps: z.object({ positions: z.array(Vector3Schema), watts: finite, kelvin: finite }),
@@ -212,11 +218,11 @@ export function cyclesSettings(quality: RenderQuality): BlenderPlan['cycles'] {
  * entrando por una ventana) y exposición en EV para compensar que de noche casi todo es lámpara.
  */
 export const SUN_BY_TIME: Record<RenderTime, Omit<BlenderPlan['world'], 'sunDirection' | 'sunElevationDeg'>> = {
-  // Calibrado con la sala de prueba en la RTX 4070: de día, sin sol directo por la ventana, con menos
-  // exposición el interior queda gris y en penumbra.
-  day: { sunStrength: 4.5, sunColor: '#fff3e0', skyStrength: 1, exposure: 2.1, look: 'AgX - Medium High Contrast' },
-  evening: { sunStrength: 3.2, sunColor: '#ffbe7d', skyStrength: 0.6, exposure: 1.1, look: 'AgX - Medium High Contrast' },
-  night: { sunStrength: 0, sunColor: '#1b2238', skyStrength: 0.05, exposure: 0.4, look: 'AgX - Medium High Contrast' },
+  // `exposure` es el centro y `exposureKey` lo que se busca: Blender mide la escena y corrige hasta
+  // ±2,5 pasos. Calibrado con la sala, el dormitorio y la cocina de las plantillas (look-dev v10 F5).
+  day: { sunStrength: 4.5, sunColor: '#fff3e0', skyStrength: 1, exposure: 2.1, exposureKey: 0.5, look: 'AgX - Medium High Contrast' },
+  evening: { sunStrength: 3.2, sunColor: '#ffbe7d', skyStrength: 0.6, exposure: 1.1, exposureKey: 0.36, look: 'AgX - Medium High Contrast' },
+  night: { sunStrength: 0, sunColor: '#1b2238', skyStrength: 0.05, exposure: 0.4, exposureKey: 0.2, look: 'AgX - Medium High Contrast' },
 };
 
 /** Temperatura de color de las bombillas según el ambiente elegido. */
