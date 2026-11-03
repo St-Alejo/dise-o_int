@@ -136,6 +136,9 @@ const QUALITIES: readonly { id: RenderQuality; label: string; hint: string }[] =
               <button type="button" class="btn" (click)="save()" [disabled]="saving() || saved()">{{ saved() ? 'Guardado en la galería' : saving() ? 'Guardando…' : 'Guardar en la galería' }}</button>
             }
           }
+          <button type="button" class="btn" (click)="downloadScene()" [disabled]="exporting()" title="El cuarto en 3D (.glb) para abrirlo en Blender u otro programa de render">
+            {{ exporting() ? 'Exportando…' : 'Descargar escena 3D' }}
+          </button>
           <button type="button" class="btn btn-primary" (click)="start()">{{ studio.phase() === 'done' ? 'Volver a renderizar' : 'Renderizar' }}</button>
         }
       </div>
@@ -238,6 +241,7 @@ export class RenderStudioComponent {
   protected readonly quality = signal<RenderQuality>('good');
   protected readonly saving = signal(false);
   protected readonly saved = signal(false);
+  protected readonly exporting = signal(false);
 
   protected readonly size = computed(() => renderSize(this.resolution(), this.aspect()));
   protected readonly aspectCss = computed(() => this.aspect().replace(':', ' / '));
@@ -290,6 +294,21 @@ export class RenderStudioComponent {
     if (!canvas) return;
     const name = fileSlug(this.store.project()?.name ?? 'cuarto');
     downloadBlob(await canvasBlob(canvas, type), `${name}-render.${type === 'image/png' ? 'png' : 'jpg'}`);
+  }
+
+  /** El cuarto en 3D, con su papel por malla, para abrirlo en Blender (o en otro programa). */
+  protected async downloadScene(): Promise<void> {
+    this.exporting.set(true);
+    try {
+      const scene = await this.studio.exportScene(this.spec());
+      if (!scene) return this.toast.error('El visor 3D aún no está listo: abre la vista 3D y vuelve a intentarlo.');
+      downloadBlob(scene.glb, `${fileSlug(this.store.project()?.name ?? 'cuarto')}-escena.glb`);
+    } catch (err) {
+      console.error('[estudio] no se pudo exportar la escena', err);
+      this.toast.error('No se pudo exportar la escena 3D.');
+    } finally {
+      this.exporting.set(false);
+    }
   }
 
   protected async save(): Promise<void> {

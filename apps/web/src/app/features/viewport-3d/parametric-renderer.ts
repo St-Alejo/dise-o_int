@@ -124,7 +124,9 @@ export class ParametricRenderer {
       this.glowing.add(shade);
     }
     mat.name = id;
-    mat.userData['textured'] = !glows && !!def && TEXTURED_KINDS.has(def.kind);
+    // Familia del material para el render en Blender (tela con sheen, metal, vidrio...).
+    if (def) mat.userData['renderMaterial'] = def.kind;
+    mat.userData['textured'] =!glows && !!def && TEXTURED_KINDS.has(def.kind);
     this.dress(mat);
     this.materials.set(key, mat);
     return mat;

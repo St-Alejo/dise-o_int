@@ -7,6 +7,7 @@ import {
   mountY,
   roomCenter,
   walkStart,
+  type BlenderLights,
   type CatalogItem,
   type Point2,
   type RoomShell,
@@ -899,6 +900,11 @@ export class SceneService implements SceneContext {
       this.studioActive = false;
       this.invalidate();
     };
+  }
+
+  /** La luz de la escena descrita para reconstruirla en Blender (llamar dentro de `beginStudio`). */
+  lightsForRender(): BlenderLights {
+    return this.lighting.describe();
   }
 
   /** La cámara del visor ahora mismo (para empezar el estudio desde lo que se está viendo). */

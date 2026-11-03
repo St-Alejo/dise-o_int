@@ -206,6 +206,11 @@ export function buildRoom(
       envMapIntensity: 2.2,
       depthWrite: false,
     });
+    // Papel de cada material para el render en Blender (ADR-0036): viaja como extras del glTF.
+    material.userData['renderRole'] = 'wall';
+    trimMaterial.userData['renderRole'] = 'trim';
+    glassMaterial.userData['renderRole'] = 'window-glass';
+    doorMaterial.userData['renderRole'] = 'door';
     const materials: THREE.Material[] = [material, trimMaterial, glassMaterial, doorMaterial];
     const cornerMap = cornerShade();
     if (cornerMap) {
@@ -359,6 +364,7 @@ export function applyFinishes(room: BuiltRoom, finishes: RoomFinishes, textures?
   const paint = (mat: THREE.MeshStandardMaterial, id: string, where: SurfaceKind) => {
     const def = resolveFinishMaterial(finishes, id);
     if (!def) return;
+    mat.userData['renderMaterial'] = def.kind;
     dressMaterial(mat, def, textures?.surface(def, where) ?? null);
   };
   paint(room.floor.material as THREE.MeshStandardMaterial, finishes.floor, 'floor');

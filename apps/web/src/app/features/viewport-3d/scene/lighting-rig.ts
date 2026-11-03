@@ -1,4 +1,4 @@
-import { alongOf, distanceFromWall, wallFrames, type Lighting, type RoomShell } from '@interiores/shared-types';
+import { alongOf, distanceFromWall, wallFrames, type BlenderLights, type Lighting, type RoomShell } from '@interiores/shared-types';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
@@ -292,6 +292,25 @@ export class LightingRig {
   /** Brillo de las pantallas de lámpara a esta hora. */
   get glow(): number {
     return LIGHTING_PRESETS[this.time].glow;
+  }
+
+  /**
+   * La luz tal como está, para reconstruirla en Blender con unidades físicas (ADR-0036): hacia dónde
+   * viaja el sol, dónde están las bombillas y el techo, y el ambiente elegido.
+   */
+  describe(): BlenderLights {
+    const at = (o: THREE.Object3D) => {
+      const p = o.getWorldPosition(new THREE.Vector3());
+      return { x: p.x, y: p.y, z: p.z };
+    };
+    const sun = this.sun.target.getWorldPosition(new THREE.Vector3()).sub(this.sun.getWorldPosition(new THREE.Vector3())).normalize();
+    return {
+      sunDirection: { x: sun.x, y: sun.y, z: sun.z },
+      lamps: [...this.lamps.values()].map(at),
+      ceiling: this.shell ? at(this.ceiling) : null,
+      mood: this.mood.mood,
+      level: this.mood.level,
+    };
   }
 
   /**

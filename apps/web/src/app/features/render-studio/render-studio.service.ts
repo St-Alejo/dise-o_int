@@ -1,10 +1,13 @@
 import { Injectable, NgZone, computed, inject, signal } from '@angular/core';
-import { RENDER_QUALITIES, type RenderEngine as RenderEngineId, type RenderSpec } from '@interiores/shared-types';
+import { RENDER_QUALITIES, type BlenderLights, type RenderEngine as RenderEngineId, type RenderSpec } from '@interiores/shared-types';
 import { SceneService, type StudioHost } from '../viewport-3d/scene.service';
 import { EngineUnsupportedError, createEngine, supportsPathTracing, type RenderEngine } from './engines';
+import { exportRoomGlb } from './scene-export';
 import { previewSize, remainingLabel, studioViewOf } from './studio-camera';
 
 export type StudioPhase = 'idle' | 'preparing' | 'rendering' | 'done' | 'error';
+/** Motores que dibujan aquí mismo (Cycles va al nodo Blender). */
+type BrowserEngine = Exclude<RenderEngineId, 'cycles'>;
 
 /** Lo que se le deja a cada cuadro del navegador: el resto del tiempo la página sigue respondiendo. */
 const FRAME_BUDGET_MS = 40;
@@ -65,7 +68,7 @@ export class RenderStudioService {
       this.fail('El visor 3D aún no está listo: abre la vista 3D y vuelve a intentarlo.');
       return;
     }
-    const wanted: RenderEngineId = spec.engine === 'pathtracer' && supportsPathTracing(host.renderer) ? 'pathtracer' : 'raster';
+    const wanted: BrowserEngine = spec.engine === 'pathtracer' && supportsPathTracing(host.renderer) ? 'pathtracer' : 'raster';
     this.cancelled = false;
     this.error.set(null);
     this.notice.set(null);
@@ -82,7 +85,7 @@ export class RenderStudioService {
     }
   }
 
-  private async run(host: StudioHost, spec: RenderSpec, engineId: RenderEngineId): Promise<void> {
+  private async run(host: StudioHost, spec: RenderSpec, engineId: BrowserEngine): Promise<void> {
     const view = studioViewOf(spec);
     // En raster cada muestra es un cuadro entero: con 32 ya no se nota la diferencia.
     const target = engineId === 'pathtracer' ? RENDER_QUALITIES[spec.quality] : Math.min(32, RENDER_QUALITIES[spec.quality] / 4);
@@ -120,6 +123,22 @@ export class RenderStudioService {
       engine?.dispose();
       restoreScene();
       host.restore();
+    }
+  }
+
+  /**
+   * El cuarto como GLB y la luz que tenía, vistos desde la cámara del spec (para Blender o para
+   * descargarlo). Usa la misma preparación que un render: sin ayudas, sin sombras fingidas y sin
+   * paredes recortadas. Null si el visor no está listo.
+   */
+  async exportScene(spec: RenderSpec): Promise<{ glb: Blob; lights: BlenderLights } | null> {
+    if (this.busy() || !this.scene.studioHost || !this.scene.sceneReady()) return null;
+    const restoreScene = this.scene.beginStudio(studioViewOf(spec));
+    try {
+      const glb = await exportRoomGlb(this.scene.scene);
+      return { glb: new Blob([glb], { type: 'model/gltf-binary' }), lights: this.scene.lightsForRender() };
+    } finally {
+      restoreScene();
     }
   }
 
