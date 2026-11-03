@@ -30,7 +30,9 @@ function buildSofa(ctx: RecipeContext, fixedSeats?: number): void {
   const armH = Math.min(h - legH, baseH + cushionH + 0.18);
 
   if (legs) cornerLegs(ctx, SLOTS.legs.slot, legH, w, d, 0.06, 0.022);
-  b.box(SLOTS.upholstery.slot, w, baseH, d, [0, legH, 0], 0.02);
+  // La base va entre los brazos: si los atravesara, sus caras coincidirían con las de los brazos y
+  // el render (Cycles) las pinta de negro donde se solapan.
+  b.box(SLOTS.upholstery.slot, w - 2 * arm, baseH, d, [0, legH, 0], 0.02);
   // Respaldo hasta el alto total.
   b.box(SLOTS.upholstery.slot, w - 2 * arm, h - seatTop, backD, [0, seatTop, -d / 2 + backD / 2], 0.04);
   if (arms) {
@@ -86,7 +88,8 @@ export const sofaL: FurnitureRecipe = {
     const z0 = -d / 2 + mainD / 2;
     cornerLegs(ctx, SLOTS.legs.slot, legH, w, mainD, 0.06, 0.022, z0);
     b.cylinder(SLOTS.legs.slot, 0.022, 0.018, legH, [side * (w / 2 - 0.06), 0, d / 2 - 0.06], 12);
-    b.box(SLOTS.upholstery.slot, w, baseH, mainD, [0, legH, z0], 0.02);
+    // La base termina donde empieza el brazo (caras coincidentes = manchas negras en Cycles).
+    b.box(SLOTS.upholstery.slot, w - arm, baseH, mainD, [side * arm / 2, legH, z0], 0.02);
     b.box(SLOTS.upholstery.slot, chaiseW, baseH, d - mainD, [side * (w / 2 - chaiseW / 2), legH, -d / 2 + mainD + (d - mainD) / 2], 0.02);
     b.box(SLOTS.upholstery.slot, w - arm, h - seatTop, backD, [-side * arm / 2, seatTop, -d / 2 + backD / 2], 0.04);
     // Brazo del lado sin chaise.
