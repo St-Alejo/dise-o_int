@@ -29,7 +29,7 @@ describe('plan de Blender', () => {
   it('es válido para su esquema y para el trabajo de la cola', () => {
     const plan = blenderPlan(spec, lights);
     expect(BlenderPlanSchema.parse(plan)).toEqual(plan);
-    expect(BlenderJobSchema.safeParse({ renderId: 'r', projectId: 'p', sceneKey: 'k.glb', outputPrefix: 'k', plan }).success).toBe(true);
+    expect(BlenderJobSchema.safeParse({ renderId: 'r', projectId: 'p', userId: 'u', sceneKey: 'k.glb', outputPrefix: 'k', plan }).success).toBe(true);
   });
 
   it('usa el tamaño del formato pedido y ajusta el sensor al lado largo', () => {

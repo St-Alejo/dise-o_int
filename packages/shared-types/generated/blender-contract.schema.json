@@ -11,6 +11,9 @@
         "projectId": {
           "type": "string"
         },
+        "userId": {
+          "type": "string"
+        },
         "sceneKey": {
           "type": "string"
         },
@@ -271,6 +274,7 @@
       "required": [
         "renderId",
         "projectId",
+        "userId",
         "sceneKey",
         "outputPrefix",
         "plan"
@@ -305,6 +309,22 @@
         "blendKey",
         "seconds",
         "device"
+      ]
+    },
+    "RenderNodeHeartbeat": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device",
+        "at"
       ]
     }
   }

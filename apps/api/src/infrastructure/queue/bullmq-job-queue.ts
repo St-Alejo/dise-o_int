@@ -12,9 +12,11 @@ export const JOB_OPTIONS: Record<JobKind, JobsOptions> = {
   'analyze-room': { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
   'generate-styles': { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
   'build-scene': { attempts: 2, backoff: { type: 'exponential', delay: 1000 } },
+  // Un render que falla suele volver a fallar (escena rota): un solo reintento, por si el nodo se reinició.
+  'blender-render': { attempts: 2, backoff: { type: 'fixed', delay: 5000 } },
 };
 
-const RETENTION: JobsOptions = {
+export const RETENTION: JobsOptions = {
   removeOnComplete: { age: 3600, count: 1000 },
   removeOnFail: { age: 24 * 3600, count: 1000 },
 };

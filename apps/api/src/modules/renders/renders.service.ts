@@ -9,9 +9,11 @@ import {
   APP_CONFIG,
   FILE_STORAGE,
   PROJECT_REPOSITORY,
+  RENDER_JOB_QUEUE,
   RENDER_REPOSITORY,
   type IFileStorage,
   type IProjectRepository,
+  type IRenderJobQueue,
   type IRenderRepository,
   type RenderRecord,
 } from '../../ports/index.js';
@@ -32,7 +34,16 @@ const ACCEPTS: Record<CreateRenderFields['kind'], readonly RenderMediaType[]> = 
   video: ['video/mp4', 'video/webm'],
 };
 
+/** Proveedor de los renders hechos en el nodo Blender. */
+export const CYCLES_PROVIDER = 'cycles';
+
 export function toRenderDto(r: RenderRecord, signer: MediaUrlSigner): Render {
+  const ready = r.status === 'ready';
+  // El nodo deja junto a la vista previa (JPEG) el PNG sin comprimir y la escena .blend.
+  const downloads =
+    ready && r.provider === CYCLES_PROVIDER
+      ? { png: signer.sign(projectKeys.render(r.projectId, r.id, 'png')), blend: signer.sign(projectKeys.render(r.projectId, r.id, 'blend')) }
+      : undefined;
   return {
     id: r.id,
     projectId: r.projectId,
@@ -47,6 +58,7 @@ export function toRenderDto(r: RenderRecord, signer: MediaUrlSigner): Render {
     shared: r.shared,
     error: r.error,
     createdAt: r.createdAt.toISOString(),
+    ...(downloads ? { downloads } : {}),
   };
 }
 
@@ -65,6 +77,7 @@ export class RendersService {
     @Inject(FILE_STORAGE) private readonly storage: IFileStorage,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly signer: MediaUrlSigner,
+    @Inject(RENDER_JOB_QUEUE) private readonly renderQueue: IRenderJobQueue,
   ) {
     this.access = new ProjectAccess(projects, signer);
   }
@@ -122,7 +135,9 @@ export class RendersService {
   async remove(actor: Actor, projectId: string, renderId: string): Promise<void> {
     await this.access.own(actor, projectId);
     const render = await this.find(projectId, renderId);
-    // "…/renders/<id>." como prefijo: solo toca este archivo y su mapa de profundidad.
+    // Si el nodo Blender aún lo tiene en cola (o lo está renderizando), que no siga gastando GPU.
+    if (render.provider === CYCLES_PROVIDER && render.status === 'pending') await this.renderQueue.cancel(render.id).catch(() => undefined);
+    // "…/renders/<id>." como prefijo: solo toca este archivo y sus acompañantes (profundidad, escena, .blend).
     await this.storage.deletePrefix(projectKeys.render(projectId, render.id, ''));
     await this.renders.delete(render.id);
   }

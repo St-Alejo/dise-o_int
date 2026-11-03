@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { RendersController } from './renders.controller.js';
+import { BlenderRendersService } from './blender-renders.service.js';
+import { RenderNodeController, RendersController } from './renders.controller.js';
 import { RendersService } from './renders.service.js';
 
-/** Estudio de render (plan v9): la galería de imágenes, fotos realistas y vídeos de cada proyecto. */
+/** Estudio de render (planes v9 y v10): la galería de cada proyecto y los renders en Blender. */
 @Module({
-  controllers: [RendersController],
-  providers: [RendersService],
+  controllers: [RendersController, RenderNodeController],
+  providers: [RendersService, BlenderRendersService],
   exports: [RendersService],
 })
 export class RendersModule {}

@@ -65,4 +65,9 @@ export class PrismaRenderRepository implements IRenderRepository {
   countByProject(projectId: string): Promise<number> {
     return this.prisma.render.count({ where: { projectId } });
   }
+
+  async listPending(provider: string): Promise<RenderRecord[]> {
+    const rows = await this.prisma.render.findMany({ where: { provider, status: 'pending' }, orderBy: { createdAt: 'asc' } });
+    return rows.map(toRecord);
+  }
 }

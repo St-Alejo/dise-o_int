@@ -8,7 +8,7 @@ import { MediaUrlSigner } from '../src/infrastructure/media/media-url-signer.js'
 import { MemoryFileStorage } from '../src/infrastructure/storage/memory-file-storage.js';
 import { ProjectsService } from '../src/modules/projects/projects.service.js';
 import { RendersService } from '../src/modules/renders/renders.service.js';
-import { FakeBroker, FakeQueue, FakeQuota, InMemoryCatalogRepository, InMemoryProjectRepository, InMemoryRenderRepository, testConfig } from './fakes.js';
+import { FakeBroker, FakeQueue, FakeQuota, FakeRenderQueue, InMemoryCatalogRepository, InMemoryProjectRepository, InMemoryRenderRepository, testConfig } from './fakes.js';
 
 const spec = defaultRenderSpec({ position: { x: 1, y: 1.6, z: 3 }, target: { x: 2, y: 1, z: 0 }, focalMm: 24, straightVerticals: true });
 const pathFields: CreateRenderFields = { kind: 'path', spec };
@@ -35,7 +35,7 @@ describe('RendersService (galería del estudio de render)', () => {
   const bob = { userId: 'bob' };
 
   function build(config: AppConfig = testConfig) {
-    service = new RendersService(projects, renders, storage, config, new MediaUrlSigner(testConfig));
+    service = new RendersService(projects, renders, storage, config, new MediaUrlSigner(testConfig), new FakeRenderQueue());
   }
 
   beforeEach(async () => {

@@ -9,6 +9,7 @@ import type {
   AnalyzeReferenceResponse,
   AnalyzeRoomRequest,
   AnalyzeRoomResponse,
+  BlenderJob,
   CatalogCategory,
   CatalogFilters,
   CatalogSpec,
@@ -37,6 +38,7 @@ import type {
   PhotorealFidelity,
   RenderKind,
   RenderMediaType,
+  RenderNodeStatus,
   RenderSpec,
   RenderStatus,
 } from '@interiores/shared-types';
@@ -265,6 +267,8 @@ export interface IRenderRepository {
   update(id: string, patch: RenderPatch): Promise<RenderRecord>;
   delete(id: string): Promise<void>;
   countByProject(projectId: string): Promise<number>;
+  /** Renders aún pendientes de un proveedor (para reconciliarlos al arrancar el worker). */
+  listPending(provider: string): Promise<RenderRecord[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +345,8 @@ export interface JobPayloads {
   'analyze-room': AnalyzeRoomJob;
   'generate-styles': GenerateStylesJob;
   'build-scene': BuildSceneJob;
+  /** Va a la cola del nodo Blender (IRenderJobQueue), no a la de IA. */
+  'blender-render': BlenderJob;
 }
 
 export interface IJobQueue {
@@ -354,6 +360,29 @@ export interface IProgressBroker {
   history(projectId: string): Promise<JobProgressEvent[]>;
   /** Suscripción a todos los proyectos; devuelve la función para desuscribirse. */
   subscribe(handler: (event: JobProgressEvent) => void): Promise<() => Promise<void>>;
+}
+
+/** Estado de un trabajo de render en su cola; `missing` si ya no está (se borró o caducó). */
+export type RenderJobState = 'waiting' | 'active' | 'completed' | 'failed' | 'missing';
+
+/** Lo que la cola sabe de un render: el trabajo tal como se encoló y cómo terminó. */
+export interface RenderJobInfo {
+  state: RenderJobState;
+  job: BlenderJob | null;
+  /** Lo que devolvió el nodo (sin validar: lo valida quien lo usa). */
+  result?: unknown;
+  error?: string;
+}
+
+/** Cola del nodo Blender (ADR-0036): la API encola y el nodo, si está encendido, renderiza. */
+export interface IRenderJobQueue {
+  /** Encola el render con `renderId` como id del trabajo. */
+  enqueue(job: BlenderJob): Promise<void>;
+  /** ¿Hay un nodo encendido? Lo dice su latido en Redis. */
+  node(): Promise<RenderNodeStatus>;
+  info(renderId: string): Promise<RenderJobInfo>;
+  /** Quita el trabajo si aún espera y, si ya se está renderizando, le pide al nodo que pare. */
+  cancel(renderId: string): Promise<void>;
 }
 
 export interface IQuota {
@@ -374,5 +403,7 @@ export const JOB_QUEUE = Symbol('IJobQueue');
 export const PROGRESS_BROKER = Symbol('IProgressBroker');
 export const QUOTA = Symbol('IQuota');
 export const CHAT_QUOTA = Symbol('IChatQuota');
+export const RENDER_JOB_QUEUE = Symbol('IRenderJobQueue');
+export const BLENDER_QUOTA = Symbol('IBlenderQuota');
 export const APP_CONFIG = Symbol('AppConfig');
 export const REDIS = Symbol('Redis');

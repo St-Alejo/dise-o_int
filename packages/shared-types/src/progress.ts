@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-export const JOB_KINDS = ['analyze-room', 'generate-styles', 'build-scene'] as const;
+/** Los tres primeros van a la cola de IA; `blender-render`, a la cola del nodo Blender (ADR-0036). */
+export const JOB_KINDS = ['analyze-room', 'generate-styles', 'build-scene', 'blender-render'] as const;
 export const JobKindSchema = z.enum(JOB_KINDS);
 export type JobKind = z.infer<typeof JobKindSchema>;
 
@@ -11,6 +12,7 @@ export const PROGRESS_STAGES = [
   'surfaces',
   'styles',
   'scene',
+  'rendering',
   'done',
 ] as const;
 export const ProgressStageSchema = z.enum(PROGRESS_STAGES);
@@ -22,6 +24,7 @@ export const STAGE_MESSAGES: Record<ProgressStage, string> = {
   surfaces: 'Detectando muebles y superficies…',
   styles: 'Generando propuestas de diseño…',
   scene: 'Preparando el modelo 3D…',
+  rendering: 'Renderizando en Blender…',
   done: '¡Listo!',
 };
 

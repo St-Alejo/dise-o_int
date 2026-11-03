@@ -52,6 +52,10 @@ export const EnvSchema = z
     RENDERS_MAX_MB: z.coerce.number().positive().max(200).default(60),
     /** Renders que guarda un proyecto como máximo. */
     RENDERS_PER_PROJECT: z.coerce.number().int().min(1).max(500).default(60),
+    /** Escena .glb que la web manda al nodo Blender (texturas incluidas). */
+    RENDER_SCENE_MAX_MB: z.coerce.number().positive().max(200).default(40),
+    /** Renders en Blender por usuario y día (la GPU del nodo es un recurso compartido). */
+    BLENDER_RENDERS_PER_DAY: z.coerce.number().int().min(1).default(20),
     RETENTION_HOURS: z.coerce.number().int().min(1).default(24),
     /** Chat de diseño: sin API key responde el agente por reglas (gratis). */
     ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),

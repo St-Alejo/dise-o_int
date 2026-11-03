@@ -9,6 +9,7 @@ import type {
   RankRecommendationsResponse,
   AnalyzeRoomRequest,
   AnalyzeRoomResponse,
+  BlenderJob,
   CatalogFilters,
   GenerateStyleRequest,
   GenerateStyleResponse,
@@ -16,9 +17,10 @@ import type {
   JobProgressEvent,
   PlaceFurnitureRequest,
   PlaceFurnitureResponse,
+  RenderNodeStatus,
 } from '@interiores/shared-types';
 import { createRectangularShell } from '@interiores/shared-types';
-import { NotFoundError, QuotaExceededError, StaleRevisionError } from '../src/common/errors.js';
+import { DependencyError, NotFoundError, QuotaExceededError, StaleRevisionError } from '../src/common/errors.js';
 import type { AppConfig } from '../src/config/env.js';
 import type {
   CatalogRecord,
@@ -28,6 +30,8 @@ import type {
   IProgressBroker,
   IProjectRepository,
   IQuota,
+  IRenderJobQueue,
+  RenderJobInfo,
   IRenderRepository,
   NewRender,
   RenderPatch,
@@ -50,6 +54,8 @@ export const testConfig = {
   MEDIA_URL_TTL_SECONDS: 3600,
   RENDERS_MAX_MB: 60,
   RENDERS_PER_PROJECT: 60,
+  RENDER_SCENE_MAX_MB: 40,
+  BLENDER_RENDERS_PER_DAY: 20,
 } as unknown as AppConfig;
 
 export class InMemoryRenderRepository implements IRenderRepository {
@@ -86,6 +92,9 @@ export class InMemoryRenderRepository implements IRenderRepository {
   }
   async countByProject(projectId: string) {
     return this.rows.filter((r) => r.projectId === projectId).length;
+  }
+  async listPending(provider: string) {
+    return this.rows.filter((r) => r.provider === provider && r.status === 'pending').map((r) => structuredClone(r));
   }
 }
 
@@ -263,6 +272,33 @@ export class FakeQueue implements IJobQueue {
     return jobId;
   }
   async ping() {}
+}
+
+/** Cola del nodo Blender en memoria: los tests deciden si hay nodo y cómo acaba cada trabajo. */
+export class FakeRenderQueue implements IRenderJobQueue {
+  alive = true;
+  failEnqueue = false;
+  jobs = new Map<string, RenderJobInfo>();
+  cancelled: string[] = [];
+  async enqueue(job: BlenderJob) {
+    if (this.failEnqueue) throw new DependencyError('Redis caído');
+    this.jobs.set(job.renderId, { state: 'waiting', job });
+  }
+  async node(): Promise<RenderNodeStatus> {
+    return { available: this.alive, device: this.alive ? 'CUDA' : null };
+  }
+  async info(renderId: string): Promise<RenderJobInfo> {
+    return this.jobs.get(renderId) ?? { state: 'missing', job: null };
+  }
+  async cancel(renderId: string) {
+    this.cancelled.push(renderId);
+  }
+  /** Simula el final de un trabajo en el nodo. */
+  finish(renderId: string, outcome: Omit<RenderJobInfo, 'job'>) {
+    const current = this.jobs.get(renderId);
+    if (!current) throw new Error(`No hay trabajo ${renderId}`);
+    this.jobs.set(renderId, { ...current, ...outcome });
+  }
 }
 
 export class FakeBroker implements IProgressBroker {

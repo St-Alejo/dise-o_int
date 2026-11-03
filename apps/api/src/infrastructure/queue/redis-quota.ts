@@ -60,3 +60,15 @@ export class RedisChatQuota extends RedisQuota {
     return `Alcanzaste el límite de ${limit} mensajes al asistente con IA por día.`;
   }
 }
+
+/** Renders en Blender por día: cada uno ocupa la GPU del nodo uno o varios minutos. */
+@Injectable()
+export class RedisBlenderQuota extends RedisQuota {
+  protected override readonly counter = 'blender';
+  protected override limit(): number {
+    return this.config.BLENDER_RENDERS_PER_DAY;
+  }
+  protected override exceededMessage(limit: number): string {
+    return `Alcanzaste el límite de ${limit} renders en Blender por día. Vuelve mañana.`;
+  }
+}

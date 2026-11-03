@@ -4,6 +4,7 @@ import { loadConfig, type AppConfig } from '../config/env.js';
 import {
   AI_CLIENT,
   APP_CONFIG,
+  BLENDER_QUOTA,
   CATALOG_REPOSITORY,
   FILE_STORAGE,
   JOB_QUEUE,
@@ -11,6 +12,7 @@ import {
   PROJECT_REPOSITORY,
   QUOTA,
   REDIS,
+  RENDER_JOB_QUEUE,
   RENDER_REPOSITORY,
 } from '../ports/index.js';
 import { HttpAiClient } from './ai/http-ai-client.js';
@@ -21,7 +23,8 @@ import { PrismaProjectRepository } from './prisma/prisma-project.repository.js';
 import { PrismaRenderRepository } from './prisma/prisma-render.repository.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { BullMqJobQueue } from './queue/bullmq-job-queue.js';
-import { RedisQuota } from './queue/redis-quota.js';
+import { BullMqRenderJobQueue } from './queue/bullmq-render-queue.js';
+import { RedisBlenderQuota, RedisQuota } from './queue/redis-quota.js';
 import { RedisProgressBroker } from './realtime/redis-progress-broker.js';
 import { createRedis } from './redis/redis.provider.js';
 import { S3FileStorage } from './storage/s3-file-storage.js';
@@ -56,6 +59,8 @@ class RedisLifecycle implements OnApplicationShutdown {
     { provide: JOB_QUEUE, useClass: BullMqJobQueue },
     { provide: PROGRESS_BROKER, useClass: RedisProgressBroker },
     { provide: QUOTA, useClass: RedisQuota },
+    { provide: RENDER_JOB_QUEUE, useClass: BullMqRenderJobQueue },
+    { provide: BLENDER_QUOTA, useClass: RedisBlenderQuota },
   ],
   exports: [
     APP_CONFIG,
@@ -71,6 +76,8 @@ class RedisLifecycle implements OnApplicationShutdown {
     JOB_QUEUE,
     PROGRESS_BROKER,
     QUOTA,
+    RENDER_JOB_QUEUE,
+    BLENDER_QUOTA,
   ],
 })
 export class CoreModule {}

@@ -184,6 +184,8 @@ export const RenderSchema = z.object({
   shared: z.boolean(),
   error: z.string().nullable(),
   createdAt: z.string(),
+  /** Solo en los renders de Blender ya listos: el PNG sin comprimir y la escena `.blend` para retocarla. */
+  downloads: z.object({ png: z.string(), blend: z.string() }).optional(),
 });
 export type Render = z.infer<typeof RenderSchema>;
 

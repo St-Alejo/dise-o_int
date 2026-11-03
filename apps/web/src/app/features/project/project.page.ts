@@ -335,6 +335,8 @@ export class ProjectPage implements OnInit {
   private readonly finishedAt = new Map<string, string>();
 
   private onProgress(e: JobProgressEvent): void {
+    // Los renders en Blender no tocan el proyecto: su avance lo muestra la galería.
+    if (e.kind === 'blender-render') return;
     // El historial repite eventos viejos: lo que no es posterior al último fin visto ya se atendió.
     const lastEnd = this.finishedAt.get(e.jobId);
     if (lastEnd !== undefined && e.at <= lastEnd) return;

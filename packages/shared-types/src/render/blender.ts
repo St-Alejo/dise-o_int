@@ -142,10 +142,30 @@ export const BlenderPlanSchema = z.object({
 });
 export type BlenderPlan = z.infer<typeof BlenderPlanSchema>;
 
+/**
+ * Claves que comparten la API y el nodo Blender (Python las repite tal cual):
+ * - la cola BullMQ, aparte de la de IA para que un render largo no frene el análisis de fotos;
+ * - el latido del nodo, que este renueva cada pocos segundos (si caduca, no hay nodo);
+ * - la marca de cancelación de un render que se borró mientras se renderizaba.
+ */
+export const RENDER_QUEUE = 'render-jobs';
+export const RENDER_NODE_HEARTBEAT_KEY = 'render-node:heartbeat';
+export const renderCancelKey = (renderId: string): string => `render-node:cancel:${renderId}`;
+
+/** Lo que el nodo escribe en su latido. */
+export const RenderNodeHeartbeatSchema = z.object({ device: z.string(), at: z.string() });
+export type RenderNodeHeartbeat = z.infer<typeof RenderNodeHeartbeatSchema>;
+
+/** Estado del nodo tal como lo ve la web (para habilitar o no el motor Blender). */
+export const RenderNodeStatusSchema = z.object({ available: z.boolean(), device: z.string().nullable() });
+export type RenderNodeStatus = z.infer<typeof RenderNodeStatusSchema>;
+
 /** Trabajo de la cola `render-jobs`: dónde está la escena, dónde dejar el resultado y el plan. */
 export const BlenderJobSchema = z.object({
   renderId: z.string(),
   projectId: z.string(),
+  /** Quién lo pidió: si falla, la API le devuelve la cuota. */
+  userId: z.string(),
   sceneKey: z.string(),
   /** Prefijo de salida: Blender añade `.png`, `.jpg` y `.blend`. */
   outputPrefix: z.string(),
@@ -167,6 +187,7 @@ export type BlenderResult = z.infer<typeof BlenderResultSchema>;
 export const BLENDER_CONTRACT_SCHEMAS = {
   BlenderJob: BlenderJobSchema,
   BlenderResult: BlenderResultSchema,
+  RenderNodeHeartbeat: RenderNodeHeartbeatSchema,
 } as const;
 
 /**

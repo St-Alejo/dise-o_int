@@ -9,10 +9,11 @@ import { AiWorker } from './modules/jobs/ai-worker.js';
 import { PipelineService } from './modules/jobs/pipeline.service.js';
 import { RetentionService } from './modules/jobs/retention.service.js';
 import { WorkerHealthServer } from './modules/jobs/worker-health.server.js';
+import { RenderJobsListener } from './modules/renders/render-jobs.listener.js';
 
 @Module({
   imports: [loggerModule('worker'), CoreModule],
-  providers: [PipelineService, AiWorker, RetentionService, WorkerHealthServer],
+  providers: [PipelineService, AiWorker, RetentionService, WorkerHealthServer, RenderJobsListener],
 })
 class WorkerModule {}
 
