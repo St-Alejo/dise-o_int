@@ -49,7 +49,7 @@ export interface SegmentOption<T extends string = string> {
       font-weight: 600;
       cursor: pointer;
     }
-    button:hover:not(:disabled) {
+    button:hover:not(:disabled, [aria-pressed='true']) {
       color: var(--text);
     }
     button:disabled {
