@@ -153,6 +153,15 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       background: transparent;
       backdrop-filter: none;
       box-shadow: none;
+      /* Va sobre la película oscura: tinta clara en toda la cabecera. */
+      --text: #f6f1e9;
+      --text-muted: #d8d0c4;
+      --primary: #f6f1e9;
+      --primary-strong: #ffffff;
+      --on-primary: #100f0e;
+      --border: rgb(246 241 233 / 35%);
+      --surface: rgb(246 241 233 / 10%);
+      color: var(--text);
     }
     .bar {
       display: flex;

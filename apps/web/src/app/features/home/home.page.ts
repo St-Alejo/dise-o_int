@@ -4,7 +4,8 @@ import { AuthService } from '../../core/auth/auth.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RevealDirective } from '../../shared/ui/reveal.directive';
 import { BeforeAfterComponent } from './before-after.component';
-import { CoverComponent, HERO_TEMPLATE } from './cover.component';
+import { HERO_TEMPLATE } from './cover.component';
+import { FilmComponent } from './film.component';
 import { FeatureGalleryComponent } from './feature-gallery.component';
 import { HowComponent } from './how.component';
 import { StatsBandComponent } from './stats-band.component';
@@ -85,9 +86,9 @@ const FAQ = [
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, RevealDirective, CoverComponent, HowComponent, BeforeAfterComponent, FeatureGalleryComponent, VitrinaComponent, StatsBandComponent],
+  imports: [RouterLink, IconComponent, RevealDirective, FilmComponent, HowComponent, BeforeAfterComponent, FeatureGalleryComponent, VitrinaComponent, StatsBandComponent],
   template: `
-    <app-cover [start]="start()" [signedIn]="auth.isAuthenticated()" />
+    <app-film [start]="start()" />
 
     <section id="como-funciona" class="how-sec" aria-labelledby="how-title">
       <app-how />

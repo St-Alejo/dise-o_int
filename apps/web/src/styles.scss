@@ -6,6 +6,25 @@
    Tipografía autoalojada en /fonts (la CSP no permite fuentes externas).
    ========================================================================== */
 
+/* Archivo es variable en peso (100–900) y en ancho (62–125 %): condensada y fina para los titulares
+   de capítulo, normal para leer y expandida para los datos pequeños. */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin-wdth.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: italic;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin-wdth-italic.woff2') format('woff2');
+}
+
 /* Solo el subconjunto latino. Figtree es variable (un archivo cubre todos los pesos); Instrument
    Serif tiene un único peso, en romana y en cursiva: nunca se le pide negrita (sería sintética). */
 @font-face {
@@ -80,8 +99,8 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
-  --font: 'Figtree', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: 'Instrument Serif', 'Georgia', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font: 'Archivo', 'Figtree', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Archivo', 'Arial Narrow', 'Iowan Old Style', 'Palatino Linotype', serif;
   --text-xs: 0.8125rem;
   --text-sm: 0.9rem;
   --text-base: 1.0625rem;
