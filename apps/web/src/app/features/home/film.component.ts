@@ -115,6 +115,13 @@ export function nearestLoaded(target: number, loaded: readonly boolean[]): numbe
   return -1;
 }
 
+/** Pantallas más altas que 4:5 (celulares en vertical) usan la película vertical. */
+export const PORTRAIT_QUERY = '(max-aspect-ratio: 4/5)';
+
+export function filmSet(portrait: boolean): 'desk' | 'mob' {
+  return portrait ? 'mob' : 'desk';
+}
+
 export function framePath(set: string, index: number): string {
   return `cine/${set}/f${String(index).padStart(3, '0')}.webp`;
 }
@@ -156,7 +163,10 @@ export function framePath(set: string, index: number): string {
       <section #run class="run" aria-label="De una foto a tu cuarto, en seis capítulos">
         <span id="estilos" class="anchor" aria-hidden="true"></span>
         <div class="stage">
-          <img class="poster" [src]="poster" alt="" width="1280" height="720" fetchpriority="high" [class.gone]="drawn()" />
+          <picture>
+            <source [media]="portraitQuery" [srcset]="posterMob" width="540" height="960" />
+            <img class="poster" [src]="poster" alt="" width="1280" height="720" fetchpriority="high" [class.gone]="drawn()" />
+          </picture>
           <canvas #canvas aria-hidden="true"></canvas>
           <div class="shade" aria-hidden="true"></div>
 
@@ -439,9 +449,11 @@ export class FilmComponent {
   protected readonly chapters = CHAPTERS;
   protected readonly demo = 'sala-escandinava';
   /** Cuántos fotogramas tiene la película de cada tamaño. */
-  private readonly count = 180;
-  private readonly set = 'desk';
-  protected readonly poster = framePath(this.set, 0);
+  private readonly count = 240;
+  private set: 'desk' | 'mob' = 'desk';
+  protected readonly portraitQuery = PORTRAIT_QUERY;
+  protected readonly poster = framePath('desk', 0);
+  protected readonly posterMob = framePath('mob', 0);
   protected readonly progress = signal(0);
   protected readonly chapter = computed(() => chapterAt(this.progress(), this.chapters));
   protected readonly drawn = signal(false);
@@ -452,6 +464,7 @@ export class FilmComponent {
   constructor() {
     const destroy = inject(DestroyRef);
     afterNextRender(() => {
+      this.set = filmSet(window.matchMedia(PORTRAIT_QUERY).matches);
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         this.still.set(true);
         return;

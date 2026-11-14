@@ -1,4 +1,4 @@
-import { CHAPTERS, chapterAt, frameAt, framePath, loadOrder, nearestLoaded, scrollProgress } from './film.component';
+import { CHAPTERS, chapterAt, filmSet, frameAt, framePath, loadOrder, nearestLoaded, scrollProgress } from './film.component';
 
 describe('película de la portada', () => {
   it('el progreso va de 0 al entrar al tramo fijo a 1 al salir', () => {
@@ -41,5 +41,10 @@ describe('película de la portada', () => {
 
   it('los fotogramas se nombran con tres cifras', () => {
     expect(framePath('desk', 7)).toBe('cine/desk/f007.webp');
+  });
+
+  it('en vertical se usa la película del celular', () => {
+    expect(filmSet(true)).toBe('mob');
+    expect(filmSet(false)).toBe('desk');
   });
 });
