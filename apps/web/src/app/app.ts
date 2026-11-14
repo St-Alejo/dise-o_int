@@ -283,6 +283,11 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       color: var(--primary);
       text-decoration: underline;
     }
+    /* Dentro de la nota el enlace va subrayado: no basta con el color para distinguirlo. */
+    .foot-note a {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
     .foot-links a {
       display: inline-flex;
       align-items: center;
