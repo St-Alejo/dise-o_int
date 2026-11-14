@@ -12,8 +12,7 @@ import { RevealDirective } from '../../shared/ui/reveal.directive';
   template: `
     <section class="container page">
       <header class="section-head">
-        <p class="eyebrow">Plantillas</p>
-        <h1>Empieza por un cuarto ya hecho</h1>
+        <h1>Empieza por un cuarto <em>ya hecho.</em></h1>
         <p class="lead">Ábrelo, mueve lo que quieras y recórrelo. No hace falta cuenta: se guarda en este navegador hasta que decidas quedártelo.</p>
       </header>
       <ul class="grid" appReveal>
@@ -40,8 +39,34 @@ import { RevealDirective } from '../../shared/ui/reveal.directive';
     .page {
       padding: var(--space-7) 0;
     }
+    .page {
+      padding-top: clamp(40px, 6vw, 88px);
+    }
     h1 {
-      margin: 0;
+      margin: 0 0 var(--space-4);
+      font-size: var(--text-3xl);
+    }
+    h1 em {
+      color: var(--primary);
+    }
+    .lead {
+      max-width: 52ch;
+    }
+    /* Las destacadas abren la vitrina en grande, como la portada de una revista. */
+    @media (min-width: 900px) {
+      .grid li:first-child {
+        grid-column: span 2;
+        grid-row: span 2;
+      }
+      .grid li:first-child .shot {
+        aspect-ratio: auto;
+        height: 100%;
+        min-height: 420px;
+      }
+      .grid li:first-child .tile {
+        height: 100%;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
     }
     .grid {
       list-style: none;
@@ -60,7 +85,7 @@ import { RevealDirective } from '../../shared/ui/reveal.directive';
     .shot {
       display: block;
       overflow: hidden;
-      border-radius: var(--radius);
+      border-radius: var(--radius-lg);
       background: var(--surface-2);
       aspect-ratio: 3 / 2;
     }
@@ -80,9 +105,7 @@ import { RevealDirective } from '../../shared/ui/reveal.directive';
       gap: 2px;
     }
     .kind {
-      font-size: var(--text-xs);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
     .name {

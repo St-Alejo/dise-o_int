@@ -55,13 +55,22 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
       } @else if (error()) {
         <p class="alert alert-danger" role="alert">{{ error() }} <button class="btn btn-sm" (click)="load()">Reintentar</button></p>
       } @else if (projects().length === 0) {
-        <div class="card empty">
-          <span class="icon-tile big"><app-icon name="cube" /></span>
+        <div class="empty">
+          <img
+            src="landing/cuarto-vacio-800.webp"
+            srcset="landing/cuarto-vacio-800.webp 800w, landing/cuarto-vacio-1600.webp 1600w"
+            sizes="(max-width: 860px) 100vw, 50vw"
+            width="1600"
+            height="1000"
+            alt="Una sala vacía en 3D, con la ventana al fondo, esperando sus muebles."
+          />
+          <div class="empty-copy">
           <h2>Aún no tienes proyectos</h2>
           <p class="muted">Empieza con una foto de tu cuarto o, si no tienes una a mano, con su forma y sus medidas.</p>
           <div class="row ways">
             <a routerLink="/proyectos/nuevo" class="btn btn-primary btn-lg"><app-icon name="camera" /> Subir mi primera foto</a>
             <a routerLink="/proyectos/nuevo" class="btn btn-lg"><app-icon name="ruler" /> Empezar con medidas</a>
+          </div>
           </div>
         </div>
       } @else {
@@ -273,7 +282,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
       color: var(--primary);
     }
     .page {
-      padding: var(--space-6) 0 64px;
+      padding: clamp(40px, 6vw, 88px) 0 96px;
     }
     .head {
       margin-bottom: var(--space-5);
@@ -281,6 +290,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
     }
     .head h1 {
       margin: 0;
+      font-size: var(--text-3xl);
     }
     .sub {
       margin: var(--space-1) 0 0;
@@ -290,9 +300,8 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: var(--space-4) var(--space-6);
       margin: 0 0 var(--space-5);
-      padding: var(--space-4) var(--space-5);
+      padding: var(--space-5);
       border-radius: var(--radius);
-      border: 1px solid var(--border);
       background: var(--tint-1);
     }
     .summary dd {
@@ -342,7 +351,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
     .thumb {
       position: relative;
       display: block;
-      aspect-ratio: 16 / 10;
+      aspect-ratio: 4 / 3;
       background: var(--surface-2);
     }
     .thumb img {
@@ -433,13 +442,29 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
       grid-column: 1 / -1;
       padding: var(--space-5) 0;
     }
+    /* Sin proyectos: el cuarto vacío de la app al lado de las dos maneras de empezar. */
     .empty {
       display: grid;
-      justify-items: center;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: var(--space-6) clamp(32px, 5vw, 72px);
+      align-items: center;
+    }
+    .empty img {
+      width: 100%;
+      height: auto;
+      border-radius: var(--radius-lg);
+    }
+    .empty-copy {
+      display: grid;
       gap: var(--space-3);
-      text-align: center;
-      padding: var(--space-7) var(--space-5);
-      background: var(--gradient-brand);
+    }
+    .empty h2 {
+      font-size: var(--text-2xl);
+    }
+    @media (max-width: 860px) {
+      .empty {
+        grid-template-columns: 1fr;
+      }
     }
     .empty h2,
     .empty p {
@@ -448,13 +473,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
     .empty p {
       max-width: 48ch;
     }
-    .big {
-      width: 64px;
-      height: 64px;
-      font-size: 1.8rem;
-    }
     .ways {
-      justify-content: center;
       margin-top: var(--space-2);
     }
   `,

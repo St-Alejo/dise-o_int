@@ -20,7 +20,6 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
   template: `
     <section class="wrap">
       <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <p class="eyebrow">{{ isRegister() ? 'Cuenta nueva' : 'Entrar' }}</p>
         @if (isRegister()) {
           <h1 class="title-xl">Crea tu cuenta, <em>es un minuto.</em></h1>
         } @else {
@@ -77,14 +76,21 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
       </form>
 
       <aside class="side" aria-label="Qué obtienes con tu cuenta">
-        <img src="landing/cuarto-tarde-800.webp" width="800" height="500" alt="Una sala en 3D con luz de tarde: sofá en L, mesa de centro, butaca y estantería." />
+        <img
+          src="landing/vida-escandinavo-1200.webp"
+          srcset="landing/vida-escandinavo-700.webp 700w, landing/vida-escandinavo-1200.webp 1200w"
+          sizes="(max-width: 900px) 100vw, 50vw"
+          width="1200"
+          height="1500"
+          alt="Una sala amueblada por la app en estilo escandinavo, con luz de tarde."
+        />
         <ul>
           @for (perk of perks; track perk.title) {
             <li>
-              <span class="icon-tile"><app-icon [name]="perk.icon" /></span>
+              <app-icon [name]="perk.icon" />
               <div>
                 <strong>{{ perk.title }}</strong>
-                <span class="muted">{{ perk.text }}</span>
+                <span>{{ perk.text }}</span>
               </div>
             </li>
           }
@@ -95,24 +101,23 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
   styles: `
     :host {
       display: block;
-      background: var(--gradient-brand);
-      min-height: calc(100vh - var(--header-h));
     }
+    /* Escenario partido, como la portada: el formulario a la izquierda y un cuarto a la derecha. */
     .wrap {
       display: grid;
-      grid-template-columns: minmax(0, 420px) minmax(0, 460px);
-      gap: var(--space-7);
-      justify-content: center;
-      align-items: center;
-      padding: clamp(var(--space-5), 6vw, 72px) var(--space-4);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      min-height: calc(100svh - var(--header-h));
     }
-    /* Sin caja: el formulario respira sobre el fondo, con un filete arriba. */
     form {
-      padding-top: var(--space-5);
-      border-top: 1px solid var(--rule);
+      align-self: center;
+      justify-self: center;
+      width: min(100%, 420px);
+      padding-block: var(--space-7);
     }
-    .eyebrow {
-      margin: 0;
+    .title-xl {
+      font-size: var(--text-2xl);
     }
     .intro {
       margin: 0;
@@ -122,23 +127,30 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
       margin: 0;
     }
     .side {
-      display: grid;
-      gap: var(--space-5);
+      position: relative;
+      min-height: 520px;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--surface-2);
     }
     .side img {
+      position: absolute;
+      inset: 0;
       width: 100%;
-      height: auto;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
+      height: 100%;
+      object-fit: cover;
     }
+    /* Lo que trae la cuenta, en una barra de lino sobre el borde de la foto. */
     .side ul {
+      position: absolute;
+      inset: auto 0 0;
       list-style: none;
       margin: 0;
-      padding: 0;
+      padding: var(--space-5);
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: var(--space-4);
+      gap: var(--space-4) var(--space-5);
+      background: var(--bg);
     }
     .side li {
       display: grid;
@@ -147,14 +159,36 @@ const PERKS: readonly { icon: IconName; title: string; text: string }[] = [
       align-items: start;
       font-size: var(--text-sm);
     }
+    .side li app-icon {
+      color: var(--primary);
+      font-size: 1.2rem;
+      margin-top: 2px;
+    }
     .side li div {
       display: grid;
       gap: 2px;
+      color: var(--text-muted);
+    }
+    .side li strong {
+      color: var(--text);
     }
     @media (max-width: 900px) {
       .wrap {
-        grid-template-columns: minmax(0, 460px);
-        gap: var(--space-6);
+        grid-template-columns: 1fr;
+      }
+      form {
+        padding-block: var(--space-5);
+      }
+      .side {
+        min-height: 0;
+        display: grid;
+      }
+      .side img {
+        position: static;
+        height: 42svh;
+      }
+      .side ul {
+        position: static;
       }
     }
     @media (max-width: 520px) {
