@@ -50,9 +50,9 @@ Un botón **Modo Pro** en la cabecera (preferencia de la cuenta) añade al edito
 
 ## Diseño de la interfaz
 
-- **Paleta "petróleo y arcilla"** en claro y oscuro, definida solo con tokens CSS en [`apps/web/src/styles.scss`](apps/web/src/styles.scss). Una prueba ([`design-tokens.spec.ts`](apps/web/src/design-tokens.spec.ts)) lee ese archivo y exige contraste AA en cada pareja de texto y fondo.
-- **Tipografía autoalojada:** Fraunces para títulos e Inter para texto, en [`apps/web/public/fonts`](apps/web/public/fonts) (la CSP no admite fuentes externas).
-- **Página de inicio editorial:** primero el cuarto y después la explicación. Capturas reales del editor (se rehacen con un comando), la misma sala con tres luces, antes y después, los seis estilos con una foto de referencia y plantillas que abren la demo ([ADR-0020](docs/adr/0020-landing-editorial.md)).
+- **Marca "Lino y nogal"** ([ADR-0038](docs/adr/0038-redisenio-galeria.md)): lino, nogal y verde salvia en claro y oscuro, definida solo con tokens CSS en [`apps/web/src/styles.scss`](apps/web/src/styles.scss). Una prueba ([`design-tokens.spec.ts`](apps/web/src/design-tokens.spec.ts)) lee ese archivo y exige contraste AA en cada pareja de texto y fondo.
+- **Tipografía autoalojada:** Instrument Serif para títulos y Figtree para texto, en [`apps/web/public/fonts`](apps/web/public/fonts) (la CSP no admite fuentes externas).
+- **Portada en escenario partido:** el texto a la izquierda y, fija a la derecha, la misma sala renderizada en Blender en cada uno de los seis estilos; cambia al bajar. Después, cómo funciona, antes y después, el editor, el Modo Pro, la vitrina y las preguntas ([ADR-0038](docs/adr/0038-redisenio-galeria.md)).
 - **Mis proyectos:** resumen, filtros por tipo de cuarto y tarjetas con área, total estimado y la planta dibujada a escala.
 - **Piezas base** en [`apps/web/src/app/shared/ui`](apps/web/src/app/shared/ui): diálogo, ayuda (tooltip), control segmentado y teclado de pestañas.
 - Cómo añadir un color o una sección: [ADR-0017](docs/adr/0017-sistema-visual.md). Capturas en [`docs/capturas/landing`](docs/capturas/landing).
