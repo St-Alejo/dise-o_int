@@ -18,6 +18,10 @@ const SECTIONS = [
 
 const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
 
+/**
+ * El marco de la app: cabecera de revista (el nombre en la serif, la navegación en la sans), el
+ * contenido y un pie de dos líneas. En la página de inicio la cabecera se funde con el lino.
+ */
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,17 +29,42 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
   host: { '(document:keydown.escape)': 'menuOpen.set(false)' },
   template: `
     <a class="skip-link" href="#main">Saltar al contenido</a>
-    <header class="app-header" [class.over-hero]="atHome()">
+    <header class="app-header" [class.at-home]="atHome()">
       <div class="container bar">
         <a routerLink="/" class="brand" aria-label="Interiores IA, inicio">
-          <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
-            <rect width="64" height="64" rx="14" fill="currentColor" />
-            <path d="M14 44V30l18-14 18 14v14" fill="none" stroke="var(--on-primary)" stroke-width="5" stroke-linejoin="round" />
-            <rect x="22" y="34" width="20" height="10" rx="3" fill="var(--on-primary)" />
+          <!-- Monograma: el vano de una puerta en arco, con el piso a la altura del zócalo. -->
+          <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M14 58V28a18 18 0 0 1 36 0v30z" fill="currentColor" />
+            <path d="M14 46h36" stroke="var(--bg)" stroke-width="4" />
+            <circle cx="40" cy="38" r="2.6" fill="var(--bg)" />
           </svg>
-          <span>Interiores <strong>IA</strong></span>
+          <span class="word">Interiores <em>IA</em></span>
         </a>
         <span class="spacer"></span>
+        <nav id="main-nav" aria-label="Principal" class="nav" [class.open]="menuOpen()">
+          @if (auth.user(); as user) {
+            <a routerLink="/proyectos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-link">Mis proyectos</a>
+            <button
+              type="button"
+              class="nav-link pro-toggle"
+              [class.on]="pro.enabled()"
+              [attr.aria-pressed]="pro.enabled()"
+              (click)="pro.toggle()"
+              appTooltip="Planos técnicos, normativa, cantidades de obra e instalaciones"
+            >
+              <app-icon name="pro" /> Modo Pro
+            </button>
+            <span class="user" [appTooltip]="user.email">{{ user.displayName }}</span>
+            <button type="button" class="nav-link" (click)="auth.logout()">Salir</button>
+            <a routerLink="/proyectos/nuevo" class="btn btn-primary btn-sm">Nuevo proyecto</a>
+          } @else {
+            @for (s of sections; track s.fragment) {
+              <a routerLink="/" [fragment]="s.fragment" class="nav-link section-link">{{ s.label }}</a>
+            }
+            <a routerLink="/entrar" class="nav-link">Entrar</a>
+            <a routerLink="/registro" class="btn btn-primary btn-sm">Crear cuenta</a>
+          }
+        </nav>
         <button
           type="button"
           class="icon-btn small"
@@ -55,30 +84,6 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
         >
           <app-icon [name]="menuOpen() ? 'close' : 'menu'" />
         </button>
-        <nav id="main-nav" aria-label="Principal" class="nav" [class.open]="menuOpen()">
-          @if (auth.user(); as user) {
-            <a routerLink="/proyectos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-link">Mis proyectos</a>
-            <a routerLink="/proyectos/nuevo" class="btn btn-primary btn-sm">Nuevo proyecto</a>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm pro-toggle"
-              [class.on]="pro.enabled()"
-              [attr.aria-pressed]="pro.enabled()"
-              (click)="pro.toggle()"
-              appTooltip="Planos técnicos, normativa, cantidades de obra e instalaciones"
-            >
-              <app-icon name="pro" /> Modo Pro
-            </button>
-            <span class="user muted" [appTooltip]="user.email">{{ user.displayName }}</span>
-            <button type="button" class="btn btn-ghost btn-sm" (click)="auth.logout()">Salir</button>
-          } @else {
-            @for (s of sections; track s.fragment) {
-              <a routerLink="/" [fragment]="s.fragment" class="nav-link section-link">{{ s.label }}</a>
-            }
-            <a routerLink="/entrar" class="nav-link">Entrar</a>
-            <a routerLink="/registro" class="btn btn-primary btn-sm">Crear cuenta</a>
-          }
-        </nav>
       </div>
     </header>
 
@@ -87,40 +92,21 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
     </main>
 
     <footer class="app-footer">
-      <div class="container cols">
-        <div class="about">
-          <p class="foot-brand">Interiores <strong>IA</strong></p>
-          <p class="muted">
-            De una foto de tu cuarto a un 3D que puedes amueblar, recorrer y compartir. Proyecto final de Programación Orientada a Objetos.
-          </p>
-        </div>
-        <div>
-          <h2>Producto</h2>
-          <ul>
-            @for (s of sections; track s.fragment) {
-              <li><a routerLink="/" [fragment]="s.fragment">{{ s.label }}</a></li>
-            }
-          </ul>
-        </div>
-        <div>
-          <h2>Tus fotos</h2>
-          <ul class="plain">
-            <li>Se les quita la ubicación GPS al subirlas.</li>
-            <li>No se usan para entrenar modelos.</li>
-            <li>Se borran a las 24 h si no guardas el proyecto.</li>
-          </ul>
-        </div>
-        <div>
-          <h2>Cómo está hecho</h2>
-          <ul class="plain">
-            <li>Angular y three.js en el navegador.</li>
-            <li>NestJS, PostgreSQL y Redis en el servidor.</li>
-            <li>FastAPI para analizar la foto y distribuir.</li>
-            <li>
-              <a [href]="repo" target="_blank" rel="noopener">Código en GitHub <app-icon name="external" /></a>
-            </li>
-          </ul>
-        </div>
+      <div class="container foot">
+        <p class="foot-what">
+          <span class="foot-name">Interiores <em>IA</em></span>
+          De la foto de tu cuarto a un 3D que puedes amueblar, recorrer y compartir.
+        </p>
+        <nav aria-label="Pie de página" class="foot-links">
+          @for (s of sections; track s.fragment) {
+            <a routerLink="/" [fragment]="s.fragment">{{ s.label }}</a>
+          }
+        </nav>
+        <p class="foot-note">
+          Tus fotos: sin ubicación GPS, no entrenan modelos y se borran a las 24 h si no guardas el proyecto. Angular y three.js · NestJS,
+          PostgreSQL y Redis · FastAPI. Proyecto final de Programación Orientada a Objetos ·
+          <a [href]="repo" target="_blank" rel="noopener">Código en GitHub <app-icon name="external" /></a>
+        </p>
       </div>
     </footer>
 
@@ -144,7 +130,7 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       z-index: 100;
       background: var(--surface);
       padding: 8px 12px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
     }
     .skip-link:focus {
       left: 8px;
@@ -156,53 +142,51 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       height: var(--header-h);
       display: flex;
       align-items: center;
-      background: color-mix(in srgb, var(--bg) 88%, transparent);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 90%, transparent);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 1px 0 var(--border);
     }
-    /* En la home, la cabecera es la barra oscura que enmarca el cuarto del encabezado. */
-    .app-header.over-hero {
-      background: var(--deep);
+    /* En la home el lino de la cabecera es el mismo de la página: sin separación. */
+    .app-header.at-home {
+      position: absolute;
+      inset: 0 0 auto;
+      background: transparent;
       backdrop-filter: none;
-      border-bottom-color: transparent;
-      --text: var(--on-deep);
-      --text-muted: var(--on-deep-muted);
-    }
-    .app-header.over-hero .brand {
-      color: var(--on-deep);
-    }
-    .app-header.over-hero .brand svg path {
-      stroke: var(--deep);
-    }
-    .app-header.over-hero .brand svg rect:last-child {
-      fill: var(--deep);
-    }
-    .app-header.over-hero .btn-primary {
-      background: var(--on-deep);
-      color: var(--deep);
-      border-color: var(--on-deep);
+      box-shadow: none;
     }
     .bar {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-2);
     }
     .brand {
       display: inline-flex;
       align-items: center;
       gap: 10px;
+      min-height: 44px;
       color: var(--primary);
       text-decoration: none;
-      font-family: var(--font-display);
-      font-size: 1.2rem;
     }
-    .brand span {
+    .word {
       color: var(--text);
+      font-family: var(--font-display);
+      font-size: 1.55rem;
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+    .word em,
+    .foot-name em {
+      color: var(--primary);
     }
     .icon-btn.small {
-      width: 36px;
-      height: 36px;
-      color: var(--text-muted);
+      width: 44px;
+      height: 44px;
+      border-color: transparent;
+      background: transparent;
+      color: var(--text);
+    }
+    .icon-btn.small:hover {
+      background: var(--surface-2);
     }
     .menu-toggle {
       display: none;
@@ -210,61 +194,86 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
     .nav {
       display: flex;
       align-items: center;
-      gap: var(--space-2);
+      gap: 2px;
+      margin-right: var(--space-2);
     }
     .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 0;
+      background: none;
       color: var(--text);
-      text-decoration: none;
+      font: inherit;
       font-weight: 500;
       font-size: 0.95rem;
-      padding: 6px 10px;
-      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      background-image: linear-gradient(currentColor, currentColor);
+      background-size: 0 1px;
+      background-repeat: no-repeat;
+      background-position: 12px calc(100% - 12px);
+      transition: background-size 0.25s var(--ease);
     }
-    .nav-link:hover {
-      background: var(--surface-2);
+    .nav-link:hover,
+    .nav-link.active {
+      background-size: calc(100% - 24px) 1px;
     }
     .nav-link.active {
       color: var(--primary);
     }
+    .nav .btn {
+      margin-left: var(--space-2);
+    }
     .pro-toggle.on {
-      background: var(--primary-soft);
-      color: var(--primary-strong);
-      font-weight: 600;
+      color: var(--primary);
+      font-weight: 650;
     }
     .user {
       max-width: 160px;
+      padding: 0 12px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 0.9rem;
+      color: var(--text-muted);
+      font-size: 0.92rem;
     }
     main {
       min-height: calc(100vh - var(--header-h));
       outline: none;
     }
     .app-footer {
-      background: var(--tint-1);
-      padding-block: var(--space-7) var(--space-6);
+      padding-block: clamp(56px, 8vw, 112px) var(--space-6);
       font-size: var(--text-sm);
+      color: var(--text-muted);
     }
-    .cols {
+    .foot {
       display: grid;
-      grid-template-columns: 1.4fr repeat(3, 1fr);
-      gap: var(--space-6);
+      grid-template-columns: 1fr auto 1fr;
+      gap: var(--space-4) var(--space-6);
+      align-items: baseline;
     }
-    .app-footer h2 {
-      font-family: var(--font);
-      font-size: var(--text-base);
-      font-weight: 600;
-      color: var(--text);
-      margin: 0 0 var(--space-3);
-    }
-    .app-footer ul {
-      list-style: none;
+    .foot p {
       margin: 0;
-      padding: 0;
-      display: grid;
-      gap: var(--space-2);
+    }
+    .foot-what {
+      max-width: 40ch;
+    }
+    .foot-name {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: 1.45rem;
+      line-height: 1.1;
+    }
+    .foot-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px 20px;
     }
     .app-footer a {
       color: var(--text);
@@ -274,17 +283,15 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       color: var(--primary);
       text-decoration: underline;
     }
-    .plain {
-      color: var(--text-muted);
+    .foot-links a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
     }
-    .foot-brand {
-      font-family: var(--font-display);
-      font-size: 1.2rem;
-      margin: 0 0 var(--space-2);
-    }
-    .about p:last-child {
-      margin: 0;
-      max-width: 38ch;
+    .foot-note {
+      justify-self: end;
+      max-width: 46ch;
+      text-align: right;
     }
     .toasts {
       position: fixed;
@@ -301,7 +308,7 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       align-items: center;
       gap: 12px;
       padding: 10px 10px 10px 16px;
-      border-radius: 12px;
+      border-radius: var(--radius);
       background: var(--surface);
       border: 1px solid var(--border);
       box-shadow: var(--shadow);
@@ -318,8 +325,8 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
       border-color: var(--success);
     }
     .toast .icon-btn {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
     }
     @keyframes slide-in {
       from {
@@ -327,18 +334,24 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
         opacity: 0;
       }
     }
-    @media (max-width: 1000px) {
+    @media (max-width: 1080px) {
       .section-link {
         display: none;
       }
     }
+    @media (max-width: 900px) {
+      .foot {
+        grid-template-columns: 1fr;
+      }
+      .foot-links {
+        justify-content: flex-start;
+      }
+      .foot-note {
+        justify-self: start;
+        text-align: left;
+      }
+    }
     @media (max-width: 760px) {
-      .cols {
-        grid-template-columns: 1fr 1fr;
-      }
-      .about {
-        grid-column: 1 / -1;
-      }
       .menu-toggle {
         display: inline-grid;
       }
@@ -349,35 +362,26 @@ const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';
         top: var(--header-h);
         left: 0;
         right: 0;
+        margin: 0;
         flex-direction: column;
         align-items: stretch;
-        gap: var(--space-1);
-        padding: var(--space-3) var(--space-4) var(--space-4);
+        gap: 0;
+        padding: var(--space-3) var(--space-4) var(--space-5);
         background: var(--bg);
-        border-bottom: 1px solid var(--border);
         box-shadow: var(--shadow);
       }
       .nav.open {
         display: flex;
       }
-      .app-header.over-hero .nav {
-        background: var(--deep);
-        border-bottom-color: transparent;
-      }
       .nav .section-link {
-        display: block;
+        display: flex;
       }
-      .nav-link {
-        padding: 10px;
+      .nav .btn {
+        margin: var(--space-3) 0 0;
       }
       .user {
         max-width: none;
-        padding: 6px 10px;
-      }
-    }
-    @media (max-width: 460px) {
-      .cols {
-        grid-template-columns: 1fr;
+        padding: 10px 12px;
       }
     }
   `,
@@ -391,7 +395,7 @@ export class App {
   protected readonly repo = REPO_URL;
   /** El menú de la cabecera en pantallas angostas. */
   protected readonly menuOpen = signal(false);
-  /** En la home la cabecera se oscurece para enmarcar el encabezado. */
+  /** En la home la cabecera va sobre el lino de la portada, sin fondo propio. */
   protected readonly atHome = signal(false);
 
   constructor() {
