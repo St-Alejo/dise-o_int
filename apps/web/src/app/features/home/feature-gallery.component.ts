@@ -189,11 +189,11 @@ export const FEATURES: readonly Feature[] = [
     :host {
       display: block;
     }
-    /* Pestañas como piezas llenas: la elegida en tinta, las demás en el tono de fondo. */
+    /* Pestañas como texto de revista: la elegida en tinta y subrayada en salvia. */
     .tabs {
       display: flex;
       flex-wrap: wrap;
-      gap: var(--space-2);
+      gap: 0 var(--space-5);
       margin-bottom: var(--space-6);
     }
     .tab {
@@ -201,23 +201,25 @@ export const FEATURES: readonly Feature[] = [
       align-items: center;
       gap: var(--space-2);
       min-height: 48px;
-      padding: 0 var(--space-4);
+      padding: 0;
       border: 0;
-      background: var(--surface-2);
-      color: var(--text);
+      border-bottom: 3px solid transparent;
+      background: none;
+      color: var(--text-muted);
       font: inherit;
-      font-weight: 600;
+      font-size: var(--text-lg);
+      font-weight: 500;
       cursor: pointer;
       transition:
-        background 0.2s var(--ease),
-        color 0.2s var(--ease);
+        color 0.2s var(--ease),
+        border-color 0.2s var(--ease);
     }
     .tab:hover {
-      background: color-mix(in srgb, var(--text) 12%, var(--surface-2));
+      color: var(--text);
     }
     .tab[aria-selected='true'] {
-      background: var(--text);
-      color: var(--bg);
+      color: var(--text);
+      border-bottom-color: var(--primary);
     }
     .panel {
       display: grid;
@@ -236,6 +238,8 @@ export const FEATURES: readonly Feature[] = [
       width: 100%;
       height: auto;
       background: var(--surface-2);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
     }
     .copy {
       display: grid;
@@ -277,6 +281,7 @@ export const FEATURES: readonly Feature[] = [
       font-weight: 600;
       color: var(--text);
       padding: 2px 8px;
+      border-radius: var(--radius-sm);
       background: var(--surface-2);
     }
     @media (max-width: 900px) {

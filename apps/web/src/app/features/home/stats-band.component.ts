@@ -46,35 +46,42 @@ export function statsOf(catalog: readonly Pick<CatalogItem, 'category'>[] | null
     :host {
       display: block;
     }
+    /* Cifras en voz baja: la cifra alineada a la derecha de su canal y la frase a su lado. */
     .band {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: var(--space-5) var(--space-6);
+      gap: 20px;
       margin: 0;
-      padding: clamp(var(--space-5), 4vw, 56px);
-      background: var(--surface-2);
     }
-    /* La cifra va antes que su leyenda a la vista; en el HTML, el término antes que el valor. */
     .stat {
       display: grid;
-      gap: var(--space-2);
-      align-content: start;
+      grid-template-columns: 132px minmax(0, 1fr);
+      gap: 24px;
+      align-items: baseline;
     }
     dt {
+      grid-column: 2;
+      grid-row: 1;
       color: var(--text);
       font-size: var(--text-base);
       line-height: 1.4;
     }
     dd {
+      grid-column: 1;
+      grid-row: 1;
       margin: 0;
-      order: -1;
+      text-align: right;
       font-family: var(--font-display);
-      font-size: var(--text-3xl);
-      font-weight: 440;
-      letter-spacing: -0.02em;
-      color: var(--primary);
+      font-size: var(--text-2xl);
+      font-weight: 400;
+      color: var(--text);
       line-height: 1;
       font-variant-numeric: tabular-nums;
+    }
+    @media (max-width: 860px) {
+      .stat {
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 16px;
+      }
     }
   `,
 })

@@ -7,7 +7,7 @@ import { IconComponent } from '../../shared/ui/icon.component';
 import { tabAfterKey } from '../../shared/ui/tabs';
 
 /** Qué materiales y piezas se asocian a cada estilo, para que diga algo más que su nombre. */
-const DETAILS: Record<StyleId, readonly string[]> = {
+export const STYLE_DETAILS: Record<StyleId, readonly string[]> = {
   escandinavo: ['Roble claro', 'Lino y lana', 'Blancos cálidos'],
   minimalista: ['Superficies lisas', 'Grises neutros', 'Poco mobiliario'],
   industrial: ['Metal negro', 'Cuero', 'Madera recuperada'],
@@ -266,7 +266,7 @@ export class StyleShowcaseComponent {
   readonly signedIn = input(false);
 
   protected readonly styles = STYLE_IDS.map((id) => STYLES[id]);
-  protected readonly details = DETAILS;
+  protected readonly details = STYLE_DETAILS;
   protected readonly index = signal(0);
   protected readonly current = computed(() => this.styles[this.index()]!);
   protected readonly link = computed(() => styleLink(this.current().id, this.signedIn()));

@@ -4,25 +4,41 @@ import { AuthService } from '../../core/auth/auth.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RevealDirective } from '../../shared/ui/reveal.directive';
 import { BeforeAfterComponent } from './before-after.component';
+import { CoverComponent, HERO_TEMPLATE } from './cover.component';
 import { FeatureGalleryComponent } from './feature-gallery.component';
-import { HERO_TEMPLATE, HeroComponent } from './hero.component';
+import { HowComponent } from './how.component';
 import { StatsBandComponent } from './stats-band.component';
-import { StyleShowcaseComponent } from './style-showcase.component';
-import { TemplateMosaicComponent } from './template-mosaic.component';
-
-const STEPS: readonly { title: string; text: string }[] = [
-  { title: 'Una foto o tres medidas', text: 'La foto aporta puertas, ventanas, muebles y colores. Sin foto, eliges la forma del cuarto y escribes sus medidas.' },
-  { title: 'Confirmas el plano', text: 'Ves lo que la app entendió, con sus cotas, y corriges lo que haga falta antes de seguir.' },
-  { title: 'Amueblas y lo recorres', text: 'Editas en 3D, caminas por el cuarto, lo pruebas de noche y compartes un enlace que también se puede recorrer.' },
-];
+import { VitrinaComponent } from './vitrina.component';
 
 /** Qué saca la app de una foto y con cuánta seguridad: lo estimado se dice. */
 const READS: readonly { title: string; text: string; exact: boolean }[] = [
-  { title: 'Puertas y ventanas', text: 'En qué pared están y más o menos en qué tramo.', exact: true },
-  { title: 'Los muebles que hay', text: 'Sofá, cama, mesa, sillas, estantes: los coloca donde estaban.', exact: true },
-  { title: 'Colores', text: 'El de las paredes y el tono del piso.', exact: true },
-  { title: 'La forma del cuarto', text: 'Si es rectangular o tiene un quiebre. Puedes cambiarla después.', exact: false },
-  { title: 'Las medidas', text: 'Una estimación. Escribe las reales o calibra con una sola.', exact: false },
+  { title: 'Puertas y ventanas', text: 'en qué pared están y más o menos en qué tramo.', exact: true },
+  { title: 'Los muebles que hay', text: 'sofá, cama, mesa, sillas, estantes: los coloca donde estaban.', exact: true },
+  { title: 'Colores', text: 'el de las paredes y el tono del piso.', exact: true },
+  { title: 'La forma del cuarto', text: 'si es rectangular o tiene un quiebre. Puedes cambiarla después.', exact: false },
+  { title: 'Las medidas', text: 'una estimación. Escribe las reales o calibra con una sola.', exact: false },
+];
+
+/** La carta de lo que trae la app: el nombre a la izquierda, lo que vale a la derecha. */
+const MENU: readonly { group: string; items: readonly { name: string; value: string; text: string }[] }[] = [
+  {
+    group: 'En el editor',
+    items: [
+      { name: 'Otra distribución', value: 'un clic', text: 'Cambia de pared y de piezas, pero nunca tapa una ventana ni bloquea la puerta.' },
+      { name: 'Asistente', value: 'en español', text: 'Escribe "pon una lámpara junto al sofá": elige la pieza y calcula dónde cabe.' },
+      { name: 'Revisión del diseño', value: '70 cm de paso', text: 'Avisa si un pasillo se estrecha, si una puerta no abre o si algo tapa la luz.' },
+      { name: 'Lista de compras', value: 'CSV', text: 'Cada mueble con sus medidas y su precio estimado, y el total del cuarto.' },
+    ],
+  },
+  {
+    group: 'Modo Pro, para la obra',
+    items: [
+      { name: 'Planos técnicos', value: 'PDF y DXF', text: 'Planta, amoblamiento, cielo raso, acabados, alzados y corte, con cajetín.' },
+      { name: 'Normativa', value: 'Colombia o Neufert', text: 'Paso libre, vanos, alturas, luz natural e iluminación.' },
+      { name: 'Presupuesto de obra', value: 'AIU y cronograma', text: 'Cantidades, materiales en cajas y galones, y el tiempo de cada tarea.' },
+      { name: 'Instalaciones', value: 'cuadro de cargas', text: 'Tomas, interruptores, luces y agua propuestos por la app.' },
+    ],
+  },
 ];
 
 const FAQ = [
@@ -56,100 +72,33 @@ const FAQ = [
   },
   {
     q: '¿Puedo enseñárselo a otra persona?',
-    a: 'Sí. "Compartir" crea un enlace que se abre sin cuenta: quien lo recibe ve el cuarto en 3D, lo recorre a pie y consulta la lista de muebles, pero no puede cambiar nada. También puedes exportar la imagen, el plano y la lista de compras.',
+    a: '"Compartir" crea un enlace que se abre sin cuenta: quien lo recibe ve el cuarto en 3D, lo recorre a pie y consulta la lista de muebles, pero no puede cambiar nada. También puedes exportar la imagen, el plano y la lista de compras.',
   },
 ];
 
 /**
- * Página de inicio, en tono editorial: primero el cuarto, después la explicación, una idea por
- * sección. Todo lo que enseña es la app real: las imágenes son capturas del visor y del editor, las
- * cifras salen del catálogo y las plantillas son las mismas que se abren sin cuenta.
+ * Página de inicio, armada como una revista de interiorismo: abre con la misma sala en seis estilos
+ * (escenario partido), y sigue con una idea por sección, cada una con su propia composición. Todo lo
+ * que enseña es la app real: renders y capturas suyas, cifras del catálogo y plantillas que se abren
+ * sin cuenta.
  */
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, RevealDirective, HeroComponent, BeforeAfterComponent, FeatureGalleryComponent, StyleShowcaseComponent, TemplateMosaicComponent, StatsBandComponent],
+  imports: [RouterLink, IconComponent, RevealDirective, CoverComponent, HowComponent, BeforeAfterComponent, FeatureGalleryComponent, VitrinaComponent, StatsBandComponent],
   template: `
-    <app-hero [start]="start()" />
+    <app-cover [start]="start()" [signedIn]="auth.isAuthenticated()" />
 
-    <section class="intro" aria-labelledby="intro-title">
-      <div class="container intro-grid" appReveal>
-        <h2 id="intro-title">Vívelo antes de construirlo.</h2>
-        <div class="intro-body">
-          <p class="intro-lead">
-            Un cuarto bien resuelto empieza por sus medidas reales: dónde cae la ventana, cuánto paso queda junto a la cama, qué luz entra por la tarde.
-            La app trabaja sobre esas medidas, no sobre una foto bonita.
-          </p>
-          <dl class="facts">
-            <div>
-              <dt>6</dt>
-              <dd>estilos que deciden muebles, materiales y paleta</dd>
-            </div>
-            <div>
-              <dt>3D</dt>
-              <dd>que se recorre a pie, de día, de tarde o de noche</dd>
-            </div>
-            <div>
-              <dt>1:50</dt>
-              <dd>la escala de los planos que salen para la obra</dd>
-            </div>
-          </dl>
-        </div>
-      </div>
+    <section id="como-funciona" class="how-sec" aria-labelledby="how-title">
+      <app-how />
     </section>
 
-    <section class="pro deep" aria-labelledby="pro-title">
-      <div class="container pro-grid" appReveal>
-        <figure class="pro-shot">
-          <img
-            src="landing/editor-plano.webp"
-            alt="El editor en vista de plano: la sala con sus cotas, la ventana, la puerta y cada mueble dibujado a escala."
-            width="1400"
-            height="1120"
-            loading="lazy"
-            decoding="async"
-          />
-        </figure>
-        <div class="pro-copy">
-          <h2 id="pro-title">Planos listos para la obra.</h2>
-          <p class="pro-lead">
-            Activa el Modo profesional y el mismo cuarto sale con todo lo que pide una obra: el juego de planos con cajetín, la revisión de normativa y
-            ergonomía, el presupuesto de obra y los puntos eléctricos e hidráulicos.
-          </p>
-          <ul class="pro-list">
-            <li><strong>Planos técnicos.</strong> Planta, amoblamiento, cielo raso, acabados, alzados y corte, en PDF y DXF para AutoCAD.</li>
-            <li><strong>Normativa.</strong> Paso libre, vanos, alturas, luz natural e iluminación con el perfil de Colombia o el de Neufert.</li>
-            <li><strong>Presupuesto de obra.</strong> Cantidades, materiales en cajas y galones, AIU y cronograma.</li>
-            <li><strong>Instalaciones.</strong> Tomas, interruptores, luces y agua propuestos por la app, con su cuadro de cargas.</li>
-          </ul>
-          <a class="btn btn-lg pro-go" [routerLink]="['/demo', 'dormitorio-obra']">Abrir el dormitorio listo para obra</a>
-        </div>
+    <section class="ba" aria-labelledby="ba-title">
+      <div class="container ba-head" appReveal>
+        <h2 id="ba-title">El mismo cuarto, vacío <em>y resuelto.</em></h2>
+        <p>Arrastra la raya. A un lado, las paredes tal como las mides; al otro, lo que la app propone para ese espacio.</p>
       </div>
-    </section>
-
-    <section id="como-funciona" class="block" aria-labelledby="how-title">
-      <div class="container" appReveal>
-        <header class="head">
-          <h2 id="how-title">Tres pasos hasta tu cuarto.</h2>
-          <p class="head-lead">Del cuarto que tienes al que quieres, sin instalar nada y sin saber de diseño.</p>
-        </header>
-        <ol class="steps">
-          @for (step of steps; track step.title) {
-            <li>
-              <h3>{{ step.title }}</h3>
-              <p>{{ step.text }}</p>
-            </li>
-          }
-        </ol>
-      </div>
-    </section>
-
-    <section class="block tone" aria-labelledby="ba-title">
-      <div class="container" appReveal>
-        <header class="head">
-          <h2 id="ba-title">El mismo cuarto, vacío y resuelto.</h2>
-          <p class="head-lead">Arrastra la raya. A la izquierda, las paredes tal como las mides; a la derecha, lo que la app propone para ese espacio.</p>
-        </header>
+      <div class="ba-frame">
         <app-before-after
           before="landing/cuarto-vacio"
           after="landing/cuarto-tarde"
@@ -161,109 +110,74 @@ const FAQ = [
       </div>
     </section>
 
-    <section id="editor" class="block" aria-labelledby="features-title">
+    <section id="editor" class="editor-sec" aria-labelledby="features-title">
       <div class="container" appReveal>
-        <header class="head">
+        <div class="editor-head">
           <h2 id="features-title">Un cuarto que puedes tocar.</h2>
-          <p class="head-lead">No es una imagen: son capturas de la app tal como la vas a usar.</p>
-        </header>
-        <app-feature-gallery />
-        <ul class="extras">
-          <li>
-            <h3>Otra distribución con un clic</h3>
-            <p>Cambia de pared y de piezas, pero nunca tapa una ventana ni bloquea la puerta.</p>
-          </li>
-          <li>
-            <h3>Un asistente que entiende el espacio</h3>
-            <p>Escribe "pon una lámpara junto al sofá". Él elige la pieza y la app calcula dónde cabe.</p>
-          </li>
-          <li>
-            <h3>Revisión del diseño</h3>
-            <p>Avisa si un pasillo queda en menos de 70 cm, si una puerta no abre o si algo tapa una ventana.</p>
-          </li>
-          <li>
-            <h3>Lista de compras</h3>
-            <p>Cada mueble con sus medidas y su precio estimado, y el total del cuarto. También en hoja de cálculo.</p>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <section id="estilos" class="block tone" aria-labelledby="styles-title">
-      <div class="container" appReveal>
-        <header class="head">
-          <h2 id="styles-title">Seis maneras de vivir la sala.</h2>
-          <p class="head-lead">El estilo decide qué muebles y qué materiales propone la app. Puedes mezclar hasta cuatro y cambiarlos después.</p>
-        </header>
-        <app-style-showcase [signedIn]="auth.isAuthenticated()" />
-      </div>
-    </section>
-
-    <section id="plantillas" class="block" aria-labelledby="templates-title">
-      <div class="container" appReveal>
-        <header class="head">
-          <h2 id="templates-title">Empieza por uno ya hecho.</h2>
-          <p class="head-lead">Cada plantilla abre el editor sin pedir cuenta. Lo que cambies se queda en tu navegador hasta que decidas guardarlo.</p>
-        </header>
-        <app-template-mosaic />
-        <p class="after"><a class="btn btn-lg square" routerLink="/plantillas">Ver todas las plantillas <app-icon name="arrowRight" /></a></p>
-      </div>
-    </section>
-
-    <section class="block" aria-labelledby="reads-title">
-      <div class="container" appReveal>
-        <header class="head">
-          <h2 id="reads-title">Qué reconoce y qué estima.</h2>
-          <p class="head-lead">Una foto no trae cinta métrica. La app te dice qué leyó con seguridad y qué es aproximado, para que corrijas lo segundo en un minuto.</p>
-        </header>
-        <div class="reads">
-          <ul class="read-list">
-            @for (r of reads; track r.title) {
-              <li>
-                <h3>{{ r.title }}</h3>
-                <p>{{ r.text }}</p>
-                <span class="level" [class.approx]="!r.exact">{{ r.exact ? 'Fiable' : 'Aproximado' }}</span>
-              </li>
-            }
-          </ul>
-          <p class="note">No identifica marcas ni modelos exactos, ni los objetos pequeños que haya sobre los muebles.</p>
+          <p>No es una imagen: son capturas de la app tal como la vas a usar, del plano al recorrido a pie.</p>
         </div>
-        <app-stats-band class="stats" />
+        <app-feature-gallery />
       </div>
     </section>
 
-    <section id="preguntas" class="block tone" aria-labelledby="faq-title">
-      <div class="container" appReveal>
-        <header class="head">
-          <h2 id="faq-title">Antes de empezar.</h2>
-          <p class="head-lead">Lo que más se pregunta sobre fotos, medidas, privacidad y precio.</p>
-        </header>
-        <div class="faq-list">
-          @for (item of faq; track item.q) {
-            <details>
-              <summary>{{ item.q }}</summary>
-              <p>{{ item.a }}</p>
-            </details>
+    <section class="carta" aria-labelledby="pro-title">
+      <div class="container carta-grid">
+        <div class="sheet" appReveal>
+          <h2 id="pro-title">Lo que trae <em>la casa.</em></h2>
+          @for (g of menu; track g.group) {
+            <h3 class="group">{{ g.group }}</h3>
+            <dl>
+              @for (item of g.items; track item.name) {
+                <div class="dish">
+                  <dt>{{ item.name }}</dt>
+                  <dd class="value">{{ item.value }}</dd>
+                  <dd class="what">{{ item.text }}</dd>
+                </div>
+              }
+            </dl>
           }
         </div>
+        <div class="carta-side" appReveal>
+          <p class="carta-lead">Activa el Modo Pro y el mismo cuarto sale con todo lo que pide una obra.</p>
+          <img
+            src="landing/editor-plano.webp"
+            alt="El editor en vista de plano: la sala con sus cotas, la ventana, la puerta y cada mueble dibujado a escala."
+            width="1400"
+            height="1120"
+            loading="lazy"
+            decoding="async"
+          />
+          <a class="btn btn-lg light" [routerLink]="['/demo', 'dormitorio-obra']">Abrir el dormitorio listo para obra</a>
+        </div>
       </div>
     </section>
 
-    <section class="closing deep" aria-labelledby="closing-title">
-      <div class="container closing-grid" appReveal>
+    <section id="plantillas" class="vitrina-sec" aria-labelledby="templates-title">
+      <app-vitrina appReveal />
+    </section>
+
+    <section class="figures" aria-labelledby="reads-title">
+      <div class="container figures-grid" appReveal>
         <div>
-          <h2 id="closing-title">Empieza con el cuarto que tienes.</h2>
-          <p class="closing-lead">Una foto o tres medidas bastan para verlo en 3D. Gratis y sin instalar nada.</p>
-          <div class="closing-cta">
-            <a class="btn btn-lg light" [routerLink]="start()">Diseñar mi cuarto</a>
-            <a class="btn btn-lg outline" [routerLink]="['/demo', template]">Probar sin cuenta <app-icon name="arrowRight" /></a>
-          </div>
+          <h2 id="reads-title">Qué reconoce y qué estima.</h2>
+          <p class="figures-sub">Una foto no trae cinta métrica: la app dice qué leyó con seguridad y qué es aproximado, para que corrijas lo segundo en un minuto.</p>
+          <dl class="reads">
+            @for (r of reads; track r.title) {
+              <div>
+                <dt [class.approx]="!r.exact">{{ r.exact ? 'Fiable' : 'Aproximado' }}</dt>
+                <dd><strong>{{ r.title }}:</strong> {{ r.text }}</dd>
+              </div>
+            }
+          </dl>
+          <p class="note">No identifica marcas ni modelos exactos, ni los objetos pequeños que haya sobre los muebles.</p>
+          <app-stats-band class="stats" />
         </div>
         <img
-          src="landing/cuarto-noche-800.webp"
-          srcset="landing/cuarto-noche-800.webp 800w, landing/cuarto-noche-1600.webp 1600w"
-          sizes="(max-width: 900px) 100vw, 560px"
-          alt="La sala de noche, alumbrada solo por su lámpara colgante."
+          class="figures-photo"
+          src="landing/cuarto-dentro-800.webp"
+          srcset="landing/cuarto-dentro-800.webp 800w, landing/cuarto-dentro-1600.webp 1600w"
+          sizes="(max-width: 860px) 60vw, 30vw"
+          alt="La sala vista desde dentro, a la altura de los ojos, con el sofá bajo la ventana."
           width="1600"
           height="1000"
           loading="lazy"
@@ -271,416 +185,389 @@ const FAQ = [
         />
       </div>
     </section>
+
+    <section id="preguntas" class="faq" aria-labelledby="faq-title">
+      <div class="container faq-grid" appReveal>
+        <h2 id="faq-title">Antes de empezar.</h2>
+        <div class="faq-text">
+          @for (item of faq; track item.q) {
+            <p><strong>{{ item.q }}</strong> {{ item.a }}</p>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <img
+        src="landing/cuarto-noche-1600.webp"
+        srcset="landing/cuarto-noche-800.webp 800w, landing/cuarto-noche-1600.webp 1600w"
+        sizes="100vw"
+        alt="La sala de noche, alumbrada solo por su lámpara colgante."
+        width="1600"
+        height="1000"
+        loading="lazy"
+        decoding="async"
+      />
+      <div class="closing-copy" appReveal>
+        <h2 id="closing-title">Empieza con el cuarto <em>que tienes.</em></h2>
+        <p>Una foto o tres medidas bastan para verlo en 3D. Gratis y sin instalar nada.</p>
+        <div class="closing-cta">
+          <a class="btn btn-lg light" [routerLink]="start()">Diseñar mi cuarto</a>
+          <a class="btn btn-lg outline" [routerLink]="['/demo', template]">Probar sin cuenta <app-icon name="arrowRight" /></a>
+        </div>
+      </div>
+    </section>
   `,
   styles: `
     section {
       scroll-margin-top: var(--header-h);
     }
-
-    /* Dos columnas: la tesis grande a la izquierda, el porqué y tres datos a la derecha. */
-    .intro {
-      padding-block: clamp(96px, 11vw, 200px);
-    }
-    .intro-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: var(--space-7) clamp(48px, 7vw, 120px);
-      align-items: start;
-    }
-    .intro h2 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-weight: 500;
-      font-size: clamp(2.2rem, 4.2vw, 4rem);
-      line-height: 1.02;
-      letter-spacing: -0.03em;
-    }
-    .intro-body {
-      display: grid;
-      gap: var(--space-7);
-    }
-    .intro-lead {
-      font-size: clamp(1.1rem, 0.5vw + 1rem, 1.35rem);
-      line-height: 1.5;
-      max-width: 46ch;
-      color: var(--text);
-    }
-    .facts {
-      margin: 0;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-5);
-    }
-    .facts div {
-      display: grid;
-      gap: var(--space-2);
-      align-content: start;
-    }
-    .facts dt {
-      font-family: var(--font-display);
-      font-size: clamp(2.2rem, 3.4vw, 3.2rem);
-      line-height: 1;
-      letter-spacing: -0.02em;
+    h2 em {
       color: var(--primary);
     }
-    .facts dd {
-      margin: 0;
-      font-size: var(--text-base);
-      line-height: 1.45;
-      color: var(--text);
-    }
 
-    /* Bloque oscuro: la captura del plano a la izquierda, lo que trae el Modo Pro a la derecha. */
-    .pro {
-      padding-block: clamp(96px, 10vw, 180px);
+    /* Antes y después a lo ancho: rompe el escenario partido. */
+    .ba {
+      padding-block: var(--section-y) 0;
     }
-    .pro-grid {
+    .ba-head {
       display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      gap: var(--space-7) clamp(40px, 6vw, 96px);
-      align-items: center;
+      grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+      gap: var(--space-5) var(--space-7);
+      align-items: end;
+      margin-bottom: var(--space-7);
     }
-    .pro-shot {
+    .ba-head h2 {
       margin: 0;
+      font-size: var(--text-3xl);
+    }
+    .ba-head p {
+      margin: 0;
+    }
+    .ba-frame {
+      padding-inline: 12px;
+    }
+    .ba-frame app-before-after {
+      display: block;
+      border-radius: var(--radius-lg);
       overflow: hidden;
     }
-    .pro-shot img {
-      display: block;
-      width: 100%;
-      height: auto;
-      transition: transform 1.2s var(--ease);
+
+    .editor-sec {
+      padding-block: var(--section-y);
     }
-    .pro-shot:hover img {
-      transform: scale(1.03);
+    .editor-head {
+      display: grid;
+      grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+      gap: var(--space-5) var(--space-7);
+      align-items: end;
+      margin-bottom: var(--space-6);
     }
-    .pro-copy {
+    .editor-head h2 {
+      margin: 0;
+      font-size: var(--text-2xl);
+    }
+    .editor-head p {
+      margin: 0;
+    }
+
+    /* La carta: una hoja de lino con los bordes recortados sobre el nogal. */
+    .carta {
+      background: var(--deep);
+      color: var(--on-deep);
+      padding-block: var(--section-y);
+    }
+    .carta-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+      gap: clamp(32px, 6vw, 96px);
+      align-items: center;
+    }
+    .sheet {
+      --cut: 10px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 56px clamp(24px, 4vw, 48px);
+      clip-path: polygon(
+        0 var(--cut), 5% 0, 10% var(--cut), 15% 0, 20% var(--cut), 25% 0, 30% var(--cut), 35% 0, 40% var(--cut), 45% 0, 50% var(--cut), 55% 0, 60% var(--cut), 65% 0, 70% var(--cut), 75% 0, 80% var(--cut), 85% 0, 90% var(--cut), 95% 0, 100% var(--cut),
+        100% calc(100% - var(--cut)), 95% 100%, 90% calc(100% - var(--cut)), 85% 100%, 80% calc(100% - var(--cut)), 75% 100%, 70% calc(100% - var(--cut)), 65% 100%, 60% calc(100% - var(--cut)), 55% 100%, 50% calc(100% - var(--cut)), 45% 100%, 40% calc(100% - var(--cut)), 35% 100%, 30% calc(100% - var(--cut)), 25% 100%, 20% calc(100% - var(--cut)), 15% 100%, 10% calc(100% - var(--cut)), 5% 100%, 0 calc(100% - var(--cut))
+      );
+    }
+    .sheet h2 {
+      text-align: center;
+      font-size: var(--text-2xl);
+      margin: 0 0 40px;
+    }
+    .group {
+      margin: 0 0 var(--space-4);
+      font-size: var(--text-lg);
+    }
+    .sheet dl {
+      margin: 0 0 44px;
+      display: grid;
+      gap: 18px;
+    }
+    .sheet dl:last-child {
+      margin-bottom: 0;
+    }
+    .dish {
+      display: grid;
+      grid-template-columns: auto minmax(24px, 1fr) auto;
+      align-items: baseline;
+      column-gap: 8px;
+    }
+    .dish dt {
+      font-weight: 600;
+    }
+    /* Línea de puntos entre el nombre y lo que vale, como en una carta. */
+    .dish::before {
+      content: '';
+      grid-column: 2;
+      grid-row: 1;
+      border-bottom: 3px dotted var(--border);
+      transform: translateY(-4px);
+    }
+    .dish dt {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .value {
+      grid-column: 3;
+      grid-row: 1;
+      margin: 0;
+      font-variant-numeric: tabular-nums;
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .what {
+      grid-column: 1 / -1;
+      margin: 4px 0 0;
+      max-width: 40ch;
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }
+    .carta-side {
       display: grid;
       gap: var(--space-5);
       justify-items: start;
     }
-    .pro h2 {
+    .carta-lead {
       margin: 0;
       font-family: var(--font-display);
-      font-weight: 500;
-      font-size: clamp(2.1rem, 3.8vw, 3.6rem);
-      line-height: 1.02;
-      letter-spacing: -0.03em;
-      color: var(--on-deep);
-    }
-    .pro-lead {
-      font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
-      line-height: 1.5;
-      color: var(--on-deep);
-      max-width: 48ch;
-    }
-    .pro-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      gap: var(--space-3);
-      max-width: 52ch;
-    }
-    .pro-list li {
-      line-height: 1.5;
-      color: var(--on-deep);
-    }
-    .pro-list strong {
-      font-weight: 600;
-    }
-    .pro-go {
-      background: var(--on-deep);
-      color: var(--deep);
-      border-color: var(--on-deep);
-      border-radius: 0;
-    }
-    .pro-go:hover {
-      background: #ffffff;
-    }
-    @media (max-width: 900px) {
-      .intro-grid,
-      .pro-grid {
-        grid-template-columns: 1fr;
-      }
-      .facts {
-        grid-template-columns: 1fr;
-      }
-      .facts div {
-        grid-template-columns: 5.5rem 1fr;
-        align-items: baseline;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .pro-shot img {
-        transition: none;
-      }
-    }
-    h3 {
-      margin: 0;
-      font-size: var(--text-lg);
-      font-weight: 600;
-    }
-    p {
-      margin: 0;
-    }
-
-    /* Secciones antiguas: título grande a la izquierda, entrada a la derecha; las superficies se separan por tono. */
-    .block {
-      padding-block: clamp(80px, 9vw, 160px);
-    }
-    .block.tone {
-      background: var(--surface-2);
-    }
-    .head {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: var(--space-4) clamp(40px, 6vw, 96px);
-      align-items: end;
-      margin-bottom: clamp(40px, 5vw, 72px);
-    }
-    .head h2 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-weight: 500;
-      font-size: clamp(2.1rem, 3.8vw, 3.6rem);
-      line-height: 1.02;
-      letter-spacing: -0.03em;
-    }
-    .head-lead {
-      font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
-      line-height: 1.5;
-      max-width: 52ch;
-      color: var(--text);
-    }
-
-    /* Tres pasos como bloques de tono, sin números ni filetes. */
-    .steps {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-4);
-    }
-    .steps li {
-      display: grid;
-      gap: var(--space-3);
-      align-content: start;
-      padding: clamp(24px, 3vw, 40px);
-      background: var(--surface-2);
-    }
-    .steps h3 {
-      font-family: var(--font-display);
-      font-weight: 500;
       font-size: var(--text-xl);
+      line-height: 1.2;
+      max-width: 26ch;
     }
-    .steps p,
-    .extras p,
-    .read-list p,
-    details p {
-      line-height: 1.55;
-      max-width: 60ch;
-      color: var(--text);
-    }
-
-    .extras {
-      list-style: none;
-      margin: clamp(var(--space-6), 5vw, 72px) 0 0;
-      padding: 0;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-6);
-    }
-    .extras li {
-      display: grid;
-      gap: var(--space-2);
-      align-content: start;
-    }
-
-    .after {
-      margin-top: var(--space-6);
-    }
-    .btn.square {
-      border-radius: 0;
-      background: var(--text);
-      border-color: var(--text);
-      color: var(--bg);
-    }
-    .btn.square:hover {
-      background: var(--primary);
-      border-color: var(--primary);
-    }
-
-    /* Lo que lee de la foto: filas alternas por tono y, a la derecha de cada una, su fiabilidad. */
-    .read-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
-    .read-list li {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto;
-      gap: var(--space-3) var(--space-6);
-      align-items: baseline;
-      padding: var(--space-4) var(--space-5);
-    }
-    .read-list li:nth-child(odd) {
-      background: var(--surface-2);
-    }
-    .level {
-      font-size: var(--text-base);
-      font-weight: 600;
-      color: var(--primary);
-    }
-    .level.approx {
-      /* Mezclado con la tinta para pasar 4,5:1 también sobre las filas de tono. */
-      color: color-mix(in srgb, var(--accent) 80%, var(--text));
-    }
-    .note {
-      margin-top: var(--space-4);
-      color: var(--text);
-    }
-    .stats {
-      display: block;
-      margin-top: clamp(var(--space-6), 5vw, 72px);
-    }
-
-    /* Preguntas como bloques sobre el fondo de la sección, sin filetes. */
-    .faq-list {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-3);
-      align-items: start;
-    }
-    details {
-      background: var(--bg);
-    }
-    summary {
-      display: flex;
-      justify-content: space-between;
-      gap: var(--space-4);
-      padding: var(--space-4) var(--space-5);
-      font-family: var(--font-display);
-      font-size: var(--text-lg);
-      cursor: pointer;
-      list-style: none;
-    }
-    summary::-webkit-details-marker {
-      display: none;
-    }
-    summary::after {
-      content: '+';
-      flex: none;
-      color: var(--accent);
-      font-family: var(--font);
-      font-size: 1.4rem;
-      line-height: 1;
-      transition: transform 0.2s var(--ease);
-    }
-    details[open] summary::after {
-      transform: rotate(45deg);
-    }
-    details p {
-      padding: 0 var(--space-5) var(--space-5);
-    }
-
-    /* Cierre: la foto de noche y la última invitación sobre el fondo profundo. */
-    .closing {
-      padding-block: clamp(96px, 10vw, 180px);
-    }
-    .closing-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      gap: var(--space-6) clamp(40px, 6vw, 96px);
-      align-items: center;
-    }
-    .closing h2 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-weight: 500;
-      font-size: clamp(2.1rem, 3.8vw, 3.6rem);
-      line-height: 1.02;
-      letter-spacing: -0.03em;
-      color: var(--on-deep);
-    }
-    .closing-lead {
-      margin-top: var(--space-4);
-      font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
-      line-height: 1.5;
-      max-width: 44ch;
-      color: var(--on-deep);
-    }
-    .closing-cta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-      align-items: center;
-      margin-top: var(--space-6);
-    }
-    .closing .btn {
-      border-radius: 0;
+    .carta-side img {
+      width: 100%;
+      height: auto;
+      border-radius: var(--radius);
     }
     .btn.light {
-      background: var(--on-deep);
-      border-color: var(--on-deep);
-      color: var(--deep);
+      --btn-bg: var(--on-deep);
+      --btn-fg: var(--deep);
+      --btn-border: var(--on-deep);
     }
     .btn.light:hover {
       background: #ffffff;
       border-color: #ffffff;
     }
-    .btn.outline {
-      background: transparent;
-      border: 2px solid var(--on-deep);
-      color: var(--on-deep);
-    }
-    .btn.outline:hover {
-      background: var(--on-deep);
-      color: var(--deep);
-    }
-    .closing img {
-      display: block;
-      width: 100%;
-      height: auto;
-      aspect-ratio: 16 / 10;
-      object-fit: cover;
+
+    .vitrina-sec {
+      padding-block: var(--section-y);
+      background: var(--tint-1);
     }
 
-    @media (max-width: 900px) {
-      .head,
-      .steps,
-      .closing-grid,
-      .faq-list {
+    /* Cifras en voz baja: la cifra a la derecha de su canal, la frase a la izquierda del suyo. */
+    .figures {
+      padding-block: var(--section-y);
+    }
+    .figures-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+      gap: clamp(32px, 6vw, 96px);
+      align-items: start;
+    }
+    .figures h2 {
+      font-size: var(--text-2xl);
+      margin: 0 0 var(--space-4);
+    }
+    .figures-sub {
+      margin: 0 0 56px;
+      max-width: 48ch;
+    }
+    .reads {
+      margin: 0;
+      display: grid;
+      gap: 20px;
+    }
+    .reads div {
+      display: grid;
+      grid-template-columns: 132px minmax(0, 1fr);
+      gap: 24px;
+      align-items: baseline;
+    }
+    .reads dt {
+      text-align: right;
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      color: var(--primary);
+    }
+    .reads dt.approx {
+      color: var(--accent);
+    }
+    .reads dd {
+      margin: 0;
+      max-width: 44ch;
+    }
+    .note {
+      margin: var(--space-5) 0 72px 156px;
+      color: var(--text-muted);
+      font-size: var(--text-sm);
+      max-width: 44ch;
+    }
+    .figures-photo {
+      width: 100%;
+      aspect-ratio: 1;
+      height: auto;
+      object-fit: cover;
+      border-radius: var(--radius-lg);
+      margin-top: 80px;
+    }
+
+    /* Preguntas como texto corrido, en dos columnas: todo respondido de un vistazo. */
+    .faq {
+      padding-block: var(--section-y);
+      background: var(--tint-2);
+    }
+    .faq-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 8fr);
+      gap: var(--space-6) clamp(32px, 5vw, 80px);
+    }
+    .faq h2 {
+      margin: 0;
+      font-size: var(--text-2xl);
+    }
+    .faq-text {
+      columns: 2;
+      column-gap: 56px;
+    }
+    .faq-text p {
+      margin: 0 0 20px;
+      break-inside: avoid;
+      line-height: 1.55;
+    }
+    .faq-text strong {
+      font-weight: 650;
+    }
+
+    /* Cierre: la sala de noche a sangre y el texto en la mitad tranquila. */
+    .closing {
+      position: relative;
+      min-height: 90svh;
+      display: grid;
+      align-items: end;
+      color: var(--on-deep);
+      background: var(--deep);
+      overflow: hidden;
+    }
+    .closing img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: brightness(0.62);
+    }
+    .closing-copy {
+      position: relative;
+      justify-self: end;
+      width: min(560px, 100% - 32px);
+      margin: 0 max(16px, calc((100vw - 1200px) / 2)) clamp(48px, 9vh, 96px) 16px;
+      display: grid;
+      gap: var(--space-4);
+    }
+    .closing h2 {
+      margin: 0;
+      font-size: var(--text-3xl);
+      color: var(--on-deep);
+    }
+    .closing h2 em {
+      color: var(--highlight);
+    }
+    .closing p {
+      margin: 0;
+      font-size: var(--text-lg);
+    }
+    .closing-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
+    .btn.outline {
+      --btn-bg: transparent;
+      --btn-fg: var(--on-deep);
+      --btn-border: var(--on-deep);
+    }
+    .btn.outline:hover {
+      background: rgb(255 255 255 / 12%);
+      border-color: var(--on-deep);
+    }
+
+    @media (max-width: 860px) {
+      .ba-head,
+      .editor-head,
+      .carta-grid,
+      .figures-grid,
+      .faq-grid {
         grid-template-columns: 1fr;
       }
-      .extras {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+      .faq-text {
+        columns: 1;
       }
-      .read-list li {
-        grid-template-columns: minmax(0, 1fr) auto;
-        padding-inline: var(--space-4);
+      .reads div {
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 16px;
       }
-      .read-list p {
-        grid-column: 1 / -1;
-        grid-row: 2;
+      .reads dt {
+        font-size: var(--text-lg);
       }
-    }
-    @media (max-width: 520px) {
-      .extras {
-        grid-template-columns: 1fr;
+      .note {
+        margin-left: 112px;
       }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      summary::after {
-        transition: none;
+      .figures-photo {
+        width: 60%;
+        justify-self: end;
+        margin-top: 0;
+      }
+      .sheet {
+        padding: 40px 20px;
+      }
+      .closing {
+        min-height: 0;
+        display: block;
+      }
+      .closing img {
+        position: relative;
+        height: 70svh;
+        filter: none;
+      }
+      .closing-copy {
+        width: auto;
+        margin: 0;
+        padding: 40px 16px 48px;
+      }
+      .closing-cta .btn {
+        flex: 1 1 100%;
       }
     }
   `,
 })
 export class HomePage {
   protected readonly auth = inject(AuthService);
-  protected readonly steps = STEPS;
   protected readonly reads = READS;
+  protected readonly menu = MENU;
   protected readonly faq = FAQ;
   protected readonly template = HERO_TEMPLATE;
   protected readonly start = computed(() => (this.auth.isAuthenticated() ? '/proyectos/nuevo' : '/registro'));
