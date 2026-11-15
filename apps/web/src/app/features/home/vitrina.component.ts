@@ -75,8 +75,13 @@ export function nextFrame(index: number, count: number): number {
       align-items: center;
     }
     h2 {
-      font-size: var(--text-2xl);
       margin: 0 0 var(--space-4);
+      font-family: var(--font-display);
+      font-stretch: 62%;
+      font-weight: 300;
+      font-size: clamp(2.6rem, 5.4vw, 5rem);
+      line-height: 0.9;
+      text-transform: uppercase;
     }
     .sub {
       margin: 0 0 var(--space-6);

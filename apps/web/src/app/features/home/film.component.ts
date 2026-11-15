@@ -161,7 +161,7 @@ export function framePath(set: string, index: number): string {
       </div>
     } @else {
       <section #run class="run" aria-label="De una foto a tu cuarto, en seis capítulos">
-        <span id="estilos" class="anchor" aria-hidden="true"></span>
+        <span id="pelicula" class="anchor" aria-hidden="true"></span>
         <div class="stage">
           <picture>
             <source [media]="portraitQuery" [srcset]="posterMob" width="540" height="960" />

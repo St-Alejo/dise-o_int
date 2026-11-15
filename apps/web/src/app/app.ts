@@ -9,9 +9,9 @@ import { TooltipDirective } from './shared/ui/tooltip.directive';
 
 /** Secciones de la página de inicio a las que se llega desde la cabecera y el pie. */
 const SECTIONS = [
-  { fragment: 'como-funciona', label: 'Cómo funciona' },
   { fragment: 'editor', label: 'El editor' },
   { fragment: 'estilos', label: 'Estilos' },
+  { fragment: 'catalogo', label: 'Catálogo' },
   { fragment: 'plantillas', label: 'Plantillas' },
   { fragment: 'preguntas', label: 'Preguntas' },
 ] as const;
