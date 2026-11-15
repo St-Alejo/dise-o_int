@@ -13,7 +13,6 @@ const SECTIONS = [
   { fragment: 'estilos', label: 'Estilos' },
   { fragment: 'catalogo', label: 'Catálogo' },
   { fragment: 'plantillas', label: 'Plantillas' },
-  { fragment: 'preguntas', label: 'Preguntas' },
 ] as const;
 
 const REPO_URL = 'https://github.com/St-Alejo/dise-o_int';

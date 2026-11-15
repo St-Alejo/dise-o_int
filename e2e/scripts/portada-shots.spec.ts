@@ -46,7 +46,7 @@ for (const vp of WIDTHS) {
     for (const f of [0, 0.3, 0.65, 1]) shots.push([`30-paseo-${Math.round(f * 100)}`, walk + (walkH - vp.height) * f]);
     const pieces = await top('app-pieces');
     shots.push(['40-piezas', pieces + vp.height * 0.35], ['41-piezas-cifras', pieces + vp.height * 1.1]);
-    shots.push(['50-plantillas', await top('#plantillas')], ['60-preguntas', await top('#preguntas')], ['70-cierre', await top('.closing')]);
+    shots.push(['50-plantillas', await top('#plantillas')], ['70-cierre', await top('.closing')]);
 
     for (const [name, y] of shots) {
       await glide(page, Math.round(y));

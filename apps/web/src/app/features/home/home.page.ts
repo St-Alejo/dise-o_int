@@ -12,41 +12,6 @@ import { RunwayComponent } from './runway.component';
 import { VitrinaComponent } from './vitrina.component';
 import { WalkComponent } from './walk.component';
 
-export const FAQ: readonly { q: string; a: string }[] = [
-  {
-    q: '¿Necesito una foto para empezar?',
-    a: 'No. Con foto, la app detecta puertas y ventanas en su pared, parte de los muebles que ya tienes y los colores, y estima las medidas en menos de un minuto. Sin foto, eliges la forma (rectangular, en L, en T o en U), escribes tres medidas exactas y la app propone los muebles según el tipo de cuarto y el estilo. Las dos terminan en el mismo editor.',
-  },
-  {
-    q: '¿Qué tan exactas son las medidas que salen de una foto?',
-    a: 'Son una estimación: la app acierta dónde están puertas y ventanas, qué muebles hay y los colores, pero el tamaño es aproximado. Por eso el editor te muestra el plano y te deja escribir las medidas reales o calibrar con una sola.',
-  },
-  {
-    q: '¿Puedo probarlo sin crear una cuenta?',
-    a: 'Sí. Las plantillas abren el editor completo sin registro y lo que cambias se guarda en tu navegador. Si te gusta el resultado, con un clic pasa a ser un proyecto de tu cuenta.',
-  },
-  {
-    q: '¿Puedo cambiar lo que la app colocó?',
-    a: 'Todo. Mueve, gira, cambia de tamaño y de material cada mueble, pinta paredes y piso, pide otra distribución o díselo al asistente con tus palabras. Cada cambio se puede deshacer.',
-  },
-  {
-    q: '¿Qué pasa con mis fotos?',
-    a: 'Quitamos la ubicación GPS al subirlas, nunca se usan para entrenar modelos y, si no guardas ni compartes el proyecto, se borra por completo a las 24 horas.',
-  },
-  {
-    q: '¿Cuánto cuesta?',
-    a: 'Nada: es un proyecto académico y crear la cuenta es gratis. Los precios que ves junto a cada mueble son estimados del catálogo para que armes tu lista de compras; la app no vende nada.',
-  },
-  {
-    q: '¿Funciona en el celular?',
-    a: 'Sí. Las páginas se adaptan a la pantalla y el 3D se maneja con los dedos. Para editar con detalle es más cómodo un computador, donde además tienes los atajos de teclado.',
-  },
-  {
-    q: '¿Puedo enseñárselo a otra persona?',
-    a: '"Compartir" crea un enlace que se abre sin cuenta: quien lo recibe ve el cuarto en 3D, lo recorre a pie y consulta la lista de muebles, pero no puede cambiar nada. También puedes exportar la imagen, el plano y la lista de compras.',
-  },
-];
-
 /**
  * Página de inicio en cinco movimientos, cada uno con su propia forma de avanzar con el scroll:
  * la película (de la foto al hogar), la pista (el plano tendido por el que vuela la cámara), el
@@ -87,27 +52,6 @@ export const FAQ: readonly { q: string; a: string }[] = [
 
     <section id="plantillas" class="vitrina-sec" aria-labelledby="templates-title">
       <app-vitrina appReveal />
-    </section>
-
-    <section id="preguntas" class="faq" aria-labelledby="faq-title">
-      <div class="faq-grid">
-        <div class="faq-head">
-          <p class="kicker">05 · Preguntas</p>
-          <h2 id="faq-title" class="big">Antes de<br />empezar.</h2>
-        </div>
-        <div class="faq-list">
-          @for (item of faq; track item.q; let i = $index) {
-            <details [open]="i === 0">
-              <summary>
-                <span class="q-n">{{ '0' + (i + 1) }}</span>
-                <span class="q">{{ item.q }}</span>
-                <span class="plus" aria-hidden="true"></span>
-              </summary>
-              <p>{{ item.a }}</p>
-            </details>
-          }
-        </div>
-      </div>
     </section>
 
     <section class="closing" aria-labelledby="closing-title">
@@ -200,88 +144,6 @@ export const FAQ: readonly { q: string; a: string }[] = [
       background: var(--bg);
     }
 
-    /* Preguntas: una lista que se abre de una en una, numerada como un pliego. */
-    .faq {
-      background: var(--night);
-      color: var(--ink);
-      padding: var(--section-y) clamp(16px, 4vw, 56px);
-    }
-    .faq-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
-      gap: 40px clamp(32px, 6vw, 96px);
-      max-width: 1400px;
-      margin-inline: auto;
-    }
-    .faq-head {
-      position: sticky;
-      top: calc(var(--header-h) + 32px);
-      align-self: start;
-    }
-    .faq .big {
-      color: var(--ink);
-    }
-    .faq-list {
-      border-top: 1px solid rgb(243 238 230 / 22%);
-    }
-    details {
-      border-bottom: 1px solid rgb(243 238 230 / 22%);
-    }
-    summary {
-      list-style: none;
-      cursor: pointer;
-      display: grid;
-      grid-template-columns: 3rem minmax(0, 1fr) 24px;
-      gap: 16px;
-      align-items: baseline;
-      padding: 22px 0;
-    }
-    summary::-webkit-details-marker {
-      display: none;
-    }
-    summary:focus-visible {
-      outline: 2px solid var(--brass);
-      outline-offset: 4px;
-    }
-    .q-n {
-      color: var(--brass);
-      font-variant-numeric: tabular-nums;
-    }
-    .q {
-      font-family: var(--font-display);
-      font-stretch: 75%;
-      font-size: var(--text-xl);
-      line-height: 1.15;
-    }
-    .plus {
-      position: relative;
-      width: 18px;
-      height: 18px;
-      align-self: center;
-    }
-    .plus::before,
-    .plus::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 50%;
-      border-top: 2px solid var(--brass);
-      transition: transform 0.3s var(--ease);
-    }
-    .plus::after {
-      transform: rotate(90deg);
-    }
-    details[open] .plus::after {
-      transform: rotate(0deg);
-    }
-    details p {
-      margin: 0 0 26px calc(3rem + 16px);
-      max-width: 60ch;
-      line-height: 1.6;
-      color: var(--ink);
-    }
-
     /* Cierre: la sala de noche a sangre y una frase que ocupa todo el ancho. */
     .closing {
       position: relative;
@@ -360,19 +222,8 @@ export const FAQ: readonly { q: string; a: string }[] = [
     }
 
     @media (max-width: 860px) {
-      .ba-head,
-      .faq-grid {
+      .ba-head {
         grid-template-columns: 1fr;
-      }
-      .faq-head {
-        position: static;
-      }
-      summary {
-        grid-template-columns: 2.2rem minmax(0, 1fr) 18px;
-        gap: 10px;
-      }
-      details p {
-        margin-left: 0;
       }
       .closing-cta .btn {
         flex: 1 1 100%;
@@ -382,7 +233,6 @@ export const FAQ: readonly { q: string; a: string }[] = [
 })
 export class HomePage {
   protected readonly auth = inject(AuthService);
-  protected readonly faq = FAQ;
   protected readonly template = HERO_TEMPLATE;
   protected readonly start = computed(() => (this.auth.isAuthenticated() ? '/proyectos/nuevo' : '/registro'));
 
