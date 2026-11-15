@@ -139,6 +139,53 @@ real solo pasa un humo en CPU (`services/blender/tests/smoke/run.sh`) cuando cam
 `services/blender/**`. Para que no consuman la misma cola, no se encienden `blender` y
 `blender-fake` a la vez.
 
+## 5. Demo en Azure Container Apps (escala a cero)
+
+Demo barata y temporal en la suscripción Azure for Students, con el mismo esquema que Plano 3D:
+plan de consumo, mínimo 0 réplicas, sin Log Analytics. Todo vive en el grupo `rg-interiores-demo`
+(brazilsouth, entorno `ConsumptionOnly`: el modo «express» no admite varios contenedores por app), así que **bajarla es un solo comando**:
+
+```bash
+az group delete -n rg-interiores-demo --yes --no-wait
+```
+
+| Recurso | Qué es | Costo |
+|---|---|---|
+| `cae-interiores` | entorno de Container Apps, sin Log Analytics | 0 |
+| `ca-interiores-web` | nginx + SPA, ingress público, 0,25 vCPU / 0,5 GiB | por uso (casi 0) |
+| `ca-interiores-api` | api + worker + ai + postgres + redis + seaweedfs en una réplica (se hablan por `localhost`), ingress interno, 2 vCPU / 4 GiB (el máximo del plan de consumo) | ~US$0,22 por hora encendida; la cuota gratis del plan cubre ~25 h al mes |
+| `acrinteriores1256` | Container Registry Basic con las imágenes | ~US$5 al mes |
+
+- **Escala a cero:** cada app se apaga ~5 min después de la última petición. La primera visita
+  tarda unos segundos en la portada y hasta ~1 min en la API (arranca los seis contenedores).
+- **Datos que se reinician:** no hay volúmenes. `interiores-pg-demo` trae el volcado con las
+  migraciones y el catálogo (se carga al arrancar) e `interiores-s3-demo` trae los modelos y
+  texturas. Las cuentas y proyectos que alguien cree duran hasta que la app se apaga.
+- **Sin claves externas:** `CHAT_LLM=off` y `ROOM_ANALYZER=mock` (análisis local, sin Groq). Las
+  claves internas (JWT, firma de medios, Postgres, S3, token de la IA) se generan al azar en cada
+  despliegue y solo existen como secretos de la Container App.
+- **nginx → API:** el ingress interno enruta por la cabecera `Host`, por eso la web usa
+  `API_UPSTREAM=<fqdn-interno>:80` y `API_HOST=<fqdn-interno>`. `TRUST_PROXY=3` (ingress público,
+  nginx, ingress interno).
+
+**Volver a desplegar** (tras cambiar código):
+
+```bash
+docker compose -p interiores build web api ai migrate      # imágenes locales
+bash infra/azure/demo-data.sh                               # solo si cambió el esquema o el catálogo
+az acr login -n acrinteriores1256
+TAG=$(git rev-parse --short HEAD); R=acrinteriores1256.azurecr.io
+for i in "interiores-web:local web" "interiores-api:local api" "interiores-ai:local ai" \
+         "interiores-pg-demo:local postgres-demo" "interiores-s3-demo:local storage-demo" "redis:7.4.11-alpine redis"; do
+  set -- $i; docker tag "$1" "$R/$2:$TAG"; docker push -q "$R/$2:$TAG"
+done
+ACR=acrinteriores1256 TAG=$TAG bash infra/azure/deploy.sh
+```
+
+Las imágenes se construyen en local (no en CI) porque la película de la portada (`public/cine/`)
+no está en git. Ver el estado: `az containerapp revision list -n ca-interiores-api -g rg-interiores-demo -o table`
+y los registros en vivo con `az containerapp logs show -n ca-interiores-api -g rg-interiores-demo --container api --follow`.
+
 ## Checklist de producción
 
 - [ ] Secretos generados (`./scripts/init-env.sh`) y guardados en el gestor de secretos del proveedor.

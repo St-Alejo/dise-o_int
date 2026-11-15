@@ -41,3 +41,4 @@ Thumbs.db
 services/ai/models/
 .tmp-pro/
 .taste-skill/
+infra/azure/build/
