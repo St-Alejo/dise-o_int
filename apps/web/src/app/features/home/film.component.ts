@@ -286,7 +286,9 @@ export function framePath(set: string, index: number): string {
     }
     .line > span {
       display: block;
-      transform: translateY(105%);
+      /* Más que el 100 %: con interlineado 0,86 las tildes (la í de «Vívelo») sobresalen por arriba y,
+         escondidas a 105 %, asomaban dentro de la máscara en todos los capítulos. */
+      transform: translateY(calc(100% + 0.5em));
       transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.1, 1);
       transition-delay: calc(var(--d) * 90ms);
     }
