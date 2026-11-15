@@ -3,7 +3,6 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RevealDirective } from '../../shared/ui/reveal.directive';
-import { BeforeAfterComponent } from './before-after.component';
 import { HERO_TEMPLATE } from './cover.component';
 import { FilmComponent } from './film.component';
 import { reducedMotion, smoothScroll } from './motion';
@@ -13,36 +12,20 @@ import { VitrinaComponent } from './vitrina.component';
 import { WalkComponent } from './walk.component';
 
 /**
- * Página de inicio en cinco movimientos, cada uno con su propia forma de avanzar con el scroll:
+ * Página de inicio en cuatro movimientos, cada uno con su propia forma de avanzar con el scroll:
  * la película (de la foto al hogar), la pista (el plano tendido por el que vuela la cámara), el
- * antes y después, el paseo por los seis estilos y las piezas del catálogo flotando. Todo lo que
- * enseña sale de la app: sus renders, sus capturas y su catálogo.
+ * paseo por los seis estilos y las piezas del catálogo flotando. Todo lo que enseña
+ * sale de la app: sus renders, sus capturas y su catálogo.
  */
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, RevealDirective, FilmComponent, RunwayComponent, BeforeAfterComponent, WalkComponent, PiecesComponent, VitrinaComponent],
+  imports: [RouterLink, IconComponent, RevealDirective, FilmComponent, RunwayComponent, WalkComponent, PiecesComponent, VitrinaComponent],
   template: `
     <app-film [start]="start()" />
 
     <div id="editor" class="anchor"></div>
     <app-runway />
-
-    <section class="ba" aria-labelledby="ba-title">
-      <div class="ba-head" appReveal>
-        <p class="kicker">Antes y después</p>
-        <h2 id="ba-title" class="big">Vacío. <span>Resuelto.</span></h2>
-        <p class="ba-lead">Arrastra la raya. A un lado, las paredes tal como las mides; al otro, lo que la app propone para ese espacio.</p>
-      </div>
-      <app-before-after
-        before="landing/cuarto-vacio"
-        after="landing/cuarto-tarde"
-        beforeLabel="Vacío"
-        afterLabel="Amueblado"
-        beforeAlt="Una sala vacía en 3D: piso de madera clara, paredes blancas, una ventana al fondo y una puerta al frente."
-        afterAlt="La misma sala amueblada por la app: sofá en L bajo la ventana con cortinas, mesa de centro, butaca, estantería, televisor y un cuadro."
-      />
-    </section>
 
     <div id="estilos" class="anchor"></div>
     <app-walk />
@@ -92,55 +75,6 @@ import { WalkComponent } from './walk.component';
     .anchor {
       scroll-margin-top: var(--header-h);
     }
-    .kicker {
-      margin: 0 0 14px;
-      color: var(--brass);
-      font-size: var(--text-sm);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    .big {
-      margin: 0;
-      font-family: var(--font-display);
-      font-stretch: 62%;
-      font-weight: 300;
-      font-size: clamp(2.6rem, 6.4vw, 6rem);
-      line-height: 0.88;
-      text-transform: uppercase;
-    }
-
-    /* Antes y después: el titular partido en dos, como la imagen. */
-    .ba {
-      background: var(--night);
-      color: var(--ink);
-      padding: var(--section-y) clamp(16px, 4vw, 56px);
-    }
-    .ba-head {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
-      gap: 12px 48px;
-      align-items: end;
-      margin-bottom: 40px;
-    }
-    .ba-head .kicker {
-      grid-column: 1 / -1;
-      margin: 0;
-    }
-    .ba .big {
-      color: var(--ink);
-    }
-    .ba .big span {
-      color: var(--brass);
-    }
-    .ba-lead {
-      margin: 0;
-      color: var(--ink);
-    }
-    .ba app-before-after {
-      display: block;
-      overflow: hidden;
-    }
-
     .vitrina-sec {
       padding-block: var(--section-y);
       background: var(--bg);
@@ -224,9 +158,6 @@ import { WalkComponent } from './walk.component';
     }
 
     @media (max-width: 860px) {
-      .ba-head {
-        grid-template-columns: 1fr;
-      }
       .closing-cta .btn {
         flex: 1 1 100%;
       }

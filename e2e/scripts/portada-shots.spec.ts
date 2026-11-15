@@ -40,7 +40,6 @@ for (const vp of WIDTHS) {
     const run = await top('app-runway');
     const runH = await height('app-runway section');
     for (const f of [0, 0.2, 0.45, 0.7, 0.95]) shots.push([`10-pista-${Math.round(f * 100)}`, run + (runH - vp.height) * f]);
-    shots.push(['20-antes-despues', await top('.ba')]);
     const walk = await top('app-walk');
     const walkH = await height('app-walk section');
     for (const f of [0, 0.3, 0.65, 1]) shots.push([`30-paseo-${Math.round(f * 100)}`, walk + (walkH - vp.height) * f]);
