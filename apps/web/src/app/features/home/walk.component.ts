@@ -13,12 +13,12 @@ export const WALK: readonly { id: StyleId; line: string }[] = [
 ];
 
 /**
- * Fotogramas del paso de la persona (`landing/paseo/pNN.webp`, recortados sobre transparente). Con 0
- * el paseo se hace sin ella: solo las salas pasando.
+ * Fotogramas de un paso completo de la persona (`landing/paseo/pNN.webp`, recortados sobre
+ * transparente): salen de un vídeo de Seedance sobre croma. Con 0 el paseo se hace sin ella.
  */
-export const WALKER_FRAMES = 0;
+export const WALKER_FRAMES = 38;
 /** Píxeles de scroll por fotograma del paso: a más, más despacio camina. */
-const PX_PER_FRAME = 22;
+const PX_PER_FRAME = 14;
 
 /**
  * «Recórrelo a pie»: la misma sala en sus seis vidas, una detrás de otra como habitaciones de una
@@ -65,7 +65,7 @@ const PX_PER_FRAME = 22;
         </div>
 
         @if (walker) {
-          <img #walkerImg class="walker" src="landing/paseo/p00.webp" alt="" aria-hidden="true" width="360" height="640" />
+          <img #walkerImg class="walker" src="landing/paseo/p00.webp" alt="" aria-hidden="true" width="459" height="640" />
         }
         <div class="floorline" aria-hidden="true"></div>
       </div>
@@ -295,9 +295,9 @@ const PX_PER_FRAME = 22;
       .head {
         right: 16px;
       }
+      /* En el celular no hay hueco libre: taparía el nombre y el texto de cada estilo. */
       .walker {
-        left: 8vw;
-        height: 34svh;
+        display: none;
       }
       .still .room img {
         width: 100%;
@@ -329,10 +329,6 @@ export class WalkComponent {
         alive = false;
         kill();
       });
-      if (this.walker) {
-        // Precarga del paso completo: así el cambio de fotograma nunca parpadea.
-        for (let i = 0; i < WALKER_FRAMES; i++) new Image().src = walkerSrc(i);
-      }
       void loadMotion().then(({ gsap, ScrollTrigger }) => {
         const root = this.root()?.nativeElement;
         const track = this.track()?.nativeElement;
@@ -362,7 +358,20 @@ export class WalkComponent {
             },
           },
         });
+        // El paso completo se precarga cuando el paseo está a unas pantallas, no al abrir la página:
+        // así no compite con la película y el cambio de fotograma nunca parpadea.
+        const preload = this.walker
+          ? ScrollTrigger.create({
+              trigger: root,
+              start: 'top 300%',
+              once: true,
+              onEnter: () => {
+                for (let i = 0; i < WALKER_FRAMES; i++) new Image().src = walkerSrc(i);
+              },
+            })
+          : null;
         kill = () => {
+          preload?.kill();
           tween.scrollTrigger?.kill();
           tween.kill();
         };

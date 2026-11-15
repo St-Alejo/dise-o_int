@@ -64,6 +64,8 @@ describe('secciones de la portada', () => {
     expect(el.querySelectorAll('.room')).toHaveLength(6);
     expect(el.querySelectorAll('.room img[alt]')).toHaveLength(6);
     expect(el.querySelectorAll('.swatches li').length).toBeGreaterThanOrEqual(6);
+    // La persona que camina: decorativa, fuera del árbol de accesibilidad.
+    expect(el.querySelector('.walker')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('las piezas flotan dentro del escenario y el titular se parte en palabras', () => {
