@@ -31,3 +31,25 @@ export function cycleFrame(distance: number, frames: number, perFrame: number): 
   const i = Math.floor(Math.abs(distance) / perFrame) % frames;
   return i;
 }
+
+/**
+ * Scroll suave con Lenis, solo en la portada y solo con rueda o trackpad (en táctil se deja el
+ * nativo). Va con el reloj de GSAP para que ScrollTrigger lea la misma posición en cada cuadro.
+ * Devuelve la función que lo apaga al salir de la página.
+ */
+export function smoothScroll(): Promise<() => void> {
+  return Promise.all([loadMotion(), import('lenis')]).then(([{ gsap, ScrollTrigger }, { default: Lenis }]) => {
+    // Sin `anchors`: los enlaces de la cabecera los resuelve el router, que mueve el scroll nativo y
+    // Lenis lo sigue.
+    const lenis = new Lenis({ lerp: 0.1, wheelMultiplier: 0.9, autoRaf: false });
+    lenis.on('scroll', ScrollTrigger.update);
+    const tick = (time: number): void => lenis.raf(time * 1000);
+    gsap.ticker.add(tick);
+    gsap.ticker.lagSmoothing(0);
+    return () => {
+      gsap.ticker.remove(tick);
+      gsap.ticker.lagSmoothing(500, 33);
+      lenis.destroy();
+    };
+  });
+}

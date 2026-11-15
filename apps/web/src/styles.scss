@@ -777,3 +777,18 @@ dialog.modal::backdrop {
   background: #b3261e;
   font-size: 0.8rem;
 }
+
+/* Lenis (scroll suave de la portada): reglas de su hoja oficial. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}

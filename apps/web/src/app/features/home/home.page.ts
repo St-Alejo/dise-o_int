@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { IconComponent } from '../../shared/ui/icon.component';
@@ -6,6 +6,7 @@ import { RevealDirective } from '../../shared/ui/reveal.directive';
 import { BeforeAfterComponent } from './before-after.component';
 import { HERO_TEMPLATE } from './cover.component';
 import { FilmComponent } from './film.component';
+import { reducedMotion, smoothScroll } from './motion';
 import { PiecesComponent } from './pieces.component';
 import { RunwayComponent } from './runway.component';
 import { VitrinaComponent } from './vitrina.component';
@@ -384,4 +385,18 @@ export class HomePage {
   protected readonly faq = FAQ;
   protected readonly template = HERO_TEMPLATE;
   protected readonly start = computed(() => (this.auth.isAuthenticated() ? '/proyectos/nuevo' : '/registro'));
+
+  constructor() {
+    const destroy = inject(DestroyRef);
+    afterNextRender(() => {
+      if (reducedMotion()) return;
+      let stop: (() => void) | null = null;
+      let alive = true;
+      destroy.onDestroy(() => {
+        alive = false;
+        stop?.();
+      });
+      void smoothScroll().then((off) => (alive ? (stop = off) : off()));
+    });
+  }
 }
