@@ -1,7 +1,9 @@
 # nginx de origen único: sirve la SPA y hace de proxy a la API (REST + WebSocket).
 # CSP: 'wasm-unsafe-eval' permite compilar WebAssembly (decodificadores de <model-viewer>) sin permitir eval() de JS.
 # Mismo origen = sin CORS, cookies SameSite=strict funcionan, un solo dominio que certificar.
-# ${API_UPSTREAM} se sustituye al arrancar (plantillas de la imagen oficial de nginx).
+# ${API_UPSTREAM} y ${API_HOST} se sustituyen al arrancar (plantillas de la imagen oficial de nginx).
+# API_HOST vale "$host" (el mismo dominio); en Azure Container Apps es el FQDN interno de la API,
+# porque su ingress enruta por la cabecera Host.
 
 map $http_upgrade $connection_upgrade {
     default upgrade;
@@ -46,7 +48,8 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
-        proxy_set_header Host $host;
+        proxy_set_header Host ${API_HOST};
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 600s;
@@ -56,7 +59,8 @@ server {
     location ^~ /api/ {
         proxy_pass $api_upstream;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host ${API_HOST};
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -74,7 +78,8 @@ server {
             client_body_timeout 300s;
             proxy_pass $api_upstream;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${API_HOST};
+            proxy_set_header X-Forwarded-Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
