@@ -93,7 +93,7 @@ const GAP = 960;
     }
     .runway {
       position: relative;
-      height: calc((var(--n) * 62 + 100) * 1svh);
+      height: calc((var(--n) * 30 + 100) * 1svh);
       background: var(--night);
       color: var(--ink);
     }

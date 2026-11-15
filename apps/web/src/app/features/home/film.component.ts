@@ -218,7 +218,8 @@ export function framePath(set: string, index: number): string {
   styles: `
     :host {
       display: block;
-      --film-len: 8;
+      /* Pantallas de scroll que dura la película: corta para no cansar (era 8). */
+      --film-len: 5;
       background: #100f0e;
       color: #f3eee6;
     }

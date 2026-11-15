@@ -81,7 +81,7 @@ const PX_PER_FRAME = 14;
     }
     .walk {
       position: relative;
-      height: 520svh;
+      height: 300svh;
       background: #191612;
       color: var(--ink);
     }

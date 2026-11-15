@@ -84,6 +84,8 @@ import { WalkComponent } from './walk.component';
       --ink-2: #a89f93;
       --brass: #c9a46a;
       --night: #100f0e;
+      /* Menos aire entre secciones que en el resto de la app: la portada ya es larga. */
+      --section-y: clamp(56px, 7vw, 112px);
       background: var(--night);
     }
     section,
