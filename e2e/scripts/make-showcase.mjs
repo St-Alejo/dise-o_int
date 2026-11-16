@@ -51,7 +51,7 @@ function rectShell(widthM, depthM, heightM, openings) {
  * - `{ id, on: alias }`: apoyada encima de otra pieza (la ubica DesignToolbox).
  * `as` le pone un alias para referirse a ella después.
  */
-function compose(recipe) {
+export function compose(recipe) {
   const shell = rectShell(...recipe.room, recipe.openings);
   const frames = new Map(wallFrames(shell).map((f) => [f.id, f]));
   const aliases = new Map();
@@ -92,7 +92,7 @@ function compose(recipe) {
 }
 
 /** Choques entre piezas y avisos de la revisión de diseño: una vitrina no puede tener ninguno. */
-function review(recipe, { shell, placements }) {
+export function review(recipe, { shell, placements }) {
   const pieces = placements.map((p) => {
     const it = byId.get(p.catalogItemId);
     return { id: p.id, name: it.name, mount: it.mount, category: it.category, ...(it.subcategory ? { subcategory: it.subcategory } : {}), position: p.position, rotationY: p.rotationY, dims: effectiveDimensions(it.dimensionsM, p), ...(p.supportId ? { supportId: p.supportId } : {}) };
@@ -106,7 +106,7 @@ function review(recipe, { shell, placements }) {
 }
 
 /** Planta en SVG para revisar la composición a ojo (no se publica). */
-function planSvg({ shell, placements }) {
+export function planSvg({ shell, placements }) {
   const s = 100;
   const rects = placements
     .map((p) => {

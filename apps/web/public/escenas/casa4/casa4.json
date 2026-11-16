@@ -1,0 +1,85 @@
+{
+  "name": "Casa Mirador — 4 pisos",
+  "rooms": [
+    {
+      "id": "casa4-sala",
+      "name": "Sala doble altura",
+      "summary": "Dos ambientes frente a los ventanales: TV de 65\" con sofá en L y un estar de bouclé.",
+      "level": 0,
+      "at": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "id": "casa4-cocina",
+      "name": "Cocina abierta de roble",
+      "summary": "Hilera completa con nevera de acero, isla de tres puestos y colgantes de latón.",
+      "level": 0,
+      "at": {
+        "x": 0,
+        "z": 7
+      }
+    },
+    {
+      "id": "casa4-comedor",
+      "name": "Comedor de nogal",
+      "summary": "Mesa de nogal para seis bajo dos lámparas, aparador lacado y luz del ventanal lateral.",
+      "level": 0,
+      "at": {
+        "x": 7,
+        "z": 7
+      }
+    },
+    {
+      "id": "casa4-suite",
+      "name": "Suite principal",
+      "summary": "Cama king de nogal, TV de 55\" frente a la cama y un rincón de lectura junto al ventanal.",
+      "level": 2,
+      "at": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "id": "casa4-cine",
+      "name": "Sala de cine",
+      "summary": "Pared de carbón con TV de 65\", dos filas de sofás, alfombra mullida y luz tenue.",
+      "level": 2,
+      "at": {
+        "x": 0,
+        "z": 7
+      }
+    },
+    {
+      "id": "casa4-alcoba2",
+      "name": "Alcoba con vista a la calle",
+      "summary": "Cama queen de lino, TV de 43\" en la pared y escritorio de roble bajo la ventana.",
+      "level": 1,
+      "at": {
+        "x": 7,
+        "z": 14
+      }
+    },
+    {
+      "id": "casa4-estudio",
+      "name": "Estudio principal",
+      "summary": "Escritorio de metal frente a la ventana, pared de ladrillo y sillón de cuero para leer.",
+      "level": 2,
+      "at": {
+        "x": 7,
+        "z": 7
+      }
+    },
+    {
+      "id": "casa4-bano-suite",
+      "name": "Baño de la suite",
+      "summary": "Bañera exenta bajo la ventana, doble lavabo de roble, ducha de obra y mármol.",
+      "level": 2,
+      "at": {
+        "x": 7,
+        "z": 0
+      }
+    }
+  ]
+}
