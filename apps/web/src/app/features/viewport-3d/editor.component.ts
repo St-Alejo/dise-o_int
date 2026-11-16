@@ -6,6 +6,7 @@ import { CalibrationDialogComponent } from '../calibration/calibration-dialog.co
 import { PlanEditorComponent } from '../floor-plan/plan-editor.component';
 import { RoomDimensionsDialogComponent } from '../room-dimensions/room-dimensions-dialog.component';
 import { DesignChatService } from '../chat/design-chat.service';
+import { RenderRequestsService } from '../render-studio/render-requests.service';
 import { DesignProjectStore } from '../project/design-project.store';
 import { agoLabel } from '../project/save-resilience';
 import { SceneEditsService } from '../project/scene-edits.service';
@@ -43,7 +44,7 @@ function initialView(): ViewMode {
   selector: 'app-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   // La conversación del asistente vive con el editor (no se pierde al cambiar de pestaña).
-  providers: [SceneService, DesignChatService, SceneEditsService, ComplianceService],
+  providers: [SceneService, DesignChatService, SceneEditsService, ComplianceService, RenderRequestsService],
   imports: [
     ThreeViewportComponent,
     PlanEditorComponent,

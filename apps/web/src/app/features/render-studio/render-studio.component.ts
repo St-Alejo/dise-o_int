@@ -1,3 +1,4 @@
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import {
   CYCLES_SAMPLES,
@@ -22,6 +23,7 @@ import { DialogComponent } from '../../shared/ui/dialog.component';
 import { SegmentedComponent, type SegmentOption } from '../../shared/ui/segmented.component';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneService } from '../viewport-3d/scene.service';
+import { RenderRequestsService, type ChatRenderQuality } from './render-requests.service';
 import { RenderStudioService, canvasBlob } from './render-studio.service';
 import { cameraFromViewer } from './studio-camera';
 
@@ -301,6 +303,30 @@ export class RenderStudioComponent {
 
   constructor() {
     effect(() => this.studio.attachPreview(this.previewRef()?.nativeElement ?? null));
+    inject(RenderRequestsService, { optional: true })
+      ?.requested$.pipe(takeUntilDestroyed())
+      .subscribe((q) => void this.quickRender(q));
+  }
+
+  /**
+   * Render pedido desde el chat: la vista actual del visor a la hora del editor. En Blender si el
+   * nodo está encendido (llega a la galería); si no, en el navegador, con el estudio abierto.
+   */
+  async quickRender(quality: ChatRenderQuality): Promise<void> {
+    if (!this.canSave() || this.sending()) return;
+    this.time.set(this.scene.timeOfDay());
+    this.camera.set('current');
+    this.quality.set(quality === 'final' ? 'final' : 'draft');
+    const node = await this.renders.renderNode().catch(() => null);
+    if (node?.available) {
+      this.engine.set('blender');
+      await this.sendToBlender('render');
+      return;
+    }
+    this.toast.show('Blender está apagado: hago el render aquí en el navegador.');
+    this.open();
+    this.engine.set('browser');
+    this.start();
   }
 
   open(): void {

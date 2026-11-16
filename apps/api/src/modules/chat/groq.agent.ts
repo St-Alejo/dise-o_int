@@ -81,6 +81,7 @@ const TOOL_GROUPS: readonly { words: RegExp; tools: readonly ToolName[] }[] = [
   { words: /bano|ducha|banera|lavamanos|inodoro/, tools: ['add_zone', 'set_finish_spec', 'set_wall_tiles'] },
   { words: /medid|tamano|metro|\bcm\b|ancho|largo|alto|grande|pequen|agrand|achic|estir|ampli|reduc/, tools: ['resize_item', 'set_room_size'] },
   { words: /fija|no (lo )?cambi|manten|candado|bloque|suelta|ya puedes|libera|no quiero|evita|sin alfombra|quiero (un|una)|me gustaria/, tools: ['pin', 'unpin', 'want_item'] },
+  { words: /render|foto|imagen|fotorreal|blender/, tools: ['render'] },
   { words: /presupuesto|cuesta|costo|precio|obra|comput|norma|cumple|ergonom|electric|toma|enchufe|interruptor|instalac|circuito|plano|alzado|lamina|corte/, tools: ['estimate_works', 'check_compliance', 'suggest_installations', 'list_drawings'] },
 ];
 

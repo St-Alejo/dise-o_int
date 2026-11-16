@@ -211,4 +211,14 @@ describe('DesignToolbox', () => {
     expect(tb.currentFinishes?.zones?.[zoneId]?.floor).toMatch(/^custom-/);
     expect(tb.run('set_finish_spec', { surface: 'floor', zoneId: 'nada', spec: { name: 'x', kind: 'tile', colors: ['#ffffff'] } }).summary).toMatch(/No existe la zona/);
   });
+
+  it('render: pide la foto al final, después de los cambios (borrador por defecto)', () => {
+    const tb = toolbox(bedroom());
+    expect(tb.run('render', {}).ok).toBe(true);
+    tb.run('recommend', { intensity: 'suave' });
+    expect(tb.operations().at(-1)).toEqual({ op: 'render', quality: 'borrador' });
+    const final = toolbox(bedroom());
+    final.run('render', { quality: 'final' });
+    expect(final.operations()).toEqual([{ op: 'render', quality: 'final' }]);
+  });
 });

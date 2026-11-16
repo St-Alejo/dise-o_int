@@ -134,6 +134,9 @@ export function splitClauses(message: string, { commas = true }: { commas?: bool
     .map((text) => ({ text }));
 }
 
+/** "renderiza la sala", "hazme una foto", "un render final" (texto ya sin tildes). */
+const RENDER = /\b(?:renderiza\w*|haz(?:me)?\s+(?:un|una)\s+(?:render|foto)|(?:quiero|dame|saca)\s+(?:un|una)\s+(?:render|foto)\b(?!\s+como))/;
+
 /** Una conversación con las reglas: junta lo hecho y lo que no se pudo para la respuesta. */
 export class RuleSession {
   private readonly said: string[] = [];
@@ -170,6 +173,11 @@ export class RuleSession {
     this.record(out);
   }
 
+  private render(text: string): void {
+    this.understood++;
+    this.record(this.tb.run('render', { quality: /\b(?:final|alta|buena|limpi\w*|calidad)\b/.test(text) ? 'final' : 'borrador' }));
+  }
+
   private record(out: ToolOutcome, id?: string): void {
     if (out.ok) {
       this.said.push(out.summary);
@@ -189,6 +197,7 @@ export class RuleSession {
   }
 
   handle({ text }: Clause): void {
+    if (RENDER.test(text)) return this.render(text);
     if (this.roomSize(text)) return;
     if (this.finishes(text)) return;
     if (VERBS.remove.test(text)) return this.remove(strip(text, VERBS.remove));

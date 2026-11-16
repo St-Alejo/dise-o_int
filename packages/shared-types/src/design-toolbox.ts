@@ -110,6 +110,7 @@ export const TOOL_INPUTS = {
   want_item: z.object({ subcategory: z.string().min(1).max(40), avoid: z.boolean().optional() }),
   add_zone: z.object({ kind: z.literal('bathroom'), preset: z.string().min(1).max(40).optional() }),
   recommend: z.object({ intensity: z.enum(['suave', 'total']).optional() }),
+  render: z.object({ quality: z.enum(['borrador', 'final']).optional() }),
   estimate_works: z.object({ material: z.string().min(1).max(40).optional() }),
   check_compliance: z.object({}),
   suggest_installations: z.object({}),
@@ -147,6 +148,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   want_item: 'Anota en el Brief una pieza que la persona quiere (subcategoría: dressing-table, rug, floor-lamp...) o, con avoid=true, una que no quiere ver.',
   add_zone: 'Añade un baño privado en una esquina del cuarto, con tabiques, puerta y su tipo (ducha-obra, banera-mampara, spa-marmol, industrial).',
   recommend: 'Pide una propuesta de Recomendar al terminar (suave = solo colores, acabados y luz; total = también estilo y muebles), respetando lo fijado.',
+  render: 'Pide una foto renderizada del cuarto tal como quede tras los cambios (Blender si el nodo está encendido, si no en el navegador). borrador = rápida; final = más limpia y lenta. La imagen llega a la galería.',
   estimate_works:
     'Modo Pro, solo lectura: cómputo y presupuesto de obra del cuarto (total con AIU, días, materiales a comprar en cajas, galones o bultos). Con material ("baldosa", "pintura") filtra esas compras.',
   check_compliance: 'Modo Pro, solo lectura: revisa la normativa y ergonomía (paso libre, vanos, alturas, luz, holguras, reglas eléctricas) y devuelve lo que falla o avisa.',
@@ -193,6 +195,7 @@ export class DesignToolbox {
   private finishes: RoomFinishes | null;
   private brief: DesignBrief | null;
   private recommendWith: 'suave' | 'total' | null = null;
+  private renderWith: 'borrador' | 'final' | null = null;
   private readonly catalogById: Map<string, CatalogItem>;
   private readonly original: { shell: RoomShell; placements: Map<string, FurniturePlacement>; finishes: RoomFinishes | null; brief: DesignBrief | null };
 
@@ -274,6 +277,8 @@ export class DesignToolbox {
         return this.addZone(input as ToolInput<'add_zone'>);
       case 'recommend':
         return this.recommend(input as ToolInput<'recommend'>);
+      case 'render':
+        return this.render(input as ToolInput<'render'>);
       case 'estimate_works':
         return this.pro(answerTakeoff(this.proProject(), (input as ToolInput<'estimate_works'>).material));
       case 'check_compliance':
@@ -783,6 +788,11 @@ export class DesignToolbox {
     return this.success({ intensity: this.recommendWith }, this.recommendWith === 'suave' ? 'Pido una propuesta de colores, acabados y luz' : 'Pido una propuesta completa');
   }
 
+  private render(input: ToolInput<'render'>): ToolOutcome {
+    this.renderWith = input.quality ?? 'borrador';
+    return this.success({ quality: this.renderWith }, 'Pido un render del cuarto al aplicar los cambios: llegará a la galería');
+  }
+
   // ------------------------------------------------------------------- resultado
   /**
    * Diferencia entre la escena original y la actual: medidas del cuarto primero, luego acabados,
@@ -805,6 +815,8 @@ export class DesignToolbox {
       else if (stable(before) !== stable(p)) ops.push({ op: 'update', placement: p });
     }
     if (this.recommendWith) ops.push({ op: 'recommend', intensity: this.recommendWith });
+    // al final: se renderiza el cuarto ya con todo lo demás aplicado
+    if (this.renderWith) ops.push({ op: 'render', quality: this.renderWith });
     return ops;
   }
 

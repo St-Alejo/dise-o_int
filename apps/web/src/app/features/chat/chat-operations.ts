@@ -48,6 +48,12 @@ export function recommendFromOperations(ops: readonly DesignOperation[]): Recomm
   return rec?.op === 'recommend' ? rec.intensity : null;
 }
 
+/** Si el asistente pidió un render al terminar, con qué calidad. */
+export function renderFromOperations(ops: readonly DesignOperation[]): 'borrador' | 'final' | null {
+  const r = [...ops].reverse().find((o) => o.op === 'render');
+  return r?.op === 'render' ? r.quality : null;
+}
+
 /**
  * Comando para el estado ACTUAL del editor (tras aplicar las medidas del cuarto). Se construye
  * contra lo que hay ahora: una pieza que ya no existe se agrega; un remove de algo ya quitado se
@@ -63,6 +69,7 @@ export function commandFromOperations(ops: readonly DesignOperation[], state: Sc
       case 'room':
       case 'brief':
       case 'recommend':
+      case 'render':
         break;
       case 'zones': {
         if (!state.shell) break;

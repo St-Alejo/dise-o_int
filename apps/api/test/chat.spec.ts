@@ -94,6 +94,12 @@ describe('RuleBasedDesignAgent (español, sin red)', () => {
     expect(parsePlacement('dos sillas frente al escritorio')).toMatchObject({ count: 2, object: 'sillas', relation: 'in-front-of', ref: 'escritorio' });
   });
 
+  it('"renderiza la sala" pide una foto; "en calidad final" la pide limpia', async () => {
+    expect((await rules('Renderiza la sala')).ops).toEqual([{ op: 'render', quality: 'borrador' }]);
+    expect((await rules('hazme un render en calidad final')).ops).toEqual([{ op: 'render', quality: 'final' }]);
+    expect((await rules('quiero un render como este')).ops).not.toContainEqual(expect.objectContaining({ op: 'render' }));
+  });
+
   it('"agrega una mesa de noche a la derecha de la cama"', async () => {
     const { ops, reply } = await rules('Agrega una mesa de noche a la derecha de la cama');
     expect(reply).toMatch(/Agregué Mesa de noche/);

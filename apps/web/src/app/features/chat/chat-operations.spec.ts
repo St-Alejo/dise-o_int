@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FINISHES, addPrivateBathroom, createRectangularShell, type DesignOperation, type FurniturePlacement } from '@interiores/shared-types';
 import { CommandHistory, type SceneState } from '../viewport-3d/commands';
-import { briefFromOperations, commandFromOperations, recommendFromOperations, roomFromOperations } from './chat-operations';
+import { briefFromOperations, commandFromOperations, recommendFromOperations, renderFromOperations, roomFromOperations } from './chat-operations';
 
 const p = (id: string, x = 1): FurniturePlacement => ({ id, catalogItemId: 'sofa', position: { x, y: 0, z: 1 }, rotationY: 0, lockedByUser: true });
 const state: SceneState = { placements: [p('a'), p('b')], finishes: null };
@@ -60,5 +60,11 @@ describe('operaciones del asistente', () => {
     expect(briefFromOperations(ops)).toBeNull();
     expect(recommendFromOperations(ops)).toBeNull();
     expect(commandFromOperations([{ op: 'brief', brief }, { op: 'recommend', intensity: 'total' }], state).command).toBeNull();
+  });
+
+  it('el render pedido por chat va aparte y no entra al deshacer', () => {
+    expect(renderFromOperations([...ops, { op: 'render', quality: 'final' }])).toBe('final');
+    expect(renderFromOperations(ops)).toBeNull();
+    expect(commandFromOperations([{ op: 'render', quality: 'borrador' }], state).command).toBeNull();
   });
 });

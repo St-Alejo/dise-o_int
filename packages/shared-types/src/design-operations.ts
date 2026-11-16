@@ -21,6 +21,8 @@ export const DesignOperationSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('remove'), id: z.string().min(1).max(64) }),
   /** Pedir una propuesta de "Recomendar" al terminar (la web la pide y la adopta). */
   z.object({ op: z.literal('recommend'), intensity: z.enum(['suave', 'total']) }),
+  /** Pedir un render del cuarto al terminar (la web lo manda a Blender o lo hace en el navegador). */
+  z.object({ op: z.literal('render'), quality: z.enum(['borrador', 'final']) }),
 ]);
 export type DesignOperation = z.infer<typeof DesignOperationSchema>;
 

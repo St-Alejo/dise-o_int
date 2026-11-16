@@ -5,7 +5,8 @@ import { ProjectsApi } from '../../core/api/projects.api';
 import { RecommendService } from '../brief/recommend.service';
 import { DesignProjectStore } from '../project/design-project.store';
 import { SceneEditsService } from '../project/scene-edits.service';
-import { CHAT_COMMAND_LABEL, briefFromOperations, commandFromOperations, recommendFromOperations, roomFromOperations } from './chat-operations';
+import { CHAT_COMMAND_LABEL, briefFromOperations, commandFromOperations, recommendFromOperations, renderFromOperations, roomFromOperations } from './chat-operations';
+import { RenderRequestsService } from '../render-studio/render-requests.service';
 
 export interface ChatMessage {
   id: number;
@@ -38,6 +39,7 @@ export class DesignChatService {
   private readonly api = inject(ProjectsApi);
   private readonly recommender = inject(RecommendService, { optional: true });
   private readonly edits = inject(SceneEditsService, { optional: true });
+  private readonly renders = inject(RenderRequestsService, { optional: true });
   private seq = 0;
 
   readonly messages = signal<ChatMessage[]>([]);
@@ -97,7 +99,7 @@ export class DesignChatService {
         role: 'assistant',
         text: res.reply,
         agent: res.agent,
-        changes: res.operations.filter((o) => o.op !== 'brief' && o.op !== 'recommend').length,
+        changes: res.operations.filter((o) => o.op !== 'brief' && o.op !== 'recommend' && o.op !== 'render').length,
         ...(res.reference?.palette.length ? { palette: res.reference.palette } : {}),
       });
     } catch (err) {
@@ -111,7 +113,8 @@ export class DesignChatService {
 
   /**
    * Orden: medidas (servidor) → escena (un comando deshacible) → Brief (servidor) → y al final,
-   * o la propuesta de Recomendar (que ya redistribuye) o, si cambiaron las zonas, otra distribución.
+   * o la propuesta de Recomendar (que ya redistribuye) o, si cambiaron las zonas, otra distribución;
+   * y si se pidió, el render.
    */
   private async apply(res: ChatResponse): Promise<void> {
     const room = roomFromOperations(res.operations);
@@ -127,6 +130,9 @@ export class DesignChatService {
     const intensity = recommendFromOperations(res.operations);
     if (intensity && this.recommender) await this.recommender.recommend(intensity);
     else if (zonesChanged && this.edits) await this.edits.relayout();
+    // al final, con todo aplicado: la foto es del cuarto ya cambiado
+    const render = renderFromOperations(res.operations);
+    if (render) this.renders?.request(render);
   }
 
   /** Últimos turnos (sin errores) para dar contexto: "ponla más cerca" sabe de qué se habla. */
