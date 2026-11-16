@@ -43,6 +43,7 @@ const SORTS: readonly { id: ProjectSort; label: string }[] = [
           <p class="muted sub">Cada proyecto es un cuarto: su plano, sus muebles y su lista de compras.</p>
         </div>
         <span class="spacer"></span>
+        <a routerLink="/conectar" class="btn"><app-icon name="plan" /> Conectar con Plano 3D</a>
         <a routerLink="/proyectos/nuevo" class="btn btn-primary"><app-icon name="plus" /> Nuevo proyecto</a>
       </div>
 

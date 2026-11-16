@@ -37,6 +37,12 @@ export const routes: Routes = [
     title: 'Proyecto — Interiores IA',
   },
   {
+    path: 'conectar',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/connect/connect-plano3d.page').then((m) => m.ConnectPlano3dPage),
+    title: 'Conectar con Plano 3D — Interiores IA',
+  },
+  {
     path: 'viviendas/:id',
     canActivate: [authGuard],
     loadComponent: () => import('./features/homes/home-plan.page').then((m) => m.HomePlanPage),

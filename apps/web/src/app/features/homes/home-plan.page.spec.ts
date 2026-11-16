@@ -99,6 +99,29 @@ describe('HomePlanPage', () => {
     expect(el.textContent).toContain('Hay cuartos que se pisan');
   });
 
+  it('una casa de Plano 3D se ve piso por piso y sus cuartos no se arrastran', async () => {
+    const { fixture, el, moved } = await setup([
+      room('sala', 'Sala', 5, 4, { homeLevel: { index: 0, name: 'Piso 1' }, homePosition: { x: 0, z: 0 } }),
+      room('cocina', 'Cocina', 3, 3, { homeLevel: { index: 0, name: 'Piso 1' }, homePosition: { x: 5, z: 0 } }),
+      room('alcoba', 'Alcoba', 4, 3, { homeLevel: { index: 1, name: 'Piso 2' }, homePosition: { x: 0, z: 0 } }),
+    ]);
+    expect(el.textContent).toContain('Casa de Plano 3D');
+    const tabs = [...el.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(tabs.map((t) => t.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Piso 1 2', 'Piso 2 1']);
+    expect(el.querySelectorAll('svg .room')).toHaveLength(2);
+
+    tabs[1]!.click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('svg .room')).toHaveLength(1);
+    expect(el.querySelector('.rooms')!.textContent).toContain('Alcoba');
+
+    const alcoba = el.querySelector<SVGGElement>('svg .room')!;
+    alcoba.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    alcoba.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+    await fixture.whenStable();
+    expect(moved).toEqual([]);
+  });
+
   it('una vivienda sin cuartos se explica en vez de quedar en blanco', async () => {
     const { el } = await setup([]);
     expect(el.textContent).toContain('Esta vivienda no existe');

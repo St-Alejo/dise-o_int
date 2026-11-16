@@ -407,6 +407,8 @@ export const DesignProjectSchema = z.object({
   brief: DesignBriefSchema.nullable().optional(),
   /** Ficha técnica del Modo Pro (null o ausente = valores por defecto). */
   technical: TechnicalSpecSchema.nullable().optional(),
+  /** Cuarto de una casa de Plano 3D: allá se editan los muros (null o ausente = propio). */
+  plano3d: z.object({ linkId: z.string(), levelName: z.string(), roomId: z.string() }).nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

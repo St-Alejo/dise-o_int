@@ -105,6 +105,7 @@ export function toDesignProject(
     budgetCap: project.budgetCap ?? null,
     brief: project.brief ?? null,
     technical: project.technical ?? null,
+    plano3d: project.plano3d ? { linkId: project.plano3d.linkId, levelName: project.plano3d.levelName, roomId: project.plano3d.roomId } : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   };
@@ -159,6 +160,7 @@ export function toListItem(project: ProjectRecord, signer: MediaUrlSigner, price
     ...listSummary(project, prices),
     ...(project.homeId ? { homeId: project.homeId, homeName: project.homeName ?? 'Vivienda' } : {}),
     ...(project.homeId && project.homePosition ? { homePosition: project.homePosition } : {}),
+    ...(project.plano3d ? { homeLevel: { index: project.plano3d.levelIndex, name: project.plano3d.levelName } } : {}),
     ...(project.budgetCap ? { budgetCap: project.budgetCap } : {}),
   };
 }

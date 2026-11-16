@@ -138,6 +138,8 @@ export const ProjectListItemSchema = z.object({
   homeName: z.string().optional(),
   /** Dónde se colocó el cuarto en la planta conjunta de su vivienda (metros). */
   homePosition: PlanPositionSchema.optional(),
+  /** Piso de la casa de Plano 3D de donde sale el cuarto (sus muros se editan allá). */
+  homeLevel: z.object({ index: z.number().int().min(0), name: z.string() }).optional(),
   /** Tope de gasto del cuarto, si la persona puso uno. */
   budgetCap: z.number().positive().optional(),
 });

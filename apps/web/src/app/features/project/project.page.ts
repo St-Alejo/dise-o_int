@@ -81,7 +81,9 @@ type View = 'estilos' | '3d';
               <!-- Enlace normal: cada cuarto se abre con su propio editor, desde cero. -->
               <a class="chip" [href]="'/proyectos/' + room.id + '?vista=3d'" [attr.aria-current]="room.id === p.id ? 'page' : null">{{ room.name }}</a>
             }
-            <a class="chip add" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: home.id }"><app-icon name="plus" /> Añadir cuarto</a>
+            @if (!p.plano3d) {
+              <a class="chip add" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: home.id }"><app-icon name="plus" /> Añadir cuarto</a>
+            }
             <a class="chip add" [routerLink]="['/viviendas', home.id]"><app-icon name="plan" /> Planta de la vivienda</a>
           </nav>
         } @else if (p.status === 'ready') {
@@ -89,6 +91,12 @@ type View = 'estilos' | '3d';
             <button type="button" class="btn btn-sm btn-ghost" (click)="startHome()" [disabled]="working()" appTooltip="Crea una vivienda con este cuarto para ir sumando los demás: se ven juntos y con sus totales">
               <app-icon name="plus" /> Añadir otro cuarto a esta vivienda
             </button>
+          </p>
+        }
+
+        @if (p.plano3d; as linked) {
+          <p class="plano3d-note muted" role="note">
+            <app-icon name="lock" /> {{ linked.levelName }} de una casa de Plano 3D: los muros y las aberturas se editan allá. Lo que amuebles aquí se ve en Plano 3D en vivo.
           </p>
         }
 
@@ -205,6 +213,13 @@ type View = 'estilos' | '3d';
     }
     .home .add {
       color: var(--primary);
+    }
+    .plano3d-note {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
+      margin: var(--space-2) 0 0;
+      font-size: var(--text-sm);
     }
     .home-start {
       margin: -4px 0 12px;
@@ -328,6 +343,18 @@ export class ProjectPage implements OnInit {
   ngOnInit(): void {
     void this.store.load(this.id());
     this.sub = this.progress.watch(this.id()).subscribe((e) => this.onProgress(e));
+    // Plano 3D cambió este cuarto (muro, abertura o un mueble movido allá): se vuelve a leer.
+    this.sub.add(
+      this.progress.sceneSync(this.id()).subscribe((e) => {
+        if (e.revoked) {
+          this.toast.error('Plano 3D dejó de compartir esta casa: el cuarto queda como diseño propio.');
+          return;
+        }
+        void this.store.reload().then(() => {
+          if (e.architecture) this.toast.success('Plano 3D actualizó los muros de este cuarto');
+        });
+      }),
+    );
     this.destroyRef.onDestroy(() => this.sub?.unsubscribe());
   }
 

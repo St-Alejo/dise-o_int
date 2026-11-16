@@ -88,9 +88,15 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
         <p class="muted">Puede que hayas sacado de ella su último cuarto. Tus proyectos siguen en la lista.</p>
       } @else {
         <header class="head">
-          <p class="eyebrow">Vivienda</p>
+          <p class="eyebrow">{{ linked() ? 'Casa de Plano 3D' : 'Vivienda' }}</p>
           <h1>{{ name() }}</h1>
         </header>
+        @if (linked()) {
+          <p class="alert alert-info linked" role="note">
+            <app-icon name="lock" /> Los muros, las puertas y la ubicación de cada cuarto vienen de Plano 3D y se editan allá. Aquí se amuebla y se eligen
+            acabados: lo que guardes se ve en Plano 3D en vivo.
+          </p>
+        }
 
         <dl class="facts">
           <div>
@@ -126,6 +132,15 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
           }
         </dl>
 
+        @if (levels().length > 1) {
+          <div class="levels" role="tablist" aria-label="Pisos de la casa">
+            @for (l of levels(); track l.index) {
+              <button type="button" role="tab" class="btn btn-sm" [class.btn-primary]="l.index === level()" [attr.aria-selected]="l.index === level()" (click)="level.set(l.index)">
+                {{ l.name }} <span class="count">{{ l.rooms }}</span>
+              </button>
+            }
+          </div>
+        }
         <div class="plan">
           <svg
             #svg
@@ -165,12 +180,12 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
           </svg>
         </div>
         <div class="row under">
-          <p class="muted hint">
+          <p class="muted hint" [hidden]="linked()">
             Arrastra cada cuarto a su sitio: al acercarlo a otro, sus paredes se pegan. Con el teclado, las flechas lo mueven 10 cm (con Mayús, 1 m). La
             cuadrícula es de un metro.
           </p>
           <span class="spacer"></span>
-          <button type="button" class="btn btn-sm" (click)="tidy()" [disabled]="saving()">Ordenar en fila</button>
+          <button type="button" class="btn btn-sm" (click)="tidy()" [disabled]="saving() || linked()">Ordenar en fila</button>
           <button type="button" class="btn btn-sm" (click)="downloadPdf()" [disabled]="exporting() || !plan().length"><app-icon name="download" /> {{ exporting() ? 'Preparando…' : 'Vivienda en PDF' }}</button>
         </div>
         @if (anyOverlap()) {
@@ -182,7 +197,7 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
 
         <h2 class="eyebrow list-title">Cuartos</h2>
         <ul class="rooms" role="list">
-          @for (r of rooms(); track r.id) {
+          @for (r of visibleRooms(); track r.id) {
             <li>
               <div>
                 <a class="room-name" [routerLink]="['/proyectos', r.id]" [queryParams]="{ vista: '3d' }">{{ r.name }}</a>
@@ -362,6 +377,23 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
       gap: var(--space-3);
       font-variant-numeric: tabular-nums;
     }
+    .linked {
+      display: flex;
+      gap: var(--space-2);
+      align-items: start;
+      margin-top: var(--space-3);
+    }
+    .levels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin: var(--space-4) 0 var(--space-2);
+    }
+    .levels .count {
+      margin-left: var(--space-1);
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
     .tall {
       height: 320px;
       margin-top: var(--space-4);
@@ -389,9 +421,29 @@ export class HomePlanPage {
   private readonly svg = viewChild<ElementRef<SVGSVGElement>>('svg');
 
   protected readonly name = computed(() => this.rooms()[0]?.homeName ?? 'Vivienda');
-  protected readonly plan = computed(() => planRooms(this.rooms(), this.positions()));
+  /** Casa enlazada con Plano 3D: los cuartos no se arrastran (su sitio lo manda Plano 3D). */
+  protected readonly linked = computed(() => this.rooms().some((r) => r.homeLevel));
+  /** Pisos de la casa (solo las enlazadas tienen más de uno). */
+  protected readonly levels = computed(() => {
+    const byIndex = new Map<number, { index: number; name: string; rooms: number }>();
+    for (const r of this.rooms()) {
+      if (!r.homeLevel) continue;
+      const l = byIndex.get(r.homeLevel.index) ?? { index: r.homeLevel.index, name: r.homeLevel.name, rooms: 0 };
+      l.rooms += 1;
+      byIndex.set(l.index, l);
+    }
+    return [...byIndex.values()].sort((a, b) => a.index - b.index);
+  });
+  protected readonly level = signal(0);
+  protected readonly visibleRooms = computed(() => {
+    const levels = this.levels();
+    if (levels.length < 2) return this.rooms();
+    const current = levels.some((l) => l.index === this.level()) ? this.level() : levels[0]!.index;
+    return this.rooms().filter((r) => r.homeLevel?.index === current);
+  });
+  protected readonly plan = computed(() => planRooms(this.visibleRooms(), this.positions()));
   protected readonly anyOverlap = computed(() => this.plan().some((r) => r.overlaps));
-  protected readonly missing = computed(() => this.rooms().length - this.plan().length);
+  protected readonly missing = computed(() => this.visibleRooms().length - this.plan().length);
   protected readonly totals = computed(() => {
     const rooms = this.rooms();
     const capped = rooms.filter((r) => r.budgetCap);
@@ -461,6 +513,7 @@ export class HomePlanPage {
 
   // ------------------------------------------------------------------ arrastrar
   protected grab(event: PointerEvent, id: string): void {
+    if (this.linked()) return;
     const start = this.positions().get(id);
     const pointer = this.toPlan(event);
     if (!start || !pointer) return;
@@ -497,7 +550,7 @@ export class HomePlanPage {
     };
     const by = delta[event.key];
     const at = this.positions().get(id);
-    if (!by || !at) return;
+    if (!by || !at || this.linked()) return;
     event.preventDefault();
     this.moveTo(id, { x: at.x + by.x, z: at.z + by.z }, false);
   }

@@ -5,6 +5,15 @@ import { io, type Socket } from 'socket.io-client';
 import { AuthService } from '../auth/auth.service';
 import { ProjectsApi } from '../api/projects.api';
 
+/** Aviso de la API: el cuarto cambió en Plano 3D (ADR-0039). */
+export interface SceneSyncEvent {
+  projectId: string;
+  revision: number;
+  source: 'plano3d';
+  architecture?: boolean;
+  revoked?: boolean;
+}
+
 /**
  * Progreso en vivo de los jobs de IA.
  * WebSocket (socket.io, solo transporte websocket) con historial al suscribirse; si el socket
@@ -69,6 +78,23 @@ export class ProgressService {
           socket?.emit('unsubscribe', { projectId });
         }
       };
+    });
+  }
+
+  /**
+   * Cambios del cuarto hechos fuera de este navegador (Plano 3D movió un muro o un mueble):
+   * el editor vuelve a leer el proyecto. Usa la misma sala del proyecto que el progreso.
+   */
+  sceneSync(projectId: string): Observable<SceneSyncEvent> {
+    return new Observable<SceneSyncEvent>((subscriber) => {
+      const onSync = (e: SceneSyncEvent) => e.projectId === projectId && subscriber.next(e);
+      let socket: Socket | null = null;
+      void this.connect().then((s) => {
+        if (subscriber.closed || !s) return;
+        socket = s;
+        s.on('scene-sync', onSync);
+      });
+      return () => socket?.off('scene-sync', onSync);
     });
   }
 
