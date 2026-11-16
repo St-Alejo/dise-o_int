@@ -26,6 +26,8 @@ export class TexturesController {
   @Get()
   async manifest(@Res({ passthrough: true }) res: Response): Promise<TextureManifest> {
     res.setHeader('cache-control', 'public, max-age=300');
+    // Datos públicos: Plano 3D pinta con ellos los pisos diseñados aquí.
+    res.setHeader('access-control-allow-origin', '*');
     const stored = await this.stored();
     const url = (key: string) => `/api/textures/${key.slice('textures/'.length)}`;
     return {
