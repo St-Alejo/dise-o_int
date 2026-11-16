@@ -33,25 +33,25 @@ def poly(name: str) -> list[tuple[float, float]]:
 
 
 @pytest.mark.parametrize("name", list(CASES["areas"]))
-def test_area_esquinas_e_ids_de_pared(name):
+def test_area_corners_and_wall_ids(name):
     assert signed_area(poly(name)) == pytest.approx(CASES["areas"][name])
     assert [is_convex_vertex(poly(name), i) for i in range(len(poly(name)))] == CASES["convex"][name]
     assert [w.id for w in polygon_shell(poly(name), 2.6).walls] == CASES["wallIds"][name]
 
 
 @pytest.mark.parametrize("case", CASES["points"], ids=lambda c: f"{c['polygon']}{c['p']}")
-def test_punto_dentro_del_poligono(case):
+def test_point_in_polygon(case):
     assert point_in_polygon(tuple(case["p"]), poly(case["polygon"]), 0.005) is case["inside"]
 
 
 @pytest.mark.parametrize("case", CASES["quads"], ids=lambda c: f"{c['polygon']}{c['center']}{c['size']}")
-def test_huella_dentro_del_poligono(case):
+def test_footprint_in_polygon(case):
     cx, cz = case["center"]
     fp = Footprint.of(cx, cz, case["size"][0], case["size"][1], case["rotationY"])
     assert quad_inside_polygon(fp.corners, (cx, cz), poly(case["polygon"])) is case["inside"]
 
 
-def test_el_sentido_de_giro_no_cambia_que_queda_dentro():
+def test_winding_order_does_not_change_inside_test():
     reversed_l = list(reversed(poly("L")))
     assert signed_area(reversed_l) == pytest.approx(-17)
     assert point_in_polygon((1, 1), reversed_l)
@@ -59,12 +59,12 @@ def test_el_sentido_de_giro_no_cambia_que_queda_dentro():
     assert [w.id for w in polygon_shell(reversed_l, 2.6).walls] == CASES["wallIds"]["L"]
 
 
-def test_el_punto_mas_despejado_cae_dentro():
+def test_clearest_point_is_inside():
     assert interior_anchor(poly("rect")) == (2.0, 1.5)
     assert point_in_polygon(interior_anchor(poly("U")), poly("U"))
 
 
-def test_un_cuarto_rectangular_va_por_el_camino_de_siempre():
+def test_rectangular_room_takes_usual_path():
     box = RoomGeometry(rectangular_shell(4, 3, 2.6))
     assert box.is_box
     assert box.center == (2.0, 1.5)
@@ -72,7 +72,7 @@ def test_un_cuarto_rectangular_va_por_el_camino_de_siempre():
     assert not RoomGeometry(polygon_shell(poly("L"), 2.6)).is_box
 
 
-def test_las_normales_de_una_L_apuntan_al_cuarto():
+def test_l_shape_normals_point_into_room():
     shell = polygon_shell(poly("L"), 2.6)
     room = RoomGeometry(shell)
     for wall in shell.walls:
@@ -99,7 +99,7 @@ def shaped(name: str) -> RoomShell:
 
 @pytest.mark.parametrize("shape", ["L", "U"])
 @pytest.mark.parametrize("room_type", ["living", "bedroom", "dining", "office"])
-def test_distribuye_muebles_dentro_de_un_cuarto_de_forma_libre(catalog, shape, room_type):
+def test_lays_out_furniture_inside_free_form_room(catalog, shape, room_type):
     shell = shaped(shape)
     room = RoomGeometry(shell)
     req = PlaceFurnitureRequest(roomShell=shell, roomType=room_type, styleId="moderno", candidates=catalog, locked=[], seed=1)

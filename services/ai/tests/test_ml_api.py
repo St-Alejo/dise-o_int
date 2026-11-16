@@ -47,7 +47,7 @@ def ml_client(settings: Settings, storage: MemoryStorage, small_model: IntentMod
         yield c  # type: ignore[misc]
 
 
-def test_nlu_parse_devuelve_intencion_confianza_y_parametros(ml_client: TestClient, contract: dict[str, dict]) -> None:
+def test_nlu_parse_returns_intent_confidence_and_parameters(ml_client: TestClient, contract: dict[str, dict]) -> None:
     r = ml_client.post("/v1/nlu/parse", json={"text": "piso de baldosa brillante azul claro con verde"}, headers=AUTH)
     assert r.status_code == 200, r.text
     body = r.json()
@@ -61,7 +61,7 @@ def test_nlu_parse_devuelve_intencion_confianza_y_parametros(ml_client: TestClie
     assert ml_client.post("/v1/nlu/parse", json={"text": "hola"}).status_code == 401
 
 
-def test_rank_ordena_por_lo_aprendido(ml_client: TestClient, contract: dict[str, dict]) -> None:
+def test_rank_orders_by_learned_preferences(ml_client: TestClient, contract: dict[str, dict]) -> None:
     like = {"style:bohemio": 1.0}
     dislike = {"style:moderno": 1.0}
     body = {
@@ -79,7 +79,7 @@ def test_rank_ordena_por_lo_aprendido(ml_client: TestClient, contract: dict[str,
     assert out["scores"]["b"] > out["scores"]["a"]
 
 
-def test_referencia_por_colores_sin_vision(ml_client: TestClient, contract: dict[str, dict]) -> None:
+def test_color_reference_without_vision(ml_client: TestClient, contract: dict[str, dict]) -> None:
     r = ml_client.post("/v1/reference/analyze", json={"imageKey": "projects/p1/source.jpg"}, headers=AUTH)
     assert r.status_code == 200, r.text
     body = r.json()

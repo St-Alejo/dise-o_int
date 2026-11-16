@@ -72,7 +72,7 @@ def photo(seed: int = 0, size: tuple[int, int] = (1500, 2000)) -> np.ndarray:
 
 
 # ---------------------------------------------------------------- de la respuesta al cuarto
-def test_la_abertura_cae_en_la_pared_que_dijo_el_modelo():
+def test_opening_lands_on_wall_named_by_model():
     shell = shell_from_guess(guess())
     assert [w.id for w in shell.walls] == ["w-back", "w-right", "w-front", "w-left"]
     assert (shell.widthM, shell.depthM, shell.heightM, shell.shape) == (4.5, 5.0, 2.7, "rect")
@@ -82,7 +82,7 @@ def test_la_abertura_cae_en_la_pared_que_dijo_el_modelo():
     assert shell.needsCalibration and 0.35 < shell.scaleConfidence <= 0.65
 
 
-def test_cada_pared_mide_su_posicion_desde_donde_la_ve_la_camara():
+def test_each_wall_measures_position_from_camera_view():
     openings = [
         {"wall": "back", "type": "window", "positionFraction": 0.25, "widthFraction": 0.2},
         {"wall": "left", "type": "window", "positionFraction": 0.25, "widthFraction": 0.2},
@@ -99,7 +99,7 @@ def test_cada_pared_mide_su_posicion_desde_donde_la_ve_la_camara():
     assert by_wall["w-right"].type == "door" and by_wall["w-right"].widthM == pytest.approx(0.8)
 
 
-def test_descarta_aberturas_encimadas_y_no_inventa_puerta_si_ya_hay_una():
+def test_drops_overlapping_openings_and_adds_no_extra_door():
     openings = [
         {"wall": "back", "type": "window", "positionFraction": 0.5, "widthFraction": 0.4},
         {"wall": "back", "type": "window", "positionFraction": 0.55, "widthFraction": 0.4},
@@ -109,20 +109,20 @@ def test_descarta_aberturas_encimadas_y_no_inventa_puerta_si_ya_hay_una():
     assert [(o.type, o.wallId) for o in shell.openings] == [("window", "w-back"), ("door", "w-back")]
 
 
-def test_sin_puerta_a_la_vista_se_pone_detras_de_la_camara_y_las_medidas_se_acotan():
+def test_no_visible_door_goes_behind_camera_and_sizes_are_clamped():
     shell = shell_from_guess(guess(widthM=25, depthM=1.0, heightM=7, openings=[]))
     assert (shell.widthM, shell.depthM, shell.heightM) == (12.0, 2.2, 4.0)
     assert [(o.type, o.wallId) for o in shell.openings] == [("door", "w-front")]
 
 
-def test_una_forma_distinta_del_rectangulo_da_mas_paredes():
+def test_non_rectangular_shape_gives_more_walls():
     assert len(shell_from_guess(guess(shape="L")).walls) == 6
     assert len(shell_from_guess(guess(shape="U")).walls) == 8
     assert shell_from_guess(guess(shape="T")).shape == "T"
 
 
 # ---------------------------------------------------------------- el analizador
-def test_devuelve_cuarto_inventario_y_colores_de_la_foto():
+def test_returns_room_inventory_and_photo_colors():
     analysis = VisionRoomAnalyzer(FakeClient(json.dumps(OFFICE)), budget=DailyBudget(5)).analyze(photo(), "office")
     assert analysis.provider == "vision-fake-vision"
     assert [(o.category, o.count, o.nearWall) for o in analysis.objects] == [("desk", 1, "back"), ("chair", 3, "center"), ("shelf", 2, "back"), ("plant", 1, "left")]
@@ -139,7 +139,7 @@ def test_devuelve_cuarto_inventario_y_colores_de_la_foto():
     }
 
 
-def test_la_misma_foto_no_gasta_dos_llamadas_y_el_presupuesto_diario_corta():
+def test_same_photo_uses_one_call_and_daily_budget_stops():
     client = FakeClient(json.dumps(OFFICE))
     today = [date(2026, 10, 10)]
     analyzer = VisionRoomAnalyzer(client, budget=DailyBudget(2, today=lambda: today[0]))
@@ -158,20 +158,20 @@ def test_la_misma_foto_no_gasta_dos_llamadas_y_el_presupuesto_diario_corta():
 
 
 @pytest.mark.parametrize("answer", ["esto no es json", json.dumps({**OFFICE, "widthM": -3}), json.dumps({"shape": "hexagon"})])
-def test_una_respuesta_invalida_es_un_fallo_del_proveedor(answer):
+def test_invalid_response_is_provider_failure(answer):
     with pytest.raises(ProviderError, match="datos inválidos") as err:
         VisionRoomAnalyzer(FakeClient(answer), budget=DailyBudget(5)).analyze(photo(), "office")
     assert err.value.retryable is False
 
 
-def test_un_estilo_o_material_que_no_existe_se_ignora_en_vez_de_fallar():
+def test_unknown_style_or_material_is_ignored_instead_of_failing():
     answer = json.dumps({**OFFICE, "style": "art deco", "floorMaterial": "lava", "palette": None})
     suggestions = VisionRoomAnalyzer(FakeClient(answer), budget=DailyBudget(5)).analyze(photo(), "office").suggestions
     assert suggestions is not None
     assert (suggestions.styleId, suggestions.floorMaterial, suggestions.wallColor) == (None, None, None)
 
 
-def test_si_la_vision_falla_responde_el_analisis_local():
+def test_local_analysis_answers_when_vision_fails():
     failing = VisionRoomAnalyzer(FakeClient(ProviderError("límite", retryable=False)), budget=DailyBudget(5))
     analysis = FallbackRoomAnalyzer(failing, MockRoomAnalyzer()).analyze(photo(size=(600, 800)), "living")
     assert analysis.provider == "mock-opencv (respaldo)"
@@ -183,7 +183,7 @@ def groq(handler) -> GroqVisionClient:
     return GroqVisionClient("gsk_prueba", "modelo-x", transport=httpx.MockTransport(handler))
 
 
-def test_groq_manda_la_imagen_en_linea_y_devuelve_el_contenido():
+def test_groq_sends_inline_image_and_returns_content():
     seen: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -201,7 +201,7 @@ def test_groq_manda_la_imagen_en_linea_y_devuelve_el_contenido():
 
 
 @pytest.mark.parametrize(("status", "retryable"), [(429, False), (401, False), (503, True)])
-def test_groq_traduce_los_errores_sin_reintentar_ni_filtrar_el_cuerpo(status, retryable):
+def test_groq_maps_errors_without_retrying_or_leaking_body(status, retryable):
     calls = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -215,7 +215,7 @@ def test_groq_traduce_los_errores_sin_reintentar_ni_filtrar_el_cuerpo(status, re
     assert len(calls) == 1
 
 
-def test_groq_caido_es_un_fallo_del_proveedor():
+def test_groq_down_is_provider_failure():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("sin red")
 
@@ -228,12 +228,12 @@ def settings(**env) -> Settings:
     return Settings(AI_INTERNAL_TOKEN=TOKEN, S3_BUCKET="t", S3_ACCESS_KEY_ID="a", S3_SECRET_ACCESS_KEY="b", **env)  # type: ignore[call-arg]
 
 
-def test_sin_clave_la_vision_se_degrada_al_analisis_local():
+def test_without_key_vision_degrades_to_local_analysis():
     container = build_container(settings(ROOM_ANALYZER="vision"), MemoryStorage())
     assert container.room_analyzer.name == "mock-opencv"
 
 
-def test_con_clave_se_usa_la_vision_con_respaldo():
+def test_with_key_vision_is_used_with_fallback():
     container = build_container(settings(ROOM_ANALYZER="vision", GROQ_API_KEY="gsk_prueba", VISION_MODEL="modelo-x"), MemoryStorage())
     assert isinstance(container.room_analyzer, FallbackRoomAnalyzer)
     assert container.room_analyzer.name == "vision-modelo-x"
@@ -244,7 +244,7 @@ def inventory(*items: tuple[str, int]) -> list[InventoryItem]:
     return [InventoryItem(category=c, count=n) for c, n in items]
 
 
-def test_cada_palabra_del_modelo_tiene_su_rol_segun_el_cuarto():
+def test_each_model_word_has_role_per_room():
     assert inventory_role("Sofa", "living") == "sofa"
     assert inventory_role("coffee tables", "living") == "coffee-table"
     assert inventory_role("tv-stand", "living") == "tv-stand"
@@ -253,7 +253,7 @@ def test_cada_palabra_del_modelo_tiene_su_rol_segun_el_cuarto():
     assert inventory_role("microwave", "living") is None
 
 
-def test_con_inventario_se_coloca_lo_que_habia_en_la_foto():
+def test_with_inventory_places_what_was_in_photo():
     names = lambda roles: [(r.name, r.count) for r in roles]  # noqa: E731
     full = names(roles_for("living", None))
     assert len(full) == 9
@@ -275,7 +275,7 @@ def test_con_inventario_se_coloca_lo_que_habia_en_la_foto():
     assert names(roles_for("living", inventory(("microwave", 1)))) == full
 
 
-def test_dos_fotos_distintas_dan_dos_distribuciones_distintas(catalog):
+def test_two_different_photos_give_two_different_layouts(catalog):
     shell = rectangular_shell(5, 4.5, 2.6)
 
     def placed(items):
@@ -327,7 +327,7 @@ class FakeRedis:
             self.expires[name] = ex
 
 
-def test_la_cuota_en_redis_la_comparten_dos_replicas_y_se_renueva_cada_dia():
+def test_redis_quota_is_shared_by_replicas_and_resets_daily():
     from datetime import date
 
     from interiores_ai.providers.vision import RedisDailyBudget
@@ -347,7 +347,7 @@ def test_la_cuota_en_redis_la_comparten_dos_replicas_y_se_renueva_cada_dia():
     assert one.remaining == 2
 
 
-def test_sin_redis_la_cuota_sigue_contando_en_memoria():
+def test_without_redis_quota_counts_in_memory():
     from interiores_ai.providers.vision import RedisDailyBudget
 
     redis = FakeRedis()
@@ -357,7 +357,7 @@ def test_sin_redis_la_cuota_sigue_contando_en_memoria():
     assert budget.remaining == 0
 
 
-def test_la_cache_en_redis_evita_repetir_la_llamada_en_otra_replica():
+def test_redis_cache_avoids_repeat_call_on_other_replica():
     from interiores_ai.providers.vision import RedisAnalysisCache
 
     redis = FakeRedis()
@@ -376,7 +376,7 @@ def test_la_cache_en_redis_evita_repetir_la_llamada_en_otra_replica():
     assert any(key.startswith("vision:analysis:") for key in redis.data)
 
 
-def test_si_redis_falla_la_cache_cae_a_memoria_y_el_analisis_sigue():
+def test_redis_failure_falls_back_to_memory_cache():
     from interiores_ai.providers.vision import RedisAnalysisCache
 
     redis = FakeRedis()
@@ -392,7 +392,7 @@ def test_si_redis_falla_la_cache_cae_a_memoria_y_el_analisis_sigue():
     assert RedisAnalysisCache(redis).get("x") is None
 
 
-def test_sin_redis_configurado_todo_queda_en_memoria(settings):
+def test_without_redis_configured_everything_stays_in_memory(settings):
     from interiores_ai.container import vision_state
 
     budget, cache = vision_state(settings)

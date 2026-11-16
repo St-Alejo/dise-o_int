@@ -76,14 +76,14 @@ def model() -> IntentModel:
     return IntentModel.train(dataset.generate(900, seed=7))
 
 
-def test_el_dataset_cubre_todas_las_intenciones_y_es_reproducible() -> None:
+def test_dataset_covers_all_intents_and_is_reproducible() -> None:
     rows = dataset.generate(60, seed=3)
     assert {i for _, i in rows} == set(dataset.INTENTS)
     assert rows == dataset.generate(60, seed=3)
     assert dataset.generate(60, seed=4) != rows
 
 
-def test_f1_macro_sobre_validacion_y_frases_reales(model: IntentModel) -> None:
+def test_macro_f1_on_validation_and_real_phrases(model: IntentModel) -> None:
     val = dataset.generate(150, seed=99)
     assert f1_score([i for _, i in val], model.predict_many([t for t, _ in val]), average="macro") >= 0.9
     texts = [t for t, _ in HANDWRITTEN]
@@ -93,7 +93,7 @@ def test_f1_macro_sobre_validacion_y_frases_reales(model: IntentModel) -> None:
     assert f1_score(truth, predicted, average="macro") >= 0.9, wrong
 
 
-def test_prediccion_con_confianza_y_parametros(model: IntentModel) -> None:
+def test_prediction_with_confidence_and_parameters(model: IntentModel) -> None:
     p = model.predict("Quiero el piso de baldosa brillante, color azul claro con verde")
     assert p.intent == "set_floor"
     assert p.confidence >= 0.75
@@ -105,7 +105,7 @@ def test_prediccion_con_confianza_y_parametros(model: IntentModel) -> None:
     assert other.intent == "other" or other.confidence < 0.75
 
 
-def test_guardar_y_cargar_da_lo_mismo(model: IntentModel, tmp_path) -> None:
+def test_save_and_load_round_trips(model: IntentModel, tmp_path) -> None:
     path = tmp_path / "nlu.joblib"
     model.save(path)
     again = IntentService(path).model
@@ -130,13 +130,13 @@ def test_guardar_y_cargar_da_lo_mismo(model: IntentModel, tmp_path) -> None:
         ("suelta el estilo", {"pinTarget": "style"}),
     ],
 )
-def test_parametros(text: str, expected: dict[str, object]) -> None:
+def test_parameters(text: str, expected: dict[str, object]) -> None:
     slots = extract(text)
     for key, value in expected.items():
         assert getattr(slots, key) == value, (text, key)
 
 
-def test_colores_compuestos_y_matices() -> None:
+def test_compound_colors_and_shades() -> None:
     assert [c.hex for c in extract("verde menta y gris claro").colors] == ["#a8dcc4", "#c9cbcd"]
     clarito = extract("rojo clarito").colors[0]
     assert clarito.name == "rojo clarito"
@@ -149,14 +149,14 @@ def _cand(i: str, style: str, prior: float = 1.0) -> preferences.Candidate:
     return preferences.Candidate(id=i, features={f"style:{style}": 1.0, "palette:warmth": 0.8 if style == "bohemio" else 0.2}, prior=prior)
 
 
-def test_sin_historial_suficiente_manda_la_nota_de_oficio() -> None:
+def test_without_enough_history_uses_expert_score() -> None:
     cands = [_cand("a", "moderno", 1.2), _cand("b", "bohemio", 0.9)]
     r = preferences.rank(cands, [preferences.Sample(features=cands[1].features, action="like")])
     assert r.model == "prior"
     assert r.scores == {"a": 1.2, "b": 0.9}
 
 
-def test_con_historial_aprende_lo_que_gusta() -> None:
+def test_with_history_learns_preferences() -> None:
     bohemio, moderno = _cand("b", "bohemio", 0.9), _cand("a", "moderno", 1.2)
     history = [preferences.Sample(features=bohemio.features, action=a) for a in ("like", "kept", "like", "like")]
     history += [preferences.Sample(features=moderno.features, action=a) for a in ("dislike", "undone", "dislike")]
@@ -175,7 +175,7 @@ def _room(wall: tuple[int, int, int], floor: tuple[int, int, int]) -> np.ndarray
     return img
 
 
-def test_referencia_por_colores_piso_abajo_y_paredes_arriba() -> None:
+def test_color_reference_floor_below_walls_above() -> None:
     ref = analyze_colors(_room((236, 230, 218), (150, 105, 60)))
     assert ref.source == "colors"
     assert ref.floor is not None and ref.floor.kind == "wood"
@@ -186,7 +186,7 @@ def test_referencia_por_colores_piso_abajo_y_paredes_arriba() -> None:
     assert ref.style in {"escandinavo", "minimalista", "moderno", "clasico", "bohemio", "industrial"}
 
 
-def test_lo_que_dice_la_vision_se_valida_contra_el_lexico() -> None:
+def test_vision_output_is_validated_against_lexicon() -> None:
     raw = 'Aquí va: {"style": "Nórdico", "palette": ["#A9D4EE", "nope", "#9bd3b0"], "floor": {"kind": "tile", "pattern": "mosaic", "colors": ["#a9d4ee", "#9bd3b0"], "gloss": 0.9}, "walls": {"color": "#f4f4f1"}, "objects": ["Sofá", "alfombra", "nave espacial"], "lighting": {"mood": "cálida", "level": "media"}}'
     ref = parse_vision(raw)
     assert ref.style == "escandinavo"
@@ -222,7 +222,7 @@ class _Budget:
         return max(0, self.n)
 
 
-def test_analizador_usa_vision_con_cuota_cachea_y_cae_a_colores() -> None:
+def test_analyzer_uses_vision_with_quota_caches_and_falls_back_to_colors() -> None:
     img = _room((236, 230, 218), (150, 105, 60))
     vision = _Vision('{"style": "industrial", "palette": ["#333333"], "objects": ["sofa"]}')
     analyzer = ReferenceAnalyzer(vision, _Budget(1))
@@ -238,7 +238,7 @@ def test_analizador_usa_vision_con_cuota_cachea_y_cae_a_colores() -> None:
     assert broken.analyze(b"foto-3", img).source == "colors"
 
 
-def test_cli_de_entrenamiento_guarda_el_modelo(tmp_path, monkeypatch, capsys) -> None:
+def test_training_cli_saves_model(tmp_path, monkeypatch, capsys) -> None:
     from interiores_ai.ml import train
 
     monkeypatch.setattr("sys.argv", ["train", "--out", str(tmp_path), "--per-intent", "80"])

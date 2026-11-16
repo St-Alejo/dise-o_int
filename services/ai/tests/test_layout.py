@@ -44,7 +44,7 @@ def assert_valid(shell, result, catalog):
 
 
 @pytest.mark.parametrize("room", ["living", "bedroom", "dining", "office"])
-def test_cada_tipo_de_cuarto_coloca_su_mueble_principal_sin_colisiones(catalog, room):
+def test_each_room_type_places_main_furniture_without_collisions(catalog, room):
     shell, result = run(catalog, room)
     assert result.unplaced == []
     assert result.score == 1.0
@@ -53,14 +53,14 @@ def test_cada_tipo_de_cuarto_coloca_su_mueble_principal_sin_colisiones(catalog, 
     assert any(p.catalogItemId.startswith(main) for p in result.placements)
 
 
-def test_prefiere_muebles_del_estilo_elegido(catalog):
+def test_prefers_furniture_of_chosen_style(catalog):
     _, moderno = run(catalog, "living", style="moderno")
     _, clasico = run(catalog, "living", style="clasico")
     assert any(p.catalogItemId == "sofa-moderno" for p in moderno.placements)
     assert any(p.catalogItemId == "sofa-clasico" for p in clasico.placements)
 
 
-def test_sala_la_mesa_de_centro_queda_frente_al_sofa(catalog):
+def test_living_room_coffee_table_faces_sofa(catalog):
     _, result = run(catalog, "living")
     sofa = next(p for p in result.placements if p.catalogItemId.startswith("sofa"))
     table = next(p for p in result.placements if p.catalogItemId == "mesa-centro")
@@ -69,7 +69,7 @@ def test_sala_la_mesa_de_centro_queda_frente_al_sofa(catalog):
     assert 0.5 < along < 1.8
 
 
-def test_el_sofa_va_contra_una_pared_y_mira_hacia_adentro(catalog):
+def test_sofa_goes_against_wall_facing_inward(catalog):
     shell, result = run(catalog, "living")
     sofa = next(p for p in result.placements if p.catalogItemId.startswith("sofa"))
     fx, fz = forward(sofa.rotationY)
@@ -80,12 +80,12 @@ def test_el_sofa_va_contra_una_pared_y_mira_hacia_adentro(catalog):
     assert min(min_x, min_z, shell.widthM - max_x, shell.depthM - max_z) < 0.05
 
 
-def test_dormitorio_mesitas_a_ambos_lados_de_la_cama(catalog):
+def test_bedroom_nightstands_on_both_sides_of_bed(catalog):
     _, result = run(catalog, "bedroom")
     assert sum(p.catalogItemId == "mesita" for p in result.placements) == 2
 
 
-def test_comedor_sillas_alrededor_y_mirando_la_mesa(catalog):
+def test_dining_chairs_around_and_facing_table(catalog):
     _, result = run(catalog, "dining", w=4.5, d=4.5)
     table = next(p for p in result.placements if p.catalogItemId == "mesa-comedor")
     chairs = [p for p in result.placements if p.catalogItemId == "silla"]
@@ -95,13 +95,13 @@ def test_comedor_sillas_alrededor_y_mirando_la_mesa(catalog):
         assert fx * (table.position.x - c.position.x) + fz * (table.position.z - c.position.z) > 0
 
 
-def test_la_lampara_de_techo_queda_colgada_del_techo(catalog):
+def test_ceiling_lamp_hangs_from_ceiling(catalog):
     shell, result = run(catalog, "living")
     lamp = next(p for p in result.placements if p.catalogItemId == "colgante")
     assert lamp.position.y == pytest.approx(shell.heightM - 0.5)
 
 
-def test_nunca_bloquea_la_puerta(catalog):
+def test_never_blocks_door(catalog):
     shell, result = run(catalog, "living", w=3.2, d=3.0)
     door = next(o for o in shell.openings if o.type == "door")
     # w-front va de (w, d) a (0, d); el centro de la puerta está a offsetM desde (w, d).
@@ -112,7 +112,7 @@ def test_nunca_bloquea_la_puerta(catalog):
             assert not overlaps(fp, zone, 0.0), f"{p.catalogItemId} bloquea la puerta"
 
 
-def test_respeta_muebles_bloqueados_y_no_duplica_su_rol(catalog):
+def test_respects_locked_furniture_and_does_not_duplicate_role(catalog):
     locked = [
         FurniturePlacement(
             id="mio", catalogItemId="sofa-clasico", position=Vector3(x=2.25, y=0, z=0.5), rotationY=0, lockedByUser=True
@@ -127,19 +127,19 @@ def test_respeta_muebles_bloqueados_y_no_duplica_su_rol(catalog):
             assert not overlaps(fp, sofa_fp)
 
 
-def test_cuarto_diminuto_reporta_lo_que_no_cabe(catalog):
+def test_tiny_room_reports_what_does_not_fit(catalog):
     _, result = run([c for c in catalog if c.id == "sofa-clasico"], "living", w=2.0, d=1.6)
     assert "sofa" in result.unplaced
     assert result.score < 1
 
 
-def test_los_muebles_altos_no_van_en_la_pared_de_la_camara(catalog):
+def test_tall_furniture_avoids_camera_wall(catalog):
     shell, result = run(catalog, "living", w=5.0, d=4.5)
     shelf = next(p for p in result.placements if p.catalogItemId == "estanteria")
     assert shelf.position.z < shell.depthM - 0.5, "la estantería alta tapa la vista desde la cámara"
 
 
-def test_es_determinista_con_la_misma_semilla(catalog):
+def test_is_deterministic_with_same_seed(catalog):
     _, a = run(catalog, "living")
     _, b = run(catalog, "living")
     assert a == b
@@ -151,7 +151,7 @@ def test_es_determinista_con_la_misma_semilla(catalog):
     d=st.floats(min_value=2.4, max_value=7.0),
     room=st.sampled_from(["living", "bedroom", "dining", "office"]),
 )
-def test_invariante_sin_solapes_y_todo_dentro(w, d, room):
+def test_invariant_no_overlaps_and_all_inside(w, d, room):
     from tests.conftest import cand
 
     catalog = [
@@ -172,7 +172,7 @@ def test_invariante_sin_solapes_y_todo_dentro(w, d, room):
         assert math.isfinite(p.position.x) and math.isfinite(p.position.z)
 
 
-def test_objetos_de_pared_y_superficie_no_se_autocolocan(catalog):
+def test_wall_and_surface_objects_are_not_auto_placed(catalog):
     extra = [
         *catalog,
         LayoutCandidate(id="cuadro", category="wall-decor", styleTags=["moderno"], dimensionsM=Vector3(x=0.8, y=0.6, z=0.04), mount="wall"),
@@ -193,7 +193,7 @@ def test_objetos_de_pared_y_superficie_no_se_autocolocan(catalog):
     assert_valid(shell, result, extra)
 
 
-def test_respeta_las_medidas_propias_de_un_mueble_fijado(catalog):
+def test_respects_own_dimensions_of_pinned_item(catalog):
     sofa = next(c for c in catalog if c.category == "sofa")
     big = FurniturePlacement(
         id="u1",
@@ -216,7 +216,7 @@ def test_respeta_las_medidas_propias_de_un_mueble_fijado(catalog):
         assert not overlaps(fp, big_fp), f"{p.catalogItemId} invade el sofá agrandado"
 
 
-def test_la_respuesta_no_envia_nulls_de_campos_opcionales(catalog):
+def test_response_omits_nulls_for_optional_fields(catalog):
     _, result = run(catalog, "bedroom")
     dumped = result.model_dump(mode="json", exclude_none=True)
     for p in dumped["placements"]:
@@ -224,7 +224,7 @@ def test_la_respuesta_no_envia_nulls_de_campos_opcionales(catalog):
         assert "origin" not in p
 
 
-def test_el_cascaron_descarta_ventanas_duplicadas_o_solapadas():
+def test_shell_drops_duplicate_or_overlapping_windows():
     # Regresión: el detector devolvía la misma ventana dos veces y el cuarto quedaba con
     # aberturas superpuestas (el API las rechaza al cambiar las medidas).
     shell = rectangular_shell(3.0, 3.0, 2.6, windows=[(0.7, 1.2, 1.0, 0.9), (0.7, 1.2, 1.0, 0.9), (0.75, 1.0, 1.0, 0.9)])
@@ -232,7 +232,7 @@ def test_el_cascaron_descarta_ventanas_duplicadas_o_solapadas():
     assert len(windows) == 1
 
 
-def test_el_cascaron_conserva_ventanas_separadas():
+def test_shell_keeps_separate_windows():
     shell = rectangular_shell(6.0, 3.0, 2.6, windows=[(0.2, 1.0, 1.0, 0.9), (0.8, 1.0, 1.0, 0.9)])
     assert [o.id for o in shell.openings if o.type == "window"] == ["o-window-1", "o-window-2"]
 
@@ -249,7 +249,7 @@ def signature(result) -> tuple:
 
 
 @pytest.mark.parametrize("room", ["living", "bedroom", "dining", "office"])
-def test_cada_semilla_da_otra_distribucion_igual_de_valida(catalog, room):
+def test_each_seed_gives_another_equally_valid_layout(catalog, room):
     seen = set()
     for seed in range(8):
         shell, result = seeded(catalog, room, seed)
@@ -259,12 +259,12 @@ def test_cada_semilla_da_otra_distribucion_igual_de_valida(catalog, room):
     assert len(seen) >= 3, "las semillas deberían producir varias distribuciones distintas"
 
 
-def test_la_misma_semilla_repite_la_distribucion_y_sin_semilla_sale_siempre_la_mejor(catalog):
+def test_same_seed_repeats_layout_and_no_seed_gives_best(catalog):
     assert signature(seeded(catalog, "living", 5)[1]) == signature(seeded(catalog, "living", 5)[1])
     assert signature(seeded(catalog, "living", None)[1]) == signature(seeded(catalog, "living", None)[1])
 
 
-def test_una_variante_no_rompe_las_reglas_duras(catalog):
+def test_variant_does_not_break_hard_rules(catalog):
     for seed in range(12):
         shell, result = seeded(catalog, "living", seed)
         door = next(o for o in shell.openings if o.type == "door")
@@ -296,7 +296,7 @@ def kitchen_catalog() -> list[LayoutCandidate]:
     ]
 
 
-def test_la_cocina_se_arma_como_una_hilera_contra_una_pared():
+def test_kitchen_is_built_as_a_run_against_one_wall():
     catalog = kitchen_catalog()
     shell, result = run(catalog, "kitchen", w=4.2, d=3.2)
     assert result.unplaced == [] and result.score == 1.0
@@ -317,7 +317,7 @@ def test_la_cocina_se_arma_como_una_hilera_contra_una_pared():
     assert sink.position.z < 0.5
 
 
-def test_la_isla_solo_va_si_queda_paso_alrededor_y_trae_sus_taburetes():
+def test_island_only_with_clearance_and_comes_with_stools():
     catalog = kitchen_catalog()
     _, small = run(catalog, "kitchen", w=3.4, d=2.8)
     assert not any(p.catalogItemId in ("isla", "taburete") for p in small.placements)
@@ -341,7 +341,7 @@ def test_la_isla_solo_va_si_queda_paso_alrededor_y_trae_sus_taburetes():
     assert math.hypot(lamp.position.x - island.position.x, lamp.position.z - island.position.z) < 0.3
 
 
-def test_el_bano_coloca_lavamanos_e_inodoro_sin_bloquear_la_puerta():
+def test_bathroom_places_sink_and_toilet_without_blocking_door():
     from tests.conftest import cand
 
     catalog = [
@@ -362,14 +362,14 @@ def test_el_bano_coloca_lavamanos_e_inodoro_sin_bloquear_la_puerta():
 
 @settings(max_examples=40, deadline=None)
 @given(w=st.floats(min_value=2.2, max_value=7.0), d=st.floats(min_value=2.2, max_value=7.0), seed=st.integers(min_value=0, max_value=50))
-def test_invariante_de_la_cocina_con_cualquier_medida_y_semilla(w, d, seed):
+def test_kitchen_invariant_for_any_size_and_seed(w, d, seed):
     catalog = kitchen_catalog()
     shell = rectangular_shell(w, d, 2.6, windows=[(0.5, 1.4, 1.2, 0.9)])
     result = engine.place(PlaceFurnitureRequest(roomShell=shell, roomType="kitchen", styleId="moderno", candidates=catalog, locked=[], seed=seed))
     assert_valid(shell, result, catalog)
 
 
-def test_el_inventario_de_la_foto_reconoce_lo_que_hay_en_una_cocina():
+def test_photo_inventory_recognizes_kitchen_items():
     from interiores_ai.layout.rules_engine import inventory_role
 
     assert inventory_role("refrigerator", "kitchen") == "fridge"
@@ -380,7 +380,7 @@ def test_el_inventario_de_la_foto_reconoce_lo_que_hay_en_una_cocina():
     assert inventory_role("microwave", "kitchen") is None
 
 
-def test_con_inventario_de_la_foto_no_falta_lo_que_da_ambiente():
+def test_photo_inventory_keeps_ambience_items():
     from interiores_ai.contracts import InventoryItem
     from interiores_ai.layout.rules_engine import roles_for
 
@@ -404,7 +404,7 @@ def _candidate(item_id, w, h, d, sub=None, mount="floor"):
     return LayoutCandidate(id=item_id, category="storage", subcategory=sub, styleTags=["moderno"], dimensionsM=Vector3(x=w, y=h, z=d), mount=mount)
 
 
-def test_la_nota_prefiere_dejar_paso_y_no_tapar_la_ventana():
+def test_score_prefers_clearance_and_unblocked_window():
     from interiores_ai.layout.scoring import Balance, Walkways, WindowsClear, floor_pieces, layout_quality
 
     shell = rectangular_shell(5, 4, 2.6, windows=[(0.5, 1.4, 1.2, 0.9)])
@@ -438,7 +438,7 @@ def test_la_nota_prefiere_dejar_paso_y_no_tapar_la_ventana():
     assert layout_quality(shell, libre, catalog, 0.5) < layout_quality(shell, tapada, catalog, 1.0)
 
 
-def test_otra_distribucion_elige_la_mejor_de_varias_y_es_repetible(catalog):
+def test_another_layout_picks_best_of_several_and_is_repeatable(catalog):
     from interiores_ai.layout import rules_engine
     from interiores_ai.layout.scoring import layout_quality
 

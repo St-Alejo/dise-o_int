@@ -31,7 +31,7 @@ def make_handler(tmp_path: Path, *, timeout_s: float = 30, cancelled: bool = Fal
     return RenderJobHandler(storage, runner, tmp_path, is_cancelled), storage
 
 
-async def test_renderiza_sube_los_tres_archivos_y_limpia(tmp_path: Path) -> None:
+async def test_renders_uploads_three_files_and_cleans_up(tmp_path: Path) -> None:
     handler, storage = make_handler(tmp_path)
     reported: list[int] = []
 
@@ -54,7 +54,7 @@ async def test_renderiza_sube_los_tres_archivos_y_limpia(tmp_path: Path) -> None
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_si_blender_falla_cuenta_por_que(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_reports_why_when_blender_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FAKE_BLENDER", "fail")
     handler, storage = make_handler(tmp_path)
     with pytest.raises(RenderFailedError, match="out of memory"):
@@ -63,14 +63,14 @@ async def test_si_blender_falla_cuenta_por_que(tmp_path: Path, monkeypatch: pyte
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_sin_resultado_no_hay_render(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_no_output_means_no_render(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FAKE_BLENDER", "mute")
     handler, _ = make_handler(tmp_path)
     with pytest.raises(RenderFailedError):
         await handler.handle(JOB, _ignore)
 
 
-async def test_cancelar_corta_blender(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_cancel_stops_blender(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FAKE_BLENDER", "hang")
     monkeypatch.setattr(runner_module, "CANCEL_POLL_S", 0.05)
     handler, _ = make_handler(tmp_path, cancelled=True)
@@ -78,7 +78,7 @@ async def test_cancelar_corta_blender(tmp_path: Path, monkeypatch: pytest.Monkey
         await handler.handle(JOB, _ignore)
 
 
-async def test_un_render_colgado_se_corta_por_tiempo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_hung_render_times_out(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FAKE_BLENDER", "hang")
     monkeypatch.setattr(runner_module, "CANCEL_POLL_S", 0.05)
     handler, _ = make_handler(tmp_path, timeout_s=0.3)
@@ -86,7 +86,7 @@ async def test_un_render_colgado_se_corta_por_tiempo(tmp_path: Path, monkeypatch
         await handler.handle(JOB, _ignore)
 
 
-async def test_el_avance_solo_sube_y_no_satura_redis() -> None:
+async def test_progress_only_increases_and_does_not_flood_redis() -> None:
     sent: list[int] = []
 
     async def report(pct: int) -> None:
@@ -103,7 +103,7 @@ async def test_el_avance_solo_sube_y_no_satura_redis() -> None:
     assert sent == [10]
 
 
-async def test_el_primer_avance_sale_aunque_la_maquina_acabe_de_arrancar(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_first_progress_is_sent_even_right_after_boot(monkeypatch: pytest.MonkeyPatch) -> None:
     # time.monotonic() cuenta desde el arranque: en un runner nuevo vale pocos segundos.
     monkeypatch.setattr("interiores_blender.worker.time.monotonic", lambda: 5.0)
     sent: list[int] = []
@@ -115,7 +115,7 @@ async def test_el_primer_avance_sale_aunque_la_maquina_acabe_de_arrancar(monkeyp
     assert sent == [10]
 
 
-def test_el_latido_cumple_su_modelo() -> None:
+def test_heartbeat_matches_its_model() -> None:
     beat = Heartbeat.model_validate_json(heartbeat_payload("CUDA"))
     assert beat.device == "CUDA"
 

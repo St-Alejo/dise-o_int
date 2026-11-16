@@ -21,14 +21,14 @@ def test_health(client):
     assert client.get("/health/ready").status_code == 200
 
 
-def test_rechaza_llamadas_sin_token(client):
+def test_rejects_calls_without_token(client):
     r = client.post("/v1/room/analyze", json={"photoKey": "projects/p1/source.jpg", "roomType": "living"})
     assert r.status_code == 401
     r = client.post("/v1/room/analyze", json={"photoKey": "x", "roomType": "living"}, headers={"authorization": "Bearer otro"})
     assert r.status_code == 401
 
 
-def test_analyze_devuelve_un_roomshell_valido_que_pide_calibracion(client):
+def test_analyze_returns_valid_roomshell_requesting_calibration(client):
     r = client.post("/v1/room/analyze", json={"photoKey": "projects/p1/source.jpg", "roomType": "living"}, headers=AUTH)
     assert r.status_code == 200, r.text
     assert r.headers["x-request-id"] == "req-test-123"
@@ -42,7 +42,7 @@ def test_analyze_devuelve_un_roomshell_valido_que_pide_calibracion(client):
     assert body["provider"] == "mock-opencv"
 
 
-def test_analyze_detecta_la_ventana_luminosa():
+def test_analyze_detects_bright_window():
     image = decode_rgb(room_photo())
     shell = MockRoomAnalyzer().analyze(image, "living").shell
     windows = [o for o in shell.openings if o.type == "window"]
@@ -51,7 +51,7 @@ def test_analyze_detecta_la_ventana_luminosa():
     assert 0.5 < windows[0].offsetM / shell.widthM < 0.85
 
 
-def test_generate_escribe_el_render_en_el_output_key(client, storage: MemoryStorage):
+def test_generate_writes_render_to_output_key(client, storage: MemoryStorage):
     r = client.post(
         "/v1/styles/generate",
         json={
@@ -69,7 +69,7 @@ def test_generate_escribe_el_render_en_el_output_key(client, storage: MemoryStor
     assert Image.open(io.BytesIO(data)).size == (960, 720)
 
 
-def test_generate_no_escribe_fuera_del_espacio_de_proyectos(client):
+def test_generate_does_not_write_outside_projects_space(client):
     r = client.post(
         "/v1/styles/generate",
         json={"photoKey": "projects/p1/source.jpg", "outputKey": "catalog/hack.glb", "styleId": "moderno", "roomType": "living", "promptStrength": 0.5},
@@ -78,12 +78,12 @@ def test_generate_no_escribe_fuera_del_espacio_de_proyectos(client):
     assert r.status_code == 422
 
 
-def test_foto_inexistente_es_404_no_reintentable(client):
+def test_missing_photo_is_non_retryable_404(client):
     r = client.post("/v1/room/analyze", json={"photoKey": "projects/nope.jpg", "roomType": "living"}, headers=AUTH)
     assert r.status_code == 404
 
 
-def test_ready_reporta_degradado_si_el_breaker_esta_abierto(client):
+def test_ready_reports_degraded_when_breaker_is_open(client):
     container = client.app.state.container
     assert client.get("/health/ready").json()["status"] == "ok"
 
@@ -102,7 +102,7 @@ def test_ready_reporta_degradado_si_el_breaker_esta_abierto(client):
         container.replicate = None
 
 
-def test_breaker_reporta_abierto_tras_fallos():
+def test_breaker_reports_open_after_failures():
     breaker = CircuitBreaker(threshold=2, cooldown_s=60)
     assert not breaker.is_open
     breaker.failure()
@@ -112,7 +112,7 @@ def test_breaker_reporta_abierto_tras_fallos():
     assert not breaker.is_open
 
 
-def test_estilo_mock_es_determinista_y_distinto_por_estilo():
+def test_mock_style_is_deterministic_and_differs_per_style():
     image = decode_rgb(room_photo())
     gen = MockStyleGenerator()
     a = gen.generate(image, "industrial", "living", 0.7)
@@ -151,7 +151,7 @@ def replicate_client(settings, handler) -> ReplicateClient:
     return ReplicateClient(settings, transport=httpx.MockTransport(handler))
 
 
-def test_replicate_hace_polling_hasta_terminar(settings, monkeypatch):
+def test_replicate_polls_until_done(settings, monkeypatch):
     monkeypatch.setattr("time.sleep", lambda _: None)
     calls = {"get": 0}
 
@@ -169,14 +169,14 @@ def test_replicate_hace_polling_hasta_terminar(settings, monkeypatch):
     assert calls["get"] == 2
 
 
-def test_replicate_error_de_entrada_no_es_reintentable(settings):
+def test_replicate_input_error_is_not_retryable(settings):
     client = replicate_client(settings, lambda r: httpx.Response(422, json={"detail": "bad input"}))
     with pytest.raises(ProviderError) as exc:
         client.run("owner/model:abc123", {})
     assert exc.value.retryable is False
 
 
-def test_circuit_breaker_abre_tras_fallos_seguidos():
+def test_circuit_breaker_opens_after_consecutive_failures():
     breaker = CircuitBreaker(threshold=2, cooldown_s=60)
     breaker.failure()
     breaker.before_call()

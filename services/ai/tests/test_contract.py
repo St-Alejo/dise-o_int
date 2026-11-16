@@ -36,7 +36,7 @@ def check(schemas: dict[str, dict], name: str, payload: dict) -> None:
     assert not errors, f"{name}: " + "; ".join(e.message for e in errors[:5])
 
 
-def test_respuestas_de_python_cumplen_el_schema_de_typescript(schemas, catalog):
+def test_python_responses_match_typescript_schema(schemas, catalog):
     shell = rectangular_shell(4.2, 3.6, 2.6, windows=[(0.5, 1.2, 1.2, 0.9)])
     analyze = AnalyzeRoomResponse(
         roomShell=shell,
@@ -53,7 +53,7 @@ def test_respuestas_de_python_cumplen_el_schema_de_typescript(schemas, catalog):
     check(schemas, "PlaceFurnitureResponse", placed.model_dump(mode="json", exclude_none=True))
 
 
-def test_peticiones_de_typescript_se_aceptan_en_python(schemas, catalog):
+def test_typescript_requests_are_accepted_in_python(schemas, catalog):
     shell = rectangular_shell(4, 3, 2.5).model_dump(mode="json", exclude_none=True)
     samples = {
         "AnalyzeRoomRequest": (AnalyzeRoomRequest, {"photoKey": "projects/p/source.jpg", "roomType": "bedroom"}),
@@ -71,7 +71,7 @@ def test_peticiones_de_typescript_se_aceptan_en_python(schemas, catalog):
         model.model_validate(payload)  # …y para Pydantic
 
 
-def test_cuarto_con_bano_privado_viaja_igual(schemas, catalog):
+def test_room_with_ensuite_bathroom_round_trips(schemas, catalog):
     shell = rectangular_shell(4.5, 4, 2.6).model_dump(mode="json", exclude_none=True)
     shell["zones"] = [
         {
@@ -89,7 +89,7 @@ def test_cuarto_con_bano_privado_viaja_igual(schemas, catalog):
     assert parsed.roomShell.zones is not None and parsed.roomShell.zones[0].door is not None
 
 
-def test_enums_coinciden(schemas):
+def test_enums_match(schemas):
     style_enum = schemas["GenerateStyleRequest"]["properties"]["styleId"]["enum"]
     room_enum = schemas["GenerateStyleRequest"]["properties"]["roomType"]["enum"]
     from typing import get_args
@@ -100,7 +100,7 @@ def test_enums_coinciden(schemas):
     assert sorted(room_enum) == sorted(get_args(RoomType))
 
 
-def test_lo_que_aporta_la_vision_tambien_cumple_el_contrato(schemas, catalog):
+def test_vision_output_also_matches_contract(schemas, catalog):
     from interiores_ai.contracts import InventoryItem, RoomSuggestions
 
     shell = rectangular_shell(4.5, 5, 2.7)

@@ -57,7 +57,7 @@ def fp_of(p: FurniturePlacement, items: dict[str, LayoutCandidate]) -> Footprint
     return Footprint.of(p.position.x, p.position.z, d.x, d.z, p.rotationY)
 
 
-def test_la_zona_es_un_cuarto_con_los_tabiques_corridos_y_su_puerta():
+def test_zone_is_room_with_shifted_partitions_and_door():
     shell = shell_with_bath()
     edges = zone_edges(shell, BATH)
     assert [e.partition for e in edges] == [False, False, True, True]
@@ -73,7 +73,7 @@ def test_la_zona_es_un_cuarto_con_los_tabiques_corridos_y_su_puerta():
     assert len(doors) == 1 and doors[0].wallId == sub.walls[2].id
 
 
-def test_el_bano_privado_se_distribuye_dentro_y_el_dormitorio_fuera(catalog):
+def test_ensuite_is_laid_out_inside_and_bedroom_outside(catalog):
     shell, result = place(catalog)
     items = {c.id: c for c in catalog + BATH_ITEMS}
     poly = zone_poly(BATH)
@@ -92,7 +92,7 @@ def test_el_bano_privado_se_distribuye_dentro_y_el_dormitorio_fuera(catalog):
             assert not touches_zone(fp_of(p, items), poly), f"{p.catalogItemId} invade el baño"
 
 
-def test_nada_tapa_la_puerta_del_bano_por_fuera(catalog):
+def test_nothing_blocks_bathroom_door_from_outside(catalog):
     _, result = place(catalog)
     items = {c.id: c for c in catalog + BATH_ITEMS}
     # Paso de 0,9 m delante del vano, junto a la esquina de dentro (x de 2,68 a 3,38; z de 1,7 a 2,5).
@@ -102,7 +102,7 @@ def test_nada_tapa_la_puerta_del_bano_por_fuera(catalog):
             assert not overlaps(fp_of(p, items), door_way, 0.0), p.catalogItemId
 
 
-def test_sin_solapes_entre_las_partes(catalog):
+def test_no_overlaps_between_parts(catalog):
     _, result = place(catalog, seed=5)
     items = {c.id: c for c in catalog + BATH_ITEMS}
     fps = [(p, fp_of(p, items)) for p in result.placements]
@@ -112,7 +112,7 @@ def test_sin_solapes_entre_las_partes(catalog):
                 assert not overlaps(a, b), (p.catalogItemId, q.catalogItemId)
 
 
-def test_una_pieza_fijada_en_el_bano_cuenta_para_el_bano(catalog):
+def test_pinned_item_in_bathroom_counts_for_bathroom(catalog):
     locked = [
         FurniturePlacement(
             id="fijo",
@@ -127,7 +127,7 @@ def test_una_pieza_fijada_en_el_bano_cuenta_para_el_bano(catalog):
     assert [p.catalogItemId for p in result.placements].count("inodoro") == 0
 
 
-def test_el_tocador_va_si_la_persona_lo_pide(catalog):
+def test_vanity_is_added_when_requested(catalog):
     tocador = cand("tocador", "table", "dressing-table", (1.0, 1.45, 0.45), ["moderno"])
     _, sin = place([*catalog, tocador])
     assert "tocador" not in {p.catalogItemId for p in sin.placements}

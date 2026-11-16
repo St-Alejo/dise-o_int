@@ -32,12 +32,12 @@ def check(schemas: dict[str, Any], name: str, payload: Any) -> None:
     assert not errors, f"{name}: " + "; ".join(e.message for e in errors[:5])
 
 
-def test_el_trabajo_de_ejemplo_es_uno_que_la_api_encolaria(schemas: dict[str, Any]) -> None:
+def test_example_job_is_one_the_api_would_enqueue(schemas: dict[str, Any]) -> None:
     check(schemas, "BlenderJob", JOB)
     assert BlenderJob.model_validate(JOB).plan == JOB["plan"]
 
 
-def test_lo_que_devuelve_el_nodo_lo_acepta_la_api(schemas: dict[str, Any]) -> None:
+def test_api_accepts_node_result(schemas: dict[str, Any]) -> None:
     prefix = JOB["outputPrefix"]
     for blend in (f"{prefix}.blend", None):
         result = BlenderResult(imageKey=f"{prefix}.png", previewKey=f"{prefix}.jpg", blendKey=blend, seconds=12.5, device="CUDA")
@@ -45,6 +45,6 @@ def test_lo_que_devuelve_el_nodo_lo_acepta_la_api(schemas: dict[str, Any]) -> No
     check(schemas, "RenderNodeHeartbeat", Heartbeat.model_validate_json(heartbeat_payload("OPTIX")).model_dump())
 
 
-def test_python_pide_los_mismos_campos_que_typescript(schemas: dict[str, Any]) -> None:
+def test_python_requires_same_fields_as_typescript(schemas: dict[str, Any]) -> None:
     for name, model in (("BlenderJob", BlenderJob), ("BlenderResult", BlenderResult), ("RenderNodeHeartbeat", Heartbeat)):
         assert set(model.model_fields) == set(schemas[name]["properties"]), name
