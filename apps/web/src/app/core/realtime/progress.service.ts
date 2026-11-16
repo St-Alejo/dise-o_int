@@ -98,6 +98,20 @@ export class ProgressService {
     });
   }
 
+  /** Quién está en la casa desde Plano 3D (llega al entrar o salir alguien). */
+  plano3dPresence(projectId: string): Observable<{ name: string; client: string }[]> {
+    return new Observable((subscriber) => {
+      const on = (e: { projectId: string; peers: { name: string; client: string }[] }) => e.projectId === projectId && subscriber.next(e.peers);
+      let socket: Socket | null = null;
+      void this.connect().then((s) => {
+        if (subscriber.closed || !s) return;
+        socket = s;
+        s.on('plano3d-presence', on);
+      });
+      return () => socket?.off('plano3d-presence', on);
+    });
+  }
+
   private async connect(): Promise<Socket | null> {
     if (this.socket) return this.socket;
     const token = await this.auth.validToken();

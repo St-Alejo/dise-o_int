@@ -27,6 +27,7 @@ import {
   type ISceneEvents,
   type Plano3dLinkRecord,
   type Plano3dLiveMessage,
+  type Plano3dLivePeer,
   type Plano3dLiveRoom,
   type ProjectPatch,
   type ProjectRecord,
@@ -40,12 +41,22 @@ export interface Plano3dLinkSummary {
   projectName: string;
   rooms: { projectId: string; name: string; level: string }[];
   live: boolean;
+  /** Quiénes están ahora en la casa desde Plano 3D (sin contar a Interiores). */
+  peers: Plano3dPresence[];
   createdAt: string;
+}
+
+/** Una persona en Plano 3D, como la ve la web. */
+export interface Plano3dPresence {
+  name: string;
+  client: string;
 }
 
 /** Aviso a la web de que un cuarto cambió fuera de ella (lo emite la pasarela de progreso). */
 export interface SceneSyncNotifier {
   sceneSync(projectId: string, payload: { revision: number; source: 'plano3d'; architecture?: boolean; revoked?: boolean }): void;
+  /** Quién está en Plano 3D (cambia al entrar o salir alguien). */
+  plano3dPresence?(projectId: string, peers: Plano3dPresence[]): void;
 }
 export const SCENE_SYNC = Symbol('SceneSyncNotifier');
 
@@ -60,6 +71,8 @@ interface LiveLink {
   timer: NodeJS.Timeout | null;
   pending: Set<string> | 'all' | null;
   closed: boolean;
+  /** Los demás pares de la sala (personas en Plano 3D). */
+  peers: Map<string, Plano3dPresence>;
 }
 
 const RESYNC_DEBOUNCE_MS = 350;
@@ -244,7 +257,7 @@ export class Plano3dService implements OnModuleInit, OnModuleDestroy {
   // ------------------------------------------------------------------ sala en vivo
   private open(link: Plano3dLinkRecord, model: Plano3dModel | null = null): void {
     if (this.live.has(link.id)) return;
-    const live: LiveLink = { link, room: null, me: null, model, retry: 0, timer: null, pending: null, closed: false };
+    const live: LiveLink = { link, room: null, me: null, model, retry: 0, timer: null, pending: null, closed: false, peers: new Map() };
     this.live.set(link.id, live);
     this.connect(live);
   }
@@ -284,8 +297,18 @@ export class Plano3dService implements OnModuleInit, OnModuleDestroy {
     switch (msg.type) {
       case 'welcome':
         live.retry = 0;
-        live.me = msg.you;
+        live.me = typeof msg.you === 'string' ? msg.you : msg.you.id;
+        live.peers = new Map((msg.peers ?? []).filter((p) => p.id !== live.me && p.client !== 'interiores').map((p) => [p.id, presenceOf(p)]));
+        this.announce(live);
         this.schedule(live, 'all'); // al entrar (o volver) se parte de lo último
+        break;
+      case 'peer_joined':
+        if (msg.peer.id === live.me || msg.peer.client === 'interiores') break;
+        live.peers.set(msg.peer.id, presenceOf(msg.peer));
+        this.announce(live);
+        break;
+      case 'peer_left':
+        if (live.peers.delete(msg.peer_id)) this.announce(live);
         break;
       case 'applied': {
         void this.links.update(live.link.id, { lastSeq: msg.seq }).catch(() => undefined);
@@ -303,6 +326,16 @@ export class Plano3dService implements OnModuleInit, OnModuleDestroy {
       case 'closed':
         break;
     }
+  }
+
+  /** Avisa a cada cuarto de la casa quién está ahora en Plano 3D. */
+  private announce(live: LiveLink): void {
+    const send = this.notifier.plano3dPresence?.bind(this.notifier);
+    if (!send) return;
+    const peers = [...live.peers.values()];
+    void this.roomsOf(live.link)
+      .then((rooms) => rooms.forEach((r) => send(r.id, peers)))
+      .catch(() => undefined);
   }
 
   /** Junta ráfagas de cambios (arrastrar un muro manda muchos lotes) en una sola relectura. */
@@ -377,9 +410,14 @@ export class Plano3dService implements OnModuleInit, OnModuleDestroy {
       projectName: link.projectName,
       rooms: rooms.map((p) => ({ projectId: p.id, name: p.name, level: p.plano3d!.levelName })),
       live: this.isLive(link.id),
+      peers: [...(this.live.get(link.id)?.peers.values() ?? [])],
       createdAt: link.createdAt.toISOString(),
     };
   }
+}
+
+function presenceOf(peer: Plano3dLivePeer): Plano3dPresence {
+  return { name: peer.name, client: peer.client };
 }
 
 function placementsFrom(room: Pick<LinkedRoom, 'roomId' | 'origin'>, furniture: readonly Plano3dFurniture[]): FurniturePlacement[] {

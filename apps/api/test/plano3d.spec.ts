@@ -53,7 +53,10 @@ class FakePlano3d implements IPlano3dClient {
   connect(_id: string, _token: string, opts: { onMessage: (m: Plano3dLiveMessage) => void; onClose: (code: number, reason: string) => void }): Plano3dLiveRoom {
     const room = { onMessage: opts.onMessage, onClose: opts.onClose, closed: false };
     this.rooms.push(room);
-    queueMicrotask(() => opts.onMessage({ type: 'welcome', you: 'yo', seq: 0 }));
+    // como Plano 3D: `you` es el par completo y `peers` son los que ya estaban
+    queueMicrotask(() =>
+      opts.onMessage({ type: 'welcome', you: { id: 'yo', name: 'Interiores 3D', client: 'interiores' }, seq: 0, peers: [{ id: 'ana', name: 'Ana', client: 'web' }] }),
+    );
     return {
       send: (ops) => {
         this.sent.push(ops);
@@ -102,6 +105,7 @@ describe('Puente con Plano 3D (ADR-0039)', () => {
   let projects: InMemoryProjectRepository;
   let scenes: InProcessSceneEvents;
   let synced: { projectId: string; payload: unknown }[];
+  let presence: { projectId: string; peers: { name: string; client: string }[] }[];
   let service: Plano3dService;
 
   beforeEach(async () => {
@@ -110,7 +114,11 @@ describe('Puente con Plano 3D (ADR-0039)', () => {
     projects = new InMemoryProjectRepository();
     scenes = new InProcessSceneEvents();
     synced = [];
-    const notifier: SceneSyncNotifier = { sceneSync: (projectId, payload) => synced.push({ projectId, payload }) };
+    presence = [];
+    const notifier: SceneSyncNotifier = {
+      sceneSync: (projectId, payload) => synced.push({ projectId, payload }),
+      plano3dPresence: (projectId, peers) => presence.push({ projectId, peers }),
+    };
     const catalog = new InMemoryCatalogRepository([catalogItem(), catalogItem({ id: 'cama-doble', category: 'bed', widthM: 1.6, depthM: 2, heightM: 0.5 })]);
     service = new Plano3dService(p3d, links, projects, catalog, scenes, notifier);
     await service.onModuleInit();
@@ -234,5 +242,23 @@ describe('Puente con Plano 3D (ADR-0039)', () => {
     expect(links.rows.get(summary.id)!.revokedAt).not.toBeNull();
     expect(synced).toHaveLength(2);
     expect(synced.every((s) => (s.payload as { revoked?: boolean }).revoked)).toBe(true);
+  });
+
+  it('sabe quién está en Plano 3D y avisa a cada cuarto al entrar o salir alguien', async () => {
+    const summary = await service.link(actor, 'K7QM-3XTP');
+    await settle();
+    expect((await service.list(actor))[0]!.peers).toEqual([{ name: 'Ana', client: 'web' }]);
+    expect(presence.at(-1)!.peers).toEqual([{ name: 'Ana', client: 'web' }]);
+
+    presence = [];
+    p3d.emit({ type: 'peer_joined', peer: { id: 'beto', name: 'Beto', client: 'desktop' } });
+    p3d.emit({ type: 'peer_joined', peer: { id: 'otro-int', name: 'Interiores 3D', client: 'interiores' } }); // otra casa enlazada: no cuenta
+    await settle();
+    expect((await service.list(actor))[0]!.peers.map((p) => p.name)).toEqual(['Ana', 'Beto']);
+    expect(new Set(presence.map((p) => p.projectId)).size).toBe(summary.rooms.length);
+
+    p3d.emit({ type: 'peer_left', peer_id: 'ana' });
+    await settle();
+    expect((await service.list(actor))[0]!.peers).toEqual([{ name: 'Beto', client: 'desktop' }]);
   });
 });

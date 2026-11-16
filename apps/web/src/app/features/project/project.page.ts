@@ -14,6 +14,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ROOM_TYPE_LABELS, type DesignProjectVersion, type JobProgressEvent, type StyleId } from '@interiores/shared-types';
 import type { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
+import { Plano3dApi, peersLabel, type Plano3dPeer } from '../../core/api/plano3d.api';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { ProgressService } from '../../core/realtime/progress.service';
 import { downloadBlob, fileSlug } from '../../core/ui/download';
@@ -97,6 +98,9 @@ type View = 'estilos' | '3d';
         @if (p.plano3d; as linked) {
           <p class="plano3d-note muted" role="note">
             <app-icon name="lock" /> {{ linked.levelName }} de una casa de Plano 3D: los muros y las aberturas se editan allá. Lo que amuebles aquí se ve en Plano 3D en vivo.
+            @if (plano3dPeers().length) {
+              <span class="plano3d-peers" aria-live="polite"><span class="dot" aria-hidden="true"></span> Ahora en Plano 3D: {{ peersText() }}</span>
+            }
           </p>
         }
 
@@ -214,6 +218,19 @@ type View = 'estilos' | '3d';
     .home .add {
       color: var(--primary);
     }
+    .plano3d-peers {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+      margin-left: 0.5em;
+      color: var(--text);
+    }
+    .plano3d-peers .dot {
+      width: 0.55em;
+      height: 0.55em;
+      border-radius: 50%;
+      background: var(--success, #3f7a4f);
+    }
     .plano3d-note {
       display: flex;
       gap: var(--space-2);
@@ -317,6 +334,10 @@ export class ProjectPage implements OnInit {
   protected readonly compared = signal<DesignProjectVersion | null>(null);
   private readonly api = inject(ProjectsApi);
   private readonly progress = inject(ProgressService);
+  private readonly plano3d = inject(Plano3dApi);
+  /** Quiénes están en la casa desde Plano 3D (solo cuartos enlazados). */
+  protected readonly plano3dPeers = signal<Plano3dPeer[]>([]);
+  protected readonly peersText = computed(() => peersLabel(this.plano3dPeers()));
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -341,7 +362,8 @@ export class ProjectPage implements OnInit {
   private sub: Subscription | null = null;
 
   ngOnInit(): void {
-    void this.store.load(this.id());
+    // Al cargar, quién ya estaba en Plano 3D (los avisos solo llegan cuando alguien entra o sale).
+    void this.store.load(this.id()).then(() => this.loadPeers());
     this.sub = this.progress.watch(this.id()).subscribe((e) => this.onProgress(e));
     // Plano 3D cambió este cuarto (muro, abertura o un mueble movido allá): se vuelve a leer.
     this.sub.add(
@@ -355,7 +377,15 @@ export class ProjectPage implements OnInit {
         });
       }),
     );
+    this.sub.add(this.progress.plano3dPresence(this.id()).subscribe((peers) => this.plano3dPeers.set(peers)));
     this.destroyRef.onDestroy(() => this.sub?.unsubscribe());
+  }
+
+  private async loadPeers(): Promise<void> {
+    const linkId = this.store.project()?.plano3d?.linkId;
+    if (!linkId) return;
+    const link = (await this.plano3d.list().catch(() => [])).find((l) => l.id === linkId);
+    if (link) this.plano3dPeers.set(link.peers ?? []);
   }
 
   /** Hora del último fin visto de cada job (los de un mismo proyecto comparten id entre ejecuciones). */

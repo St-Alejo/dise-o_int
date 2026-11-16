@@ -462,8 +462,18 @@ export interface Plano3dGrant {
 }
 
 /** Mensajes de la sala en vivo de Plano 3D que le importan al puente. */
+/** Alguien conectado a la sala en vivo de Plano 3D (web, escritorio o Interiores). */
+export interface Plano3dLivePeer {
+  id: string;
+  name: string;
+  client: string;
+}
+
 export type Plano3dLiveMessage =
-  | { type: 'welcome'; you: string; seq: number }
+  /** `you` llega como el par completo; versiones viejas mandaban solo su id. */
+  | { type: 'welcome'; you: Plano3dLivePeer | string; seq: number; peers?: Plano3dLivePeer[] }
+  | { type: 'peer_joined'; peer: Plano3dLivePeer }
+  | { type: 'peer_left'; peer_id: string }
   | { type: 'applied'; seq: number; author?: string | null; ops: { t?: string; k?: string; id?: string; level?: string }[] }
   | { type: 'snapshot'; seq: number }
   | { type: 'reject'; op_id: string; reason: string }

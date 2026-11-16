@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { Plano3dApi, type Plano3dLink } from '../../core/api/plano3d.api';
+import { Plano3dApi, peersLabel, type Plano3dLink } from '../../core/api/plano3d.api';
 import { ConnectPlano3dPage, formatShareCode } from './connect-plano3d.page';
 
 const LINK: Plano3dLink = {
@@ -13,6 +13,7 @@ const LINK: Plano3dLink = {
     { projectId: 'b', name: 'Alcoba · Piso 2', level: 'Piso 2' },
   ],
   live: true,
+  peers: [],
   createdAt: '2026-11-16T12:00:00Z',
 };
 
@@ -63,5 +64,13 @@ describe('Conectar con Plano 3D', () => {
     expect(navigated).toEqual([]);
     expect(el.querySelector('[role="alert"]')).not.toBeNull();
     expect(el.querySelector<HTMLInputElement>('#share-code')!.disabled).toBe(false);
+  });
+});
+
+describe('peersLabel', () => {
+  it('nombra a quienes están en Plano 3D, con su app', () => {
+    expect(peersLabel([])).toBe('');
+    expect(peersLabel([{ name: 'Ana', client: 'web' }])).toBe('Ana (web)');
+    expect(peersLabel([{ name: 'Ana', client: 'web' }, { name: 'Beto', client: 'desktop' }, { name: 'Cris', client: 'web' }])).toBe('Ana (web), Beto (escritorio) y Cris (web)');
   });
 });

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, si
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
-import { Plano3dApi, type Plano3dLink } from '../../core/api/plano3d.api';
+import { Plano3dApi, peersLabel, type Plano3dLink } from '../../core/api/plano3d.api';
 import { IconComponent } from '../../shared/ui/icon.component';
 
 /** «K7QM3XTP», «k7qm-3xtp» o «K7QM 3XTP» → «K7QM-3XTP» (lo que muestra Plano 3D). */
@@ -68,6 +68,9 @@ export function formatShareCode(raw: string): string {
                 <span class="muted">
                   {{ l.rooms.length }} {{ l.rooms.length === 1 ? 'cuarto' : 'cuartos' }} · {{ levelsOf(l) }}
                   <span class="badge" [class.badge-success]="l.live">{{ l.live ? 'en vivo' : 'sin conexión' }}</span>
+                  @if (l.peers?.length) {
+                    · ahora allá: {{ peers(l) }}
+                  }
                 </span>
               </div>
               <div class="row actions">
@@ -204,6 +207,10 @@ export class ConnectPlano3dPage implements OnInit {
       await this.api.unlink(link.id);
       this.links.update((all) => all.filter((l) => l.id !== link.id));
     });
+  }
+
+  protected peers(link: Plano3dLink): string {
+    return peersLabel(link.peers ?? []);
   }
 
   protected levelsOf(link: Plano3dLink): string {

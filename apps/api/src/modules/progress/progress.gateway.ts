@@ -79,6 +79,11 @@ export class ProgressGateway implements OnGatewayConnection, OnModuleInit, OnMod
     this.server?.to(room(projectId)).emit('scene-sync', { projectId, ...payload });
   }
 
+  /** Quién está en la casa desde Plano 3D (la web lo muestra junto al candado). */
+  plano3dPresence(projectId: string, peers: { name: string; client: string }[]): void {
+    this.server?.to(room(projectId)).emit('plano3d-presence', { projectId, peers });
+  }
+
   private forward(event: JobProgressEvent): void {
     this.server?.to(room(event.projectId)).emit('progress', event);
   }

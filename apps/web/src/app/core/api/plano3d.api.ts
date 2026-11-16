@@ -10,7 +10,22 @@ export interface Plano3dLink {
   projectName: string;
   rooms: { projectId: string; name: string; level: string }[];
   live: boolean;
+  /** Quiénes están ahora en la casa desde Plano 3D. */
+  peers: Plano3dPeer[];
   createdAt: string;
+}
+
+/** Una persona en Plano 3D: `client` es web o desktop. */
+export interface Plano3dPeer {
+  name: string;
+  client: string;
+}
+
+/** «Ana (web) y Beto (escritorio)». */
+export function peersLabel(peers: readonly Plano3dPeer[]): string {
+  const one = (p: Plano3dPeer) => `${p.name} (${p.client === 'desktop' ? 'escritorio' : p.client})`;
+  const names = peers.map(one);
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
 }
 
 @Injectable({ providedIn: 'root' })
