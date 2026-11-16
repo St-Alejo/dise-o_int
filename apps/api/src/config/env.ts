@@ -59,7 +59,9 @@ export const EnvSchema = z
     RETENTION_HOURS: z.coerce.number().int().min(1).default(24),
     /** Chat de diseño: sin API key responde el agente por reglas (gratis). */
     ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
-    CHAT_MODEL: z.string().min(1).default('claude-opus-5-5'),
+    CHAT_MODEL: z.string().min(1).default('claude-sonnet-5-5'),
+    /** Tope total de gasto en Claude (US$) para toda la app; agotado, el chat sigue sin Claude. */
+    CLAUDE_BUDGET_USD: z.coerce.number().min(0).default(1),
     CHAT_PER_DAY: z.coerce.number().int().min(1).default(60),
     CHAT_MAX_TOOL_TURNS: z.coerce.number().int().min(1).max(20).default(8),
     /** Groq: segundo paso del chat (si el modelo local no está seguro). Sin clave, se salta. */

@@ -13,6 +13,7 @@ import type { ProjectRecord } from '../src/ports/index.js';
 import type { CatalogService } from '../src/modules/catalog/catalog.service.js';
 import type { ProjectsService } from '../src/modules/projects/projects.service.js';
 import { BASIC_HELP, ChatService } from '../src/modules/chat/chat.service.js';
+import { ClaudeBudget, InMemorySpendLedger, costOf } from '../src/modules/chat/claude-budget.js';
 import { ClaudeDesignAgent, buildTools, historyToMessages, type MessagesApi } from '../src/modules/chat/claude.agent.js';
 import { AgentDeclinedError, AgentUnavailableError, type DesignAgent } from '../src/modules/chat/design-agent.js';
 import { RuleBasedDesignAgent, parsePlacement, splitClauses } from '../src/modules/chat/rule-based.agent.js';
@@ -270,6 +271,31 @@ describe('ClaudeDesignAgent', () => {
 
   it('sin API key no está disponible', () => {
     expect(new ClaudeDesignAgent({ apiKey: undefined, model: 'm' }).available).toBe(false);
+  });
+});
+
+describe('ClaudeBudget (tope de gasto)', () => {
+  it('costo por tokens según el modelo (Sonnet 5.5: US$2 / US$10 por millón; caché a US$0,10)', () => {
+    expect(costOf('claude-sonnet-5-5', { input_tokens: 1_000_000, output_tokens: 100_000, cache_read_input_tokens: 1_000_000 })).toBeCloseTo(2 + 1 + 0.1, 6);
+    expect(costOf('claude-opus-5-5', { input_tokens: 10_000, output_tokens: 1_000 })).toBeCloseTo(0.04 + 0.02, 6);
+    // modelo desconocido: se cobra caro, nunca de menos
+    expect(costOf('otro', { input_tokens: 1_000_000 })).toBeGreaterThanOrEqual(5);
+    expect(costOf('claude-sonnet-5-5', null)).toBe(0);
+  });
+
+  it('cada respuesta suma lo que costó y, agotado el tope, el agente deja de llamar a Claude', async () => {
+    const usage = { input_tokens: 200_000, output_tokens: 20_000 }; // US$0,60 en Sonnet 5.5
+    const reply = (text: string) => ({ ...message('end_turn', [{ type: 'text', text }]), model: 'claude-sonnet-5-5', usage }) as unknown as BetaMessage;
+    const api = new ScriptedMessages([reply('uno'), reply('dos'), reply('tres')]);
+    const ledger = new InMemorySpendLedger();
+    const agent = new ClaudeDesignAgent({ apiKey: undefined, model: 'claude-sonnet-5-5', messages: api, budget: new ClaudeBudget(ledger, 1) });
+    const ask = () => agent.run({ message: 'hola', history: [], toolbox: toolbox(), context: { roomType: 'living', styleId: null } });
+
+    expect((await ask()).reply).toBe('uno');
+    expect((await ask()).reply).toBe('dos'); // 0,60 < 1: todavía puede
+    expect(await ledger.spent()).toBeCloseTo(1.2, 6);
+    await expect(ask()).rejects.toBeInstanceOf(AgentUnavailableError); // 1,20 ≥ 1: no llama más
+    expect(api.calls).toHaveLength(2);
   });
 });
 

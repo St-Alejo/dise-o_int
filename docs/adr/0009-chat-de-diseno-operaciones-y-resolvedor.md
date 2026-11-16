@@ -21,7 +21,7 @@ funcionar sin API key (demo, CI, sin costo) y no puede dejar la escena a medias 
   `remove`, `add`, `update`): lo agregado y luego quitado no aparece.
 - **Puerto `DesignAgent` (Strategy)** con dos adaptadores que usan la misma toolbox:
   - `ClaudeDesignAgent`: bucle manual de tool use con `@anthropic-ai/sdk`; modelo por `CHAT_MODEL`
-    (por defecto `claude-opus-5-5`), pensamiento adaptativo, `effort: medium`, herramientas `strict`
+    (por defecto `claude-sonnet-5-5`, con tope de gasto `CLAUDE_BUDGET_USD`), pensamiento adaptativo, `effort: medium`, herramientas `strict`
     derivadas de los schemas zod (sin las palabras clave que strict no admite), `fallbacks: "default"`
     ante rechazos de seguridad, y tope de vueltas (`CHAT_MAX_TOOL_TURNS`).
   - `RuleBasedDesignAgent`: intérprete en español sin red (verbos, cantidades, pronombres, relaciones,

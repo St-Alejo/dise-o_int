@@ -405,6 +405,12 @@ export interface IQuota {
   refund(userId: string, amount: number): Promise<void>;
 }
 
+/** Gasto acumulado en un proveedor de IA de pago (US$), para el tope de la demo. */
+export interface ISpendLedger {
+  spent(): Promise<number>;
+  add(usd: number): Promise<number>;
+}
+
 // ---------------------------------------------------------------------------
 // Tokens de inyección
 // ---------------------------------------------------------------------------
@@ -417,6 +423,7 @@ export const JOB_QUEUE = Symbol('IJobQueue');
 export const PROGRESS_BROKER = Symbol('IProgressBroker');
 export const QUOTA = Symbol('IQuota');
 export const CHAT_QUOTA = Symbol('IChatQuota');
+export const SPEND_LEDGER = Symbol('ISpendLedger');
 export const RENDER_JOB_QUEUE = Symbol('IRenderJobQueue');
 export const BLENDER_QUOTA = Symbol('IBlenderQuota');
 export const APP_CONFIG = Symbol('AppConfig');

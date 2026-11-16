@@ -4,7 +4,8 @@
  * hace la geometría. Cada resultado (o el motivo por el que algo no cabe) vuelve al modelo para
  * que siga, proponga otra cosa o explique.
  *
- * - Modelo por `CHAT_MODEL` (por defecto claude-opus-5-5), pensamiento adaptativo, esfuerzo medio.
+ * - Modelo por `CHAT_MODEL` (por defecto claude-sonnet-5-5), pensamiento adaptativo, esfuerzo medio.
+ * - Tope de gasto (`ClaudeBudget`): cada respuesta suma su costo; agotado, responde el respaldo.
  * - Herramientas `strict` (entradas que cumplen el schema) y además validadas con zod.
  * - Fallback del servidor ante un rechazo de seguridad (`fallbacks: "default"`).
  * - Si la API falla (red, 5xx, sin crédito), lanza AgentUnavailableError y el caso de uso
@@ -14,6 +15,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { BetaMessage, BetaMessageParam, BetaTool, BetaToolResultBlockParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { TOOL_DESCRIPTIONS, TOOL_INPUTS, TOOL_NAMES, type ChatTurn } from '@interiores/shared-types';
 import { z } from 'zod';
+import type { ClaudeBudget } from './claude-budget.js';
 import { AgentUnavailableError, type DesignAgent, type DesignAgentInput, type DesignAgentResult } from './design-agent.js';
 
 /** Lo mínimo del SDK que usa el agente (las pruebas inyectan un cliente falso). */
@@ -27,6 +29,8 @@ export interface ClaudeAgentOptions {
   maxToolTurns?: number;
   /** Para pruebas: sustituye al SDK real. */
   messages?: MessagesApi;
+  /** Tope de gasto en US$; sin él no se cuenta. */
+  budget?: ClaudeBudget;
 }
 
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
@@ -135,6 +139,14 @@ export class ClaudeDesignAgent implements DesignAgent {
   }
 
   private async call(messages: BetaMessageParam[], signal: AbortSignal | undefined, withTools = true): Promise<BetaMessage> {
+    await this.opts.budget?.ensure();
+    const response = await this.request(messages, signal, withTools);
+    // Con fallback puede responder otro modelo: se cobra el que respondió.
+    await this.opts.budget?.charge(response.model || this.opts.model, response.usage);
+    return response;
+  }
+
+  private async request(messages: BetaMessageParam[], signal: AbortSignal | undefined, withTools: boolean): Promise<BetaMessage> {
     try {
       return await this.messages!.create(
         {
