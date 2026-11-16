@@ -35,13 +35,13 @@ describe('planRooms', () => {
       ['cocina', { x: 5, z: 0 }],
       ['baño', { x: 4, z: 1 }],
     ]);
-    const [sala, cocina, bano] = planRooms(rooms, at);
-    expect(cocina!.points).toBe('5,0 8,0 8,3 5,3');
-    expect(sala!.neighbours).toEqual(['Cocina']);
-    expect(cocina!.neighbours).toEqual(['Sala']);
-    expect(sala!.overlaps).toBe(true);
-    expect(bano!.overlaps).toBe(true);
-    expect({ x: sala!.cx, z: sala!.cz }).toEqual({ x: 2.5, z: 2 });
+    const [livingRoom, kitchen, bathroom] = planRooms(rooms, at);
+    expect(kitchen!.points).toBe('5,0 8,0 8,3 5,3');
+    expect(livingRoom!.neighbours).toEqual(['Cocina']);
+    expect(kitchen!.neighbours).toEqual(['Sala']);
+    expect(livingRoom!.overlaps).toBe(true);
+    expect(bathroom!.overlaps).toBe(true);
+    expect({ x: livingRoom!.cx, z: livingRoom!.cz }).toEqual({ x: 2.5, z: 2 });
   });
 
   it('un cuarto sin plano todavía no se dibuja', () => {
@@ -83,14 +83,14 @@ describe('HomePlanPage', () => {
 
   it('las flechas mueven el cuarto 10 cm y al soltar se guarda la planta entera', async () => {
     const { fixture, el, moved } = await setup([room('sala', 'Sala', 5, 4), room('cocina', 'Cocina', 3, 3)]);
-    const cocina = el.querySelectorAll<SVGGElement>('svg .room')[1]!;
-    expect(cocina.querySelector('polygon')!.getAttribute('points')).toBe('5.6,0 8.6,0 8.6,3 5.6,3');
-    cocina.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true }));
-    cocina.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
-    cocina.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown' }));
+    const kitchen = el.querySelectorAll<SVGGElement>('svg .room')[1]!;
+    expect(kitchen.querySelector('polygon')!.getAttribute('points')).toBe('5.6,0 8.6,0 8.6,3 5.6,3');
+    kitchen.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true }));
+    kitchen.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    kitchen.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown' }));
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(cocina.querySelector('polygon')!.getAttribute('points')).toBe('4.6,0.1 7.6,0.1 7.6,3.1 4.6,3.1');
+    expect(kitchen.querySelector('polygon')!.getAttribute('points')).toBe('4.6,0.1 7.6,0.1 7.6,3.1 4.6,3.1');
     // La primera vez se guarda el sitio de todos, para que la planta no dependa del orden automático.
     expect(moved).toEqual([
       { id: 'sala', at: { x: 0, z: 0 } },
@@ -115,10 +115,10 @@ describe('HomePlanPage', () => {
     fixture.componentRef.setInput('id', HOME);
     await fixture.whenStable();
     fixture.detectChanges();
-    const cocina = (fixture.nativeElement as HTMLElement).querySelectorAll<SVGGElement>('svg .room')[1]!;
+    const kitchen = (fixture.nativeElement as HTMLElement).querySelectorAll<SVGGElement>('svg .room')[1]!;
     const press = () => {
-      cocina.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
-      cocina.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+      kitchen.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+      kitchen.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
     };
     press();
     // El primer guardado ya salió cuando llega la segunda pulsación.

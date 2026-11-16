@@ -55,28 +55,28 @@ describe('planta conjunta de una vivienda', () => {
   });
 
   it('al arrastrar, un lado se pega al lado opuesto del vecino y el otro eje se alinea', () => {
-    const sala = box('sala', 0, 0, 5, 4);
+    const livingRoom = box('sala', 0, 0, 5, 4);
     // Casi tocando por la derecha y casi alineado por arriba.
-    expect(snapRoom(box('cocina', 5.2, 0.15, 3, 3), [sala])).toEqual({ x: 5, z: 0 });
+    expect(snapRoom(box('cocina', 5.2, 0.15, 3, 3), [livingRoom])).toEqual({ x: 5, z: 0 });
     // Lejos: no se corrige nada.
-    expect(snapRoom(box('cocina', 7, 1, 3, 3), [sala])).toEqual({ x: 7, z: 1 });
+    expect(snapRoom(box('cocina', 7, 1, 3, 3), [livingRoom])).toEqual({ x: 7, z: 1 });
     // Por debajo: su borde superior contra el inferior de la sala, alineando el lado derecho.
-    expect(snapRoom(box('baño', 2.9, 4.2, 2, 2), [sala])).toEqual({ x: 3, z: 4 });
+    expect(snapRoom(box('baño', 2.9, 4.2, 2, 2), [livingRoom])).toEqual({ x: 3, z: 4 });
   });
 
   it('un cuarto lejano en el otro eje no atrae', () => {
-    const lejos = box('lejos', 0, 20, 5, 4);
-    expect(snapRoom(box('x', 5.1, 0, 3, 3), [lejos])).toEqual({ x: 5.1, z: 0 });
+    const far = box('lejos', 0, 20, 5, 4);
+    expect(snapRoom(box('x', 5.1, 0, 3, 3), [far])).toEqual({ x: 5.1, z: 0 });
   });
 
   it('compartir pared es tocarse por un borde a lo largo de un tramo, no por una esquina', () => {
-    const sala = box('sala', 0, 0, 5, 4);
-    expect(shareWall(sala, box('cocina', 5, 1, 3, 3))).toBe(true);
-    expect(shareWall(sala, box('baño', 2, 4, 2, 2))).toBe(true);
-    expect(shareWall(sala, box('esquina', 5, 4, 2, 2))).toBe(false);
-    expect(shareWall(sala, box('suelto', 6, 0, 2, 2))).toBe(false);
-    expect(boxesOverlap(sala, box('cocina', 5, 1, 3, 3))).toBe(false);
-    expect(boxesOverlap(sala, box('encima', 4, 1, 3, 3))).toBe(true);
+    const livingRoom = box('sala', 0, 0, 5, 4);
+    expect(shareWall(livingRoom, box('cocina', 5, 1, 3, 3))).toBe(true);
+    expect(shareWall(livingRoom, box('baño', 2, 4, 2, 2))).toBe(true);
+    expect(shareWall(livingRoom, box('esquina', 5, 4, 2, 2))).toBe(false);
+    expect(shareWall(livingRoom, box('suelto', 6, 0, 2, 2))).toBe(false);
+    expect(boxesOverlap(livingRoom, box('cocina', 5, 1, 3, 3))).toBe(false);
+    expect(boxesOverlap(livingRoom, box('encima', 4, 1, 3, 3))).toBe(true);
   });
 
   it('el conjunto ocupa del primer borde al último', () => {

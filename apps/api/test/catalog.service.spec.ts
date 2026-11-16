@@ -39,8 +39,8 @@ describe('CatalogService', () => {
 
   it('expone el spec de personalización aplanado en el ítem', async () => {
     const service = new CatalogService(repoWith());
-    const cuadro = (await service.all()).find((i) => i.id === 'cuadro')!;
-    expect(cuadro).toMatchObject({ source: 'parametric', recipe: { kind: 'wall-art' }, elevationDefaultM: 1.4, mount: 'wall' });
+    const painting = (await service.all()).find((i) => i.id === 'cuadro')!;
+    expect(painting).toMatchObject({ source: 'parametric', recipe: { kind: 'wall-art' }, elevationDefaultM: 1.4, mount: 'wall' });
   });
 
   it('cachea el catálogo y hace una sola carga aunque lleguen peticiones a la vez', async () => {
