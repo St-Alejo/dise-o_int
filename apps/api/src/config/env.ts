@@ -78,6 +78,8 @@ export const EnvSchema = z
 
     PUBLIC_WEB_URL: z.string().url().default('http://localhost:8080'),
     CORS_ORIGINS: csv,
+    /** API de Plano 3D (puente ADR-0039): de allí vienen las casas que se comparten por código. */
+    PLANO3D_API_URL: z.string().url().default('http://localhost:8010'),
     SWAGGER_ENABLED: bool.default(true),
   })
   .superRefine((env, ctx) => {

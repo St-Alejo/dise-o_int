@@ -32,6 +32,7 @@ import type {
   RoomDimensions,
   RoomFinishes,
   PlanPosition,
+  Plano3dModel,
   RoomShell,
   RoomType,
   StyleId,
@@ -42,6 +43,16 @@ import type {
   RenderSpec,
   RenderStatus,
 } from '@interiores/shared-types';
+
+/** De dónde sale un cuarto enlazado con Plano 3D: su ambiente y su origen en la casa. */
+export interface Plano3dRoomRef {
+  linkId: string;
+  levelId: string;
+  levelIndex: number;
+  levelName: string;
+  roomId: string;
+  origin: { x: number; z: number };
+}
 
 // ---------------------------------------------------------------------------
 // Registros de persistencia (el "estado" del agregado DesignProject)
@@ -68,6 +79,8 @@ export interface ProjectRecord {
   homeName?: string | null;
   /** Sitio del cuarto en la planta conjunta de su vivienda. */
   homePosition?: PlanPosition | null;
+  /** Cuarto que viene de una casa de Plano 3D (null o ausente = propio). */
+  plano3d?: Plano3dRoomRef | null;
   /** Tope de gasto del cuarto (null o ausente = sin tope). */
   budgetCap?: number | null;
   /** Lo que la persona fijó (null o ausente = nada). */
@@ -163,6 +176,7 @@ export type ProjectPatch = Partial<
     | 'homeId'
     | 'homeName'
     | 'homePosition'
+    | 'plano3d'
     | 'budgetCap'
     | 'brief'
     | 'technical'
@@ -407,3 +421,71 @@ export const RENDER_JOB_QUEUE = Symbol('IRenderJobQueue');
 export const BLENDER_QUOTA = Symbol('IBlenderQuota');
 export const APP_CONFIG = Symbol('AppConfig');
 export const REDIS = Symbol('Redis');
+
+// ---------------------------------------------------------------------------
+// Puente con Plano 3D (ADR-0039)
+// ---------------------------------------------------------------------------
+export interface Plano3dLinkRecord {
+  id: string;
+  ownerId: string;
+  homeId: string;
+  plano3dProjectId: string;
+  projectName: string;
+  /** Token de enlace en claro (el repositorio lo cifra al guardar). */
+  linkToken: string;
+  tokenExpiresAt: Date;
+  lastSeq: number;
+  revokedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface IPlano3dLinkRepository {
+  create(data: Omit<Plano3dLinkRecord, 'createdAt' | 'lastSeq' | 'revokedAt'>): Promise<Plano3dLinkRecord>;
+  findById(id: string): Promise<Plano3dLinkRecord | null>;
+  listByOwner(ownerId: string): Promise<Plano3dLinkRecord[]>;
+  listActive(): Promise<Plano3dLinkRecord[]>;
+  update(id: string, patch: Partial<Pick<Plano3dLinkRecord, 'lastSeq' | 'revokedAt' | 'linkToken' | 'tokenExpiresAt'>>): Promise<void>;
+}
+
+export interface Plano3dGrant {
+  token: string;
+  expiresIn: number;
+  projectId: string;
+  projectName: string;
+}
+
+/** Mensajes de la sala en vivo de Plano 3D que le importan al puente. */
+export type Plano3dLiveMessage =
+  | { type: 'welcome'; you: string; seq: number }
+  | { type: 'applied'; seq: number; author?: string | null; ops: { t?: string; k?: string; id?: string; level?: string }[] }
+  | { type: 'snapshot'; seq: number }
+  | { type: 'reject'; op_id: string; reason: string }
+  | { type: 'closed'; reason?: string };
+
+export interface Plano3dLiveRoom {
+  /** Manda un lote de ops; devuelve el op_id. */
+  send(ops: unknown[]): string;
+  presence(state: Record<string, unknown>): void;
+  close(): void;
+}
+
+export interface IPlano3dClient {
+  claim(code: string): Promise<Plano3dGrant>;
+  /** El proyecto con su modelo (`model.levels`); 401 si el token se revocó. */
+  project(token: string): Promise<{ id: string; name: string; model: Plano3dModel | null }>;
+  connect(
+    projectId: string,
+    token: string,
+    opts: { lastSeq: number | null; name: string; onMessage: (msg: Plano3dLiveMessage) => void; onClose: (code: number, reason: string) => void },
+  ): Plano3dLiveRoom;
+}
+
+/** Aviso en el proceso de que una escena se guardó (el puente lo lleva a Plano 3D). */
+export interface ISceneEvents {
+  emit(projectId: string): void;
+  on(handler: (projectId: string) => void): () => void;
+}
+
+export const PLANO3D_LINKS = Symbol('IPlano3dLinkRepository');
+export const PLANO3D_CLIENT = Symbol('IPlano3dClient');
+export const SCENE_EVENTS = Symbol('ISceneEvents');

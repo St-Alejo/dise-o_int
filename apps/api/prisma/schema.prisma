@@ -38,6 +38,7 @@ model User {
   updatedAt     DateTime       @updatedAt
   projects      Project[]
   refreshTokens RefreshToken[]
+  plano3dLinks  Plano3dLink[]
 
   @@map("users")
 }
@@ -84,6 +85,8 @@ model Project {
   homeName        String?
   /// Dónde se dibuja el cuarto en la planta conjunta de su vivienda ({x, z} en metros).
   homePosition    Json?
+  /// Cuarto que viene de una casa de Plano 3D ({linkId, levelId, levelIndex, levelName, roomId, origin}); null = propio.
+  plano3d         Json?
   /// Tope de gasto que se puso la persona para este cuarto; null = sin tope.
   budgetCap       Float?
   /// Brief de diseño: lo que la persona pidió y quiere conservar entre recomendaciones.
@@ -253,4 +256,26 @@ model Render {
   @@index([projectId, createdAt])
   @@index([projectId, cacheKey])
   @@map("renders")
+}
+
+/// Casa de Plano 3D enlazada por código (ADR-0039): una vivienda de Interiores cuyos muros manda Plano 3D.
+model Plano3dLink {
+  id               String    @id @default(uuid()) @db.Uuid
+  ownerId          String    @db.Uuid
+  owner            User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Vivienda de Interiores que agrupa los cuartos de la casa.
+  homeId           String    @unique @db.Uuid
+  plano3dProjectId String
+  projectName      String
+  /// Token de enlace cifrado (AES-256-GCM): abre solo ese proyecto en Plano 3D.
+  linkToken        String
+  tokenExpiresAt   DateTime
+  /// Último lote de la sala en vivo que se aplicó (para reconectar sin perder cambios).
+  lastSeq          Int       @default(0)
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([ownerId])
+  @@map("plano3d_links")
 }

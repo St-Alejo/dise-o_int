@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { Plano3dModule } from './modules/plano3d/plano3d.module.js';
 import { ProgressModule } from './modules/progress/progress.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { RendersModule } from './modules/renders/renders.module.js';
@@ -35,6 +36,7 @@ import { APP_CONFIG, REDIS } from './ports/index.js';
     ChatModule,
     HealthModule,
     ProgressModule,
+    Plano3dModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

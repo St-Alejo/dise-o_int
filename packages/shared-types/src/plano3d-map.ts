@@ -274,3 +274,20 @@ export function floorMaterialOp(levelId: string, room: Plano3dRoom, materialId: 
 export function touchesArchitecture(ops: readonly { k?: string }[]): boolean {
   return ops.some((op) => op.k !== 'furniture');
 }
+
+/**
+ * Mueble de Interiores que vuelve de Plano 3D (alguien lo movió allá): la vuelta exacta de
+ * `toPlano3dFurniture`. Null si no es de este cuarto.
+ */
+export function fromPlano3dFurniture(room: Pick<LinkedRoom, 'roomId' | 'origin'>, f: Plano3dFurniture): FurniturePlacement | null {
+  const prefix = `${INTERIORES_FURNITURE_PREFIX}${room.roomId}-`;
+  if (!f.id.startsWith(prefix) || !f.catalog_id.startsWith(INTERIORES_CATALOG_PREFIX)) return null;
+  return {
+    id: f.id.slice(prefix.length),
+    catalogItemId: f.catalog_id.slice(INTERIORES_CATALOG_PREFIX.length),
+    position: { x: round3(f.position.x - room.origin.x), y: 0, z: round3(f.position.y - room.origin.z) },
+    rotationY: round3(-f.rotation),
+    lockedByUser: false,
+    dimensionsM: { x: f.width, y: f.height, z: f.depth },
+  };
+}

@@ -8,13 +8,19 @@ import {
   CATALOG_REPOSITORY,
   FILE_STORAGE,
   JOB_QUEUE,
+  PLANO3D_CLIENT,
+  PLANO3D_LINKS,
   PROGRESS_BROKER,
   PROJECT_REPOSITORY,
+  SCENE_EVENTS,
   QUOTA,
   REDIS,
   RENDER_JOB_QUEUE,
   RENDER_REPOSITORY,
 } from '../ports/index.js';
+import { Plano3dHttpClient } from './plano3d/plano3d-http.client.js';
+import { PrismaPlano3dLinkRepository } from './prisma/prisma-plano3d-link.repository.js';
+import { InProcessSceneEvents } from './realtime/scene-events.js';
 import { HttpAiClient } from './ai/http-ai-client.js';
 import { PhotoProcessor } from './imaging/photo-processor.js';
 import { MediaUrlSigner } from './media/media-url-signer.js';
@@ -61,6 +67,9 @@ class RedisLifecycle implements OnApplicationShutdown {
     { provide: QUOTA, useClass: RedisQuota },
     { provide: RENDER_JOB_QUEUE, useClass: BullMqRenderJobQueue },
     { provide: BLENDER_QUOTA, useClass: RedisBlenderQuota },
+    { provide: PLANO3D_LINKS, useClass: PrismaPlano3dLinkRepository },
+    { provide: PLANO3D_CLIENT, useClass: Plano3dHttpClient },
+    { provide: SCENE_EVENTS, useClass: InProcessSceneEvents },
   ],
   exports: [
     APP_CONFIG,
@@ -78,6 +87,9 @@ class RedisLifecycle implements OnApplicationShutdown {
     QUOTA,
     RENDER_JOB_QUEUE,
     BLENDER_QUOTA,
+    PLANO3D_LINKS,
+    PLANO3D_CLIENT,
+    SCENE_EVENTS,
   ],
 })
 export class CoreModule {}

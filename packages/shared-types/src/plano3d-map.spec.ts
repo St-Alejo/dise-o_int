@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FurniturePlacement } from './domain.js';
 import {
   floorMaterialOp,
+  fromPlano3dFurniture,
   furnitureOps,
   interioresFurnitureOf,
   interioresRoomType,
@@ -132,5 +133,14 @@ describe('puente con Plano 3D', () => {
   it('distingue lotes de muebles de cambios de arquitectura', () => {
     expect(touchesArchitecture([{ k: 'furniture' }])).toBe(false);
     expect(touchesArchitecture([{ k: 'furniture' }, { k: 'wall' }])).toBe(true);
+  });
+
+  it('un mueble movido en Plano 3D vuelve igual a Interiores', () => {
+    const room = { roomId: 'r-sala', origin: { x: 2, z: 3 } };
+    const f = toPlano3dFurniture(room, placement(), { x: 2, y: 0.8, z: 0.9 });
+    const back = fromPlano3dFurniture(room, f)!;
+    expect(back).toMatchObject({ id: 'p1', catalogItemId: 'sofa-3', position: { x: 2, y: 0, z: 2 }, rotationY: 1.571 });
+    expect(fromPlano3dFurniture(room, { ...f, id: 'sofa-generico' })).toBeNull();
+    expect(fromPlano3dFurniture({ ...room, roomId: 'r-otro' }, f)).toBeNull();
   });
 });

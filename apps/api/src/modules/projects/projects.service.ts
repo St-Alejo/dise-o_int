@@ -58,7 +58,11 @@ import {
   PROJECT_REPOSITORY,
   type ProjectRecord,
   QUOTA,
+  SCENE_EVENTS,
+  type ISceneEvents,
 } from '../../ports/index.js';
+
+const ARCHITECTURE_IN_PLANO3D = 'Los muros de este cuarto se editan en Plano 3D: aquí se amuebla y se eligen acabados';
 import { projectKeys, toListItem } from './project.mapper.js';
 import type { ProjectDossier, HomeDossier } from './shopping-list.pdf.js';
 import { newRoomFor } from './room-factory.js';
@@ -107,6 +111,7 @@ export class ProjectsService {
     private readonly photos: PhotoProcessor,
     private readonly signer: MediaUrlSigner,
     @Optional() @Inject(AI_CLIENT) private readonly ai?: IAiClient,
+    @Optional() @Inject(SCENE_EVENTS) private readonly scenes?: ISceneEvents,
   ) {
     this.access = new ProjectAccess(projects, signer);
     this.rules = new SceneRules(catalog);
@@ -414,19 +419,22 @@ export class ProjectsService {
   async updateScene(actor: Actor, id: string, req: UpdateSceneRequest): Promise<DesignProject> {
     const project = await this.own(actor, id);
     const current = this.access.requireShell(project);
-    const shell = req.roomShell ? this.rules.editedShell(current, req.roomShell) : current;
+    // Cuarto de una casa de Plano 3D: los muros mandan allá, así que la planta que mande la web se ignora.
+    const editedShell = project.plano3d ? undefined : req.roomShell;
+    const shell = editedShell ? this.rules.editedShell(current, editedShell) : current;
     const placements = await this.rules.sanitizePlacements(shell, req.furniturePlacements);
     if (req.finishes) this.rules.validateFinishes(req.finishes, shell);
     const updated = await this.projects.update(
       id,
       {
         placements,
-        ...(req.roomShell ? { roomShell: shell } : {}),
+        ...(editedShell ? { roomShell: shell } : {}),
         ...(req.selectedStyleId !== undefined ? { selectedStyleId: req.selectedStyleId } : {}),
         ...(req.finishes !== undefined ? { finishes: req.finishes } : {}),
       },
       { expectedRevision: req.revision, bumpRevision: true },
     );
+    this.scenes?.emit(id);
     return this.toDto(updated);
   }
 
@@ -437,6 +445,7 @@ export class ProjectsService {
    */
   async updateRoom(actor: Actor, id: string, req: UpdateRoomRequest): Promise<DesignProject> {
     const project = await this.own(actor, id);
+    if (project.plano3d) throw new ValidationError(ARCHITECTURE_IN_PLANO3D);
     const shell = this.access.requireShell(project);
     let next: RoomShell;
     try {

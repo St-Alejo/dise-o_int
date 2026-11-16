@@ -30,6 +30,7 @@ import type {
 import { NotFoundError, StaleRevisionError } from '../../common/errors.js';
 import type {
   IProjectRepository,
+  Plano3dRoomRef,
   PreviewRecord,
   RecommendationRecord,
   ProjectPatch,
@@ -93,6 +94,7 @@ function toProject(row: ProjectRow): ProjectRecord {
     homeId: row.homeId,
     homeName: row.homeName,
     homePosition: parsePosition(row.homePosition),
+    plano3d: (row.plano3d as Plano3dRoomRef | null) ?? null,
     budgetCap: row.budgetCap,
     brief: parseBrief(row.brief),
     technical: parseTechnical(row.technical),
@@ -150,6 +152,7 @@ function patchToData(patch: ProjectPatch): Prisma.ProjectUpdateManyMutationInput
   if (patch.homeId !== undefined) data.homeId = patch.homeId;
   if (patch.homeName !== undefined) data.homeName = patch.homeName;
   if (patch.homePosition !== undefined) data.homePosition = nullableJson(patch.homePosition);
+  if (patch.plano3d !== undefined) data.plano3d = nullableJson(patch.plano3d);
   if (patch.budgetCap !== undefined) data.budgetCap = patch.budgetCap;
   if (patch.brief !== undefined) data.brief = nullableJson(patch.brief);
   if (patch.technical !== undefined) data.technical = nullableJson(patch.technical);
@@ -182,6 +185,7 @@ export class PrismaProjectRepository implements IProjectRepository {
         homeId: data.homeId ?? null,
         homeName: data.homeName ?? null,
         homePosition: nullableJson(data.homePosition),
+        plano3d: nullableJson(data.plano3d),
         budgetCap: data.budgetCap ?? null,
         brief: nullableJson(data.brief),
         technical: nullableJson(data.technical),

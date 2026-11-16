@@ -74,6 +74,11 @@ export class ProgressGateway implements OnGatewayConnection, OnModuleInit, OnMod
     return { ok: true };
   }
 
+  /** Un cuarto cambió fuera de este navegador (p. ej. en Plano 3D): la web lo vuelve a leer. */
+  sceneSync(projectId: string, payload: { revision: number; source: 'plano3d'; architecture?: boolean; revoked?: boolean }): void {
+    this.server?.to(room(projectId)).emit('scene-sync', { projectId, ...payload });
+  }
+
   private forward(event: JobProgressEvent): void {
     this.server?.to(room(event.projectId)).emit('progress', event);
   }
