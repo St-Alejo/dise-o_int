@@ -33,3 +33,4 @@ export * from './palette.js';
 export * from './recommend.js';
 export * from './pro/index.js';
 export * from './render/index.js';
+export * from './plano3d-map.js';
