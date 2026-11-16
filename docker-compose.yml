@@ -45,6 +45,8 @@ x-api-env: &api-env
   THROTTLE_LIMIT_PER_MIN: ${THROTTLE_LIMIT_PER_MIN:-240}
   RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-1}
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  # Puente con Plano 3D (ADR-0039): en local, su API corre en el anfitrión (uvicorn :8010).
+  PLANO3D_API_URL: ${PLANO3D_API_URL:-http://host.docker.internal:8010}
 
 x-api-build: &api-build
   context: .
@@ -82,6 +84,8 @@ services:
       redis: { condition: service_healthy }
       storage: { condition: service_healthy }
       ai: { condition: service_healthy }
+    # la sala en vivo de Plano 3D, cuando corre en el anfitrión (Docker Desktop ya lo resuelve; Linux no)
+    extra_hosts: ["host.docker.internal:host-gateway"]
     networks: [internal]
     restart: unless-stopped
     stop_grace_period: 20s
