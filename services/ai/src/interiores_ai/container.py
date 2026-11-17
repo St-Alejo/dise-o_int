@@ -15,8 +15,8 @@ from .providers.room_mock import MockRoomAnalyzer
 from .providers.style_mock import MockStyleGenerator
 from .providers.vision import (
     Budget,
+    ClaudeVisionClient,
     DailyBudget,
-    GroqVisionClient,
     RedisAnalysisCache,
     RedisDailyBudget,
     VisionRoomAnalyzer,
@@ -63,13 +63,14 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
     room: RoomAnalyzer
     style: StyleGenerator
     # Una sola cuota diaria de visión para las fotos del cuarto y las imágenes de referencia.
-    budget, cache = vision_state(settings) if settings.groq_api_key else (None, None)
-    groq = GroqVisionClient(settings.groq_api_key, settings.vision_model, timeout_s=settings.vision_timeout_s) if settings.groq_api_key else None
+    key = settings.anthropic_api_key
+    budget, cache = vision_state(settings) if key else (None, None)
+    claude = ClaudeVisionClient(key, settings.vision_model, timeout_s=settings.vision_timeout_s) if key else None
     if client and room_kind == "replicate":
         room = ReplicateRoomAnalyzer(client, settings.replicate_depth_model)
-    elif room_kind == "vision" and groq is not None and budget is not None:
+    elif room_kind == "vision" and claude is not None and budget is not None:
         vision = VisionRoomAnalyzer(
-            groq,
+            claude,
             budget=budget,
             cache=cache,
         )
@@ -90,5 +91,5 @@ def build_container(settings: Settings, storage: ObjectStorage | None = None) ->
         layout_engine=RulesLayoutEngine(),
         replicate=client,
         intents=IntentService(Path(settings.nlu_model_path)),
-        reference=ReferenceAnalyzer(groq, budget),
+        reference=ReferenceAnalyzer(claude, budget),
     )

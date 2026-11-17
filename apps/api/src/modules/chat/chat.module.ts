@@ -10,7 +10,6 @@ import { ChatController } from './chat.controller.js';
 import { CHAT_AGENTS, ChatService, REFERENCE_DEPS, type ChatAgents, type ReferenceDeps } from './chat.service.js';
 import { ClaudeBudget } from './claude-budget.js';
 import { ClaudeDesignAgent } from './claude.agent.js';
-import { GroqDesignAgent } from './groq.agent.js';
 import { LocalNluDesignAgent } from './local-nlu.agent.js';
 import { RuleBasedDesignAgent } from './rule-based.agent.js';
 
@@ -26,7 +25,7 @@ import { RuleBasedDesignAgent } from './rule-based.agent.js';
       inject: [APP_CONFIG, AI_CLIENT, SPEND_LEDGER],
       useFactory: (c: AppConfig, ai: IAiClient, ledger: ISpendLedger): ChatAgents => ({
         local: new LocalNluDesignAgent(ai, { minConfidence: c.NLU_MIN_CONFIDENCE }),
-        groq: new GroqDesignAgent({ apiKey: c.CHAT_LLM === 'off' ? undefined : c.GROQ_API_KEY, model: c.GROQ_CHAT_MODEL, maxToolTurns: Math.min(c.CHAT_MAX_TOOL_TURNS, 4) }),
+        // Sin Groq: su cuota gratuita se puede agotar en plena demostración. Local → reglas → Claude.
         claude: new ClaudeDesignAgent({ apiKey: c.CHAT_LLM === 'off' ? undefined : c.ANTHROPIC_API_KEY, model: c.CHAT_MODEL, maxToolTurns: c.CHAT_MAX_TOOL_TURNS, budget: new ClaudeBudget(ledger, c.CLAUDE_BUDGET_USD) }),
         rules: new RuleBasedDesignAgent(),
       }),

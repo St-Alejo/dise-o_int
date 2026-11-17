@@ -14,6 +14,7 @@ dependencies = [
   "pillow>=13,<14",
   "structlog>=26,<27",
   "httpx>=0.28,<1",
+  "anthropic>=1.17,<2",  # MIT: Claude lee las fotos (visión)
   "redis>=5.2,<7",
   "scikit-learn>=1.6,<2",
   "joblib>=1.4,<2",

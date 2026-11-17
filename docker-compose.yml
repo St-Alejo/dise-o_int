@@ -37,11 +37,8 @@ x-api-env: &api-env
   CHAT_MODEL: ${CHAT_MODEL:-claude-sonnet-5-5}
   CLAUDE_BUDGET_USD: ${CLAUDE_BUDGET_USD:-1}
   CHAT_PER_DAY: ${CHAT_PER_DAY:-60}
-  # Chat: primero el modelo propio; si no está seguro, Groq (texto) con la misma cuota.
-  GROQ_API_KEY: ${GROQ_API_KEY:-}
-  GROQ_CHAT_MODEL: ${GROQ_CHAT_MODEL:-llama-3.3-70b-versatile}
   # off = solo modelo propio y reglas (las pruebas E2E lo usan: respuestas deterministas).
-  CHAT_LLM: ${CHAT_LLM:-groq}
+  CHAT_LLM: ${CHAT_LLM:-claude}
   RETENTION_HOURS: ${RETENTION_HOURS:-24}
   THROTTLE_LIMIT_PER_MIN: ${THROTTLE_LIMIT_PER_MIN:-240}
   RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-1}
@@ -128,8 +125,9 @@ services:
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
       REPLICATE_DEPTH_MODEL: ${REPLICATE_DEPTH_MODEL:-chenxwh/depth-anything-v2}
       REPLICATE_STYLE_MODEL: ${REPLICATE_STYLE_MODEL:-adirik/interior-design}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      VISION_MODEL: ${VISION_MODEL:-qwen/qwen3.8-27b}
+      # Visión con Claude (misma clave que el chat). Groq ya no se usa.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_VISION_MODEL: ${CLAUDE_VISION_MODEL:-claude-sonnet-5-5}
       VISION_PER_DAY: ${VISION_PER_DAY:-20}
       # La cuota diaria y la caché de visión se comparten entre réplicas y sobreviven a reinicios.
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}

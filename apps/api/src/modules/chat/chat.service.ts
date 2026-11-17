@@ -154,7 +154,7 @@ export class ChatService {
     return {
       reply: `${source}: ${said.join(', ')}. Fijé eso y armo una propuesta para tu cuarto con ese aire.`,
       operations,
-      agent: ref.source === 'vision' ? 'groq' : 'local',
+      agent: ref.source === 'vision' ? 'claude' : 'local',
       reference: { source: ref.source, palette: ref.palette, ...(ref.style ? { style: ref.style } : {}) },
     };
   }

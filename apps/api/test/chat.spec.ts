@@ -698,7 +698,7 @@ describe('ChatService en cascada', () => {
     const { svc, ai, reference } = cascade({});
     const image = await sharp({ create: { width: 400, height: 320, channels: 3, background: '#a9d4ee' } }).jpeg().toBuffer();
     const res = await svc.fromReference({ userId: 'alice' }, 'p1', 3, image);
-    expect(res.agent).toBe('groq');
+    expect(res.agent).toBe('claude'); // la foto la lee Claude (visión)
     expect(res.reference).toEqual({ source: 'vision', palette: ai.reference.palette, style: 'escandinavo' });
     expect(res.reply).toMatch(/piso de baldosa, color de paredes, estilo escandinavo, luz/);
     const brief = res.operations.find((o) => o.op === 'brief');

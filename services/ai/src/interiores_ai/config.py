@@ -23,9 +23,10 @@ class Settings(BaseSettings):
     replicate_style_model: str = Field(default="adirik/interior-design", alias="REPLICATE_STYLE_MODEL")
     replicate_timeout_s: float = Field(default=150.0, alias="REPLICATE_TIMEOUT_S")
 
-    # Visión (ROOM_ANALYZER=vision): un modelo multimodal lee la foto. Groq tiene capa gratuita.
-    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
-    vision_model: str = Field(default="qwen/qwen3.8-27b", alias="VISION_MODEL")
+    # Visión (ROOM_ANALYZER=vision): Claude lee la foto. Groq ya no se usa (su cuota gratuita se
+    # puede agotar en plena demostración); GROQ_API_KEY se ignora.
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    vision_model: str = Field(default="claude-sonnet-5-5", alias="CLAUDE_VISION_MODEL")
     vision_timeout_s: float = Field(default=45.0, alias="VISION_TIMEOUT_S")
     # Tope de fotos analizadas por día con el modelo de visión; pasado el tope responde el análisis
     # local. Se cuenta por proceso: con dos workers de uvicorn el tope efectivo es el doble.
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
     def resolved_room_analyzer(self) -> str:
         """Si se pidió un proveedor externo pero falta su credencial, se degrada a mock (y se registra)."""
         if self.room_analyzer == "vision":
-            return "vision" if self.groq_api_key else "mock"
+            return "vision" if self.anthropic_api_key else "mock"
         return self.room_analyzer if self.room_analyzer == "mock" or self.replicate_api_token else "mock"
 
     def resolved_style_generator(self) -> str:

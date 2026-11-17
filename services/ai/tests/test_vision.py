@@ -16,6 +16,7 @@ from interiores_ai.providers.fallback import FallbackRoomAnalyzer
 from interiores_ai.providers.room_mock import MockRoomAnalyzer
 from interiores_ai.providers.shell import rectangular_shell
 from interiores_ai.providers.vision import (
+    ClaudeVisionClient,
     DailyBudget,
     GroqVisionClient,
     RoomGuess,
@@ -234,9 +235,57 @@ def test_without_key_vision_degrades_to_local_analysis():
 
 
 def test_with_key_vision_is_used_with_fallback():
-    container = build_container(settings(ROOM_ANALYZER="vision", GROQ_API_KEY="gsk_prueba", VISION_MODEL="modelo-x"), MemoryStorage())
+    container = build_container(settings(ROOM_ANALYZER="vision", ANTHROPIC_API_KEY="sk-ant-prueba", CLAUDE_VISION_MODEL="modelo-x"), MemoryStorage())
     assert isinstance(container.room_analyzer, FallbackRoomAnalyzer)
     assert container.room_analyzer.name == "vision-modelo-x"
+
+
+def test_groq_key_alone_no_longer_enables_vision():
+    # Groq se quitó: su cuota gratuita se puede agotar en plena demostración.
+    container = build_container(settings(ROOM_ANALYZER="vision", GROQ_API_KEY="gsk_prueba"), MemoryStorage())
+    assert container.room_analyzer.name == "mock-opencv"
+
+
+# ---------------------------------------------------------------- Claude (visión)
+def claude(handler) -> ClaudeVisionClient:
+    import httpx2  # el cliente HTTP que trae el SDK de Anthropic
+
+    return ClaudeVisionClient("sk-ant-prueba", "modelo-x", http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
+
+
+def test_claude_sends_photo_and_returns_the_json():
+    seen: list[dict] = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        body = {"id": "msg_1", "type": "message", "role": "assistant", "model": "modelo-x", "stop_reason": "end_turn", "stop_sequence": None,
+                "content": [{"type": "text", "text": "```json\n" + json.dumps(OFFICE) + "\n```"}], "usage": {"input_tokens": 10, "output_tokens": 5}}
+        import httpx2
+
+        return httpx2.Response(200, json=body)
+
+    out = claude(handler).describe(b"\xff\xd8", "describe el cuarto")
+    assert json.loads(out)["roomType"] == "office"
+    image, text = seen[0]["messages"][0]["content"]
+    assert image["source"]["media_type"] == "image/jpeg"
+    assert text["text"].startswith("describe el cuarto")
+
+
+@pytest.mark.parametrize(("status", "retryable"), [(429, False), (401, False), (529, True)])
+def test_claude_maps_errors_without_retrying_or_leaking_body(status, retryable):
+    calls = []
+
+    def handler(request):
+        import httpx2
+
+        calls.append(1)
+        return httpx2.Response(status, json={"type": "error", "error": {"type": "x", "message": "detalle sk-ant-secreto"}})
+
+    with pytest.raises(ProviderError) as err:
+        claude(handler).describe(b"\xff\xd8", "x")
+    assert err.value.retryable is retryable
+    assert "sk-ant-secreto" not in str(err.value)
+    assert len(calls) == 1
 
 
 # ---------------------------------------------------------------- inventario → distribución

@@ -64,11 +64,14 @@ export const EnvSchema = z
     CLAUDE_BUDGET_USD: z.coerce.number().min(0).default(1),
     CHAT_PER_DAY: z.coerce.number().int().min(1).default(60),
     CHAT_MAX_TOOL_TURNS: z.coerce.number().int().min(1).max(20).default(8),
-    /** Groq: segundo paso del chat (si el modelo local no está seguro). Sin clave, se salta. */
+    /** Groq ya no se usa en el chat (cuota gratuita que se agota); se acepta para no romper `.env` viejos. */
     GROQ_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
     GROQ_CHAT_MODEL: z.string().min(1).default('llama-3.3-70b-versatile'),
-    /** off = el chat solo usa el modelo propio y las reglas (deterministas: pruebas E2E). */
-    CHAT_LLM: z.enum(['groq', 'off']).default('groq'),
+    /**
+     * claude = el chat usa Claude cuando el modelo propio no basta; off = solo el modelo propio y las
+     * reglas (deterministas: pruebas E2E). `groq` es el valor antiguo y equivale a `claude`.
+     */
+    CHAT_LLM: z.enum(['claude', 'groq', 'off']).default('claude'),
     /** Confianza mínima del modelo local para actuar sin LLM. */
     NLU_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.75),
     THROTTLE_LIMIT_PER_MIN: z.coerce.number().int().min(10).default(240),
