@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import type { PlanPoint, ProjectListItem } from '@interiores/shared-types';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { HomePlanPage, planRooms } from './home-plan.page';
@@ -120,6 +120,26 @@ describe('HomePlanPage', () => {
     alcoba.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
     await fixture.whenStable();
     expect(moved).toEqual([]);
+  });
+
+  it('en una casa de Plano 3D tocar un cuarto lo abre en el editor 3D para amueblarlo', async () => {
+    const { el } = await setup([
+      room('sala', 'Sala', 5, 4, { homeLevel: { index: 0, name: 'Piso 1' }, homePosition: { x: 0, z: 0 } }),
+      room('cocina', 'Cocina', 3, 3, { homeLevel: { index: 0, name: 'Piso 1' }, homePosition: { x: 5, z: 0 } }),
+    ]);
+    const router = TestBed.inject(Router);
+    const go = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    expect(el.textContent).toContain('Toca un cuarto para abrirlo en el editor 3D');
+    // los cuartos los manda Plano 3D: aquí no se añaden
+    expect(el.textContent).not.toContain('Añadir cuarto');
+    const links = [...el.querySelectorAll<HTMLAnchorElement>('.rooms a.btn')];
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/proyectos/sala?vista=3d', '/proyectos/cocina?vista=3d']);
+
+    const sala = el.querySelector<SVGGElement>('svg .room')!;
+    sala.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1 }));
+    expect(go).toHaveBeenLastCalledWith(['/proyectos', 'sala'], { queryParams: { vista: '3d' } });
+    el.querySelectorAll<SVGGElement>('svg .room')[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(go).toHaveBeenLastCalledWith(['/proyectos', 'cocina'], { queryParams: { vista: '3d' } });
   });
 
   it('una vivienda sin cuartos se explica en vez de quedar en blanco', async () => {

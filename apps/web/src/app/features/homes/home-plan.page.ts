@@ -1,6 +1,6 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   arrangeHome,
   boxesOverlap,
@@ -161,11 +161,12 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
             @for (r of plan(); track r.id) {
               <g
                 class="room"
+                [class.opens]="linked()"
                 [class.dragging]="dragging() === r.id"
                 [class.overlaps]="r.overlaps"
                 tabindex="0"
                 role="button"
-                [attr.aria-label]="r.name + (r.areaM2 ? ', ' + oneDecimal(r.areaM2) + ' metros cuadrados' : '') + '. Arrástralo o muévelo con las flechas.'"
+                [attr.aria-label]="r.name + (r.areaM2 ? ', ' + oneDecimal(r.areaM2) + ' metros cuadrados' : '') + (linked() ? '. Ábrelo para amueblarlo en 3D.' : '. Arrástralo o muévelo con las flechas.')"
                 (pointerdown)="grab($event, r.id)"
                 (keydown)="onKey($event, r.id)"
                 (keyup)="settle(r.id)"
@@ -180,6 +181,9 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
           </svg>
         </div>
         <div class="row under">
+          @if (linked()) {
+            <p class="muted hint">Toca un cuarto para abrirlo en el editor 3D y amueblarlo.</p>
+          }
           <p class="muted hint" [hidden]="linked()">
             Arrastra cada cuarto a su sitio: al acercarlo a otro, sus paredes se pegan. Con el teclado, las flechas lo mueven 10 cm (con Mayús, 1 m). La
             cuadrícula es de un metro.
@@ -207,6 +211,9 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
                   @if (neighboursOf(r.id); as near) { · junto a {{ near }} }
                 </span>
               </div>
+              @if (linked()) {
+                <a class="btn btn-sm btn-primary" [routerLink]="['/proyectos', r.id]" [queryParams]="{ vista: '3d' }" [attr.aria-label]="'Amueblar ' + r.name + ' en 3D'"><app-icon name="cube" /> Amueblar en 3D</a>
+              }
               <div class="money">
                 @if (r.estimatedTotal) {
                   <strong>{{ r.estimatedTotal | currency: 'USD' : 'symbol-narrow' : '1.0-0' }}</strong>
@@ -218,7 +225,9 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
             </li>
           }
         </ul>
-        <a class="btn" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: id() }"><app-icon name="plus" /> Añadir cuarto</a>
+        @if (!linked()) {
+          <a class="btn" routerLink="/proyectos/nuevo" [queryParams]="{ vivienda: id() }"><app-icon name="plus" /> Añadir cuarto</a>
+        }
       }
     </section>
   `,
@@ -288,6 +297,9 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
       stroke: var(--rule);
       stroke-width: 1px;
       vector-effect: non-scaling-stroke;
+    }
+    .room.opens {
+      cursor: pointer;
     }
     .room {
       cursor: grab;
@@ -403,6 +415,7 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
 export class HomePlanPage {
   private readonly api = inject(ProjectsApi);
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
 
   /** Id de la vivienda (parámetro de la ruta). */
   readonly id = input.required<string>();
@@ -513,7 +526,8 @@ export class HomePlanPage {
 
   // ------------------------------------------------------------------ arrastrar
   protected grab(event: PointerEvent, id: string): void {
-    if (this.linked()) return;
+    // En una casa de Plano 3D los cuartos no se mueven: tocarlo lo abre para amueblarlo.
+    if (this.linked()) return this.open(id);
     const start = this.positions().get(id);
     const pointer = this.toPlan(event);
     if (!start || !pointer) return;
@@ -548,11 +562,20 @@ export class HomePlanPage {
       ArrowUp: { x: 0, z: -step },
       ArrowDown: { x: 0, z: step },
     };
+    if (this.linked() && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      return this.open(id);
+    }
     const by = delta[event.key];
     const at = this.positions().get(id);
     if (!by || !at || this.linked()) return;
     event.preventDefault();
     this.moveTo(id, { x: at.x + by.x, z: at.z + by.z }, false);
+  }
+
+  /** Abre el cuarto en el editor 3D. */
+  private open(id: string): void {
+    void this.router.navigate(['/proyectos', id], { queryParams: { vista: '3d' } });
   }
 
   /** Al soltar la tecla se guarda (no en cada pulsación). */
