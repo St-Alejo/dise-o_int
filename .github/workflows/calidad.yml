@@ -23,7 +23,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Revisa cada archivo de dependencias (package-lock.json de la raíz y de e2e) contra osv.dev.
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      # OSV necesita versiones exactas y los servicios Python solo declaran rangos en pyproject.toml:
+      # pip resuelve sus dependencias (sin instalarlas) y quedan en requirements.txt temporales.
+      - name: Versiones exactas de Python
+        run: |
+          for svc in ai blender; do
+            mkdir -p ".osv-python/$svc"
+            pip install --quiet --dry-run --ignore-installed --report ".osv-python/$svc/report.json" "./services/$svc"
+            python -c "import json,sys; r=json.load(open(sys.argv[1],encoding='utf-8')); open(sys.argv[2],'w').write(''.join(i['metadata']['name']+'=='+i['metadata']['version']+'\n' for i in r['install'] if 'dir_info' not in i.get('download_info',{})))" ".osv-python/$svc/report.json" ".osv-python/$svc/requirements.txt"
+          done
+      # Revisa cada archivo de dependencias (package-lock.json y los de Python) contra osv.dev.
       # Falla si encuentra una vulnerabilidad que no esté justificada en osv-scanner.toml.
       - uses: google/osv-scanner-action/osv-scanner-action@v2.7.0
         with:
