@@ -14,7 +14,7 @@ import type { CatalogService } from '../src/modules/catalog/catalog.service.js';
 import type { ProjectsService } from '../src/modules/projects/projects.service.js';
 import { BASIC_HELP, ChatService } from '../src/modules/chat/chat.service.js';
 import { ClaudeBudget, InMemorySpendLedger, costOf } from '../src/modules/chat/claude-budget.js';
-import { ClaudeDesignAgent, buildTools, historyToMessages, type MessagesApi } from '../src/modules/chat/claude.agent.js';
+import { ClaudeDesignAgent, MAX_STRICT_OPTIONAL, MAX_STRICT_TOOLS, buildTools, countOptional, historyToMessages, type MessagesApi } from '../src/modules/chat/claude.agent.js';
 import { AgentDeclinedError, AgentUnavailableError, type DesignAgent } from '../src/modules/chat/design-agent.js';
 import { RuleBasedDesignAgent, parsePlacement, splitClauses } from '../src/modules/chat/rule-based.agent.js';
 import sharp from 'sharp';
@@ -207,10 +207,13 @@ describe('ClaudeDesignAgent', () => {
       expect(o).not.toHaveProperty('maxLength');
       Object.values(o).forEach(walk);
     };
-    for (const t of tools) {
-      expect(t.strict).toBe(true);
-      walk(t.input_schema);
-    }
+    // la API admite como máximo 20 herramientas strict por petición
+    const strict = tools.filter((t) => t.strict);
+    expect(strict.length).toBeGreaterThan(0);
+    expect(strict.length).toBeLessThanOrEqual(MAX_STRICT_TOOLS);
+    expect(strict.reduce((n, t) => n + countOptional(t.input_schema), 0)).toBeLessThanOrEqual(MAX_STRICT_OPTIONAL);
+    expect(tools[0]?.strict).toBe(true);
+    for (const t of tools) walk(t.input_schema);
   });
 
   it('el historial empieza en el usuario, alterna y termina en el asistente', () => {

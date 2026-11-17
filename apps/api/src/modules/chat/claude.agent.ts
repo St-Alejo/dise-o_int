@@ -50,13 +50,43 @@ function sanitize(schema: unknown): unknown {
   return out;
 }
 
+/**
+ * Límites de la API para herramientas `strict` en una petición (si se pasan, responde 400 y el
+ * chat cae a reglas): como máximo 20 herramientas y 24 parámetros opcionales entre todas.
+ * Van strict las primeras que quepan (las de uso diario: catálogo, escena, agregar, mover...);
+ * el resto igual se valida con zod antes de ejecutarse.
+ */
+export const MAX_STRICT_TOOLS = 20;
+export const MAX_STRICT_OPTIONAL = 24;
+
+/** Parámetros opcionales de un schema (propiedades fuera de `required`, a cualquier nivel). */
+export function countOptional(schema: unknown): number {
+  if (Array.isArray(schema)) return schema.reduce((n: number, s) => n + countOptional(s), 0);
+  if (!schema || typeof schema !== 'object') return 0;
+  const o = schema as Record<string, unknown>;
+  let n = 0;
+  const props = o['properties'];
+  if (props && typeof props === 'object') {
+    const required = new Set(Array.isArray(o['required']) ? (o['required'] as string[]) : []);
+    n += Object.keys(props).filter((k) => !required.has(k)).length;
+  }
+  for (const v of Object.values(o)) n += countOptional(v);
+  return n;
+}
+
 export function buildTools(): BetaTool[] {
-  return TOOL_NAMES.map((name) => ({
-    name,
-    description: TOOL_DESCRIPTIONS[name],
-    input_schema: sanitize(z.toJSONSchema(TOOL_INPUTS[name])) as BetaTool['input_schema'],
-    strict: true,
-  }));
+  let strictTools = 0;
+  let optional = 0;
+  return TOOL_NAMES.map((name) => {
+    const input_schema = sanitize(z.toJSONSchema(TOOL_INPUTS[name])) as BetaTool['input_schema'];
+    const extra = countOptional(input_schema);
+    const strict = strictTools < MAX_STRICT_TOOLS && optional + extra <= MAX_STRICT_OPTIONAL;
+    if (strict) {
+      strictTools += 1;
+      optional += extra;
+    }
+    return { name, description: TOOL_DESCRIPTIONS[name], input_schema, ...(strict ? { strict: true } : {}) };
+  });
 }
 
 /** Instrucciones del asistente; las comparten Claude y Groq (mismas herramientas). */
