@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "photo": "cocina.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 2.12,
+    "usage": {
+      "queue_time": 0.18325496,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.198409311,
+      "completion_tokens": 481,
+      "completion_time": 1.081823917,
+      "total_tokens": 2860,
+      "total_time": 1.280233228
+    },
+    "remainingRequests": "999",
+    "remainingTokens": "4848"
+  },
+  "room": {
+    "roomType": "kitchen",
+    "shape": "rect",
+    "widthM": 4.5,
+    "depthM": 5.5,
+    "heightM": 2.7,
+    "openings": [
+      {
+        "wall": "right",
+        "type": "window",
+        "positionFraction": 0.3,
+        "widthFraction": 0.2
+      },
+      {
+        "wall": "right",
+        "type": "door",
+        "positionFraction": 0.85,
+        "widthFraction": 0.15
+      }
+    ],
+    "objects": [
+      {
+        "category": "island",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "stool",
+        "count": 2,
+        "nearWall": "center"
+      },
+      {
+        "category": "refrigerator",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "cabinet",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "cabinet",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "cabinet",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "plant",
+        "count": 1,
+        "nearWall": "center"
+      }
+    ],
+    "palette": {
+      "walls": "#f0f0f0",
+      "floor": "#8b5a2b",
+      "accent": "#ffffff"
+    },
+    "floorMaterial": "wood",
+    "style": "clasico",
+    "confidence": 0.85,
+    "notes": "Exact depth is estimated based on the length of the island and standard kitchen aisle widths."
+  }
+}

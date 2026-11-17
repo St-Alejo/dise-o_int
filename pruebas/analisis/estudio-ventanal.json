@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "photo": "estudio-ventanal.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 2.44,
+    "usage": {
+      "queue_time": 0.809419105,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.169786249,
+      "completion_tokens": 352,
+      "completion_time": 0.754406599,
+      "total_tokens": 2731,
+      "total_time": 0.924192848
+    },
+    "remainingRequests": "995",
+    "remainingTokens": "2369"
+  },
+  "room": {
+    "roomType": "office",
+    "shape": "rect",
+    "widthM": 3.5,
+    "depthM": 4.0,
+    "heightM": 2.8,
+    "openings": [
+      {
+        "wall": "back",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.9
+      },
+      {
+        "wall": "right",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.8
+      }
+    ],
+    "objects": [
+      {
+        "category": "desk",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "chair",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "computer",
+        "count": 1,
+        "nearWall": "right"
+      }
+    ],
+    "palette": {
+      "walls": "#d3d3d3",
+      "floor": "#8b7355",
+      "accent": "#f5f5f5"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.6,
+    "notes": "Room dimensions are estimated based on standard office furniture sizes and the scale of the window view."
+  }
+}

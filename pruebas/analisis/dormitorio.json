@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "photo": "dormitorio.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 1.78,
+    "usage": {
+      "queue_time": 0.229723274,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.164610127,
+      "completion_tokens": 349,
+      "completion_time": 0.686424567,
+      "total_tokens": 2728,
+      "total_time": 0.851034694
+    },
+    "remainingRequests": "997",
+    "remainingTokens": "1291"
+  },
+  "room": {
+    "roomType": "bedroom",
+    "shape": "rect",
+    "widthM": 3.5,
+    "depthM": 4.5,
+    "heightM": 2.5,
+    "openings": [
+      {
+        "wall": "right",
+        "type": "door",
+        "positionFraction": 0.5,
+        "widthFraction": 0.2
+      }
+    ],
+    "objects": [
+      {
+        "category": "bed",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "nightstand",
+        "count": 2,
+        "nearWall": "back"
+      },
+      {
+        "category": "picture",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "lamp",
+        "count": 1,
+        "nearWall": "back"
+      }
+    ],
+    "palette": {
+      "walls": "#3d1c1c",
+      "floor": "#8d6e63",
+      "accent": "#a0522d"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.75,
+    "notes": "Room depth is estimated based on the visible portion of the floor and the scale of the bed relative to the door frame."
+  }
+}

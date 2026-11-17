@@ -1,0 +1,69 @@
+{
+  "meta": {
+    "photo": "dormitorio-ventanal.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 1.89,
+    "usage": {
+      "queue_time": 0.258633935,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.184993167,
+      "completion_tokens": 379,
+      "completion_time": 0.81835424,
+      "total_tokens": 2758,
+      "total_time": 1.003347407
+    },
+    "remainingRequests": "996",
+    "remainingTokens": "2856"
+  },
+  "room": {
+    "roomType": "bedroom",
+    "shape": "rect",
+    "widthM": 3.6,
+    "depthM": 4.2,
+    "heightM": 2.8,
+    "openings": [
+      {
+        "wall": "left",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.7
+      }
+    ],
+    "objects": [
+      {
+        "category": "bed",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "rug",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "lamp",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "picture",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "plant",
+        "count": 1,
+        "nearWall": "left"
+      }
+    ],
+    "palette": {
+      "walls": "#8d7b6c",
+      "floor": "#c4a484",
+      "accent": "#2c3e50"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.75,
+    "notes": "The glass partition on the right obscures the full extent of the room, making the exact width and depth estimates approximate."
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "photo": "sala.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 2.63,
+    "usage": {
+      "queue_time": 0.953091396,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.198974443,
+      "completion_tokens": 437,
+      "completion_time": 0.9755584,
+      "total_tokens": 2816,
+      "total_time": 1.174532843
+    },
+    "remainingRequests": "994",
+    "remainingTokens": "963"
+  },
+  "room": {
+    "roomType": "living",
+    "shape": "rect",
+    "widthM": 5.5,
+    "depthM": 4.5,
+    "heightM": 2.7,
+    "openings": [
+      {
+        "wall": "right",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.8
+      }
+    ],
+    "objects": [
+      {
+        "category": "sofa",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "tv stand",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "tv",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "coffee table",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "rug",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "lamp",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "picture",
+        "count": 1,
+        "nearWall": "back"
+      }
+    ],
+    "palette": {
+      "walls": "#d3d3d3",
+      "floor": "#a89f91",
+      "accent": "#2f4f4f"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.85,
+    "notes": "Exact room dimensions are estimated based on the scale of the furniture and the large window wall."
+  }
+}

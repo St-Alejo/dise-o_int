@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "photo": "sala-abierta.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 2.11,
+    "usage": {
+      "queue_time": 0.393081951,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.213419658,
+      "completion_tokens": 468,
+      "completion_time": 0.984800072,
+      "total_tokens": 2847,
+      "total_time": 1.19821973
+    },
+    "remainingRequests": "995",
+    "remainingTokens": "794"
+  },
+  "room": {
+    "roomType": "living",
+    "shape": "rect",
+    "widthM": 5.5,
+    "depthM": 7.5,
+    "heightM": 2.7,
+    "openings": [
+      {
+        "wall": "back",
+        "type": "door",
+        "positionFraction": 0.8,
+        "widthFraction": 0.15
+      }
+    ],
+    "objects": [
+      {
+        "category": "sofa",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "coffee table",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "rug",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "dining table",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "chair",
+        "count": 4,
+        "nearWall": "back"
+      },
+      {
+        "category": "picture",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "lamp",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "plant",
+        "count": 1,
+        "nearWall": "right"
+      }
+    ],
+    "palette": {
+      "walls": "#f0f0f0",
+      "floor": "#8b5a2b",
+      "accent": "#5f9ea0"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.75,
+    "notes": "Depth is estimated based on the open-plan layout extending to the kitchen and entryway."
+  }
+}

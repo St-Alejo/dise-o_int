@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "photo": "bano-blanco.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 1.77,
+    "usage": {
+      "queue_time": 0.153132525,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.169238626,
+      "completion_tokens": 276,
+      "completion_time": 0.563217675,
+      "total_tokens": 2655,
+      "total_time": 0.732456301
+    },
+    "remainingRequests": "999",
+    "remainingTokens": "4629"
+  },
+  "room": {
+    "roomType": "bathroom",
+    "shape": "rect",
+    "widthM": 2.0,
+    "depthM": 3.0,
+    "heightM": 2.4,
+    "openings": [],
+    "objects": [
+      {
+        "category": "toilet",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "sink",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "bathtub",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "towel rack",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "plant",
+        "count": 1,
+        "nearWall": "right"
+      }
+    ],
+    "palette": {
+      "walls": "#f0f0f0",
+      "floor": "#ffffff",
+      "accent": "#d2b48c"
+    },
+    "floorMaterial": "tile",
+    "style": "minimalista",
+    "confidence": 0.8,
+    "notes": "Exact room dimensions are estimated based on standard fixture sizes as no scale reference is visible."
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "photo": "habitacion-vacia.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 1.93,
+    "usage": {
+      "queue_time": 0.230667522,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.177408278,
+      "completion_tokens": 335,
+      "completion_time": 0.7350003,
+      "total_tokens": 2714,
+      "total_time": 0.912408578
+    },
+    "remainingRequests": "994",
+    "remainingTokens": "1603"
+  },
+  "room": {
+    "roomType": "bedroom",
+    "shape": "rect",
+    "widthM": 4.2,
+    "depthM": 5.5,
+    "heightM": 2.6,
+    "openings": [
+      {
+        "wall": "left",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.4
+      },
+      {
+        "wall": "back",
+        "type": "window",
+        "positionFraction": 0.35,
+        "widthFraction": 0.35
+      },
+      {
+        "wall": "right",
+        "type": "door",
+        "positionFraction": 0.3,
+        "widthFraction": 0.2
+      }
+    ],
+    "objects": [
+      {
+        "category": "ceiling fan",
+        "count": 1,
+        "nearWall": "center"
+      }
+    ],
+    "palette": {
+      "walls": "#9aa096",
+      "floor": "#5c3a21",
+      "accent": "#ffffff"
+    },
+    "floorMaterial": "wood",
+    "style": "clasico",
+    "confidence": 0.75,
+    "notes": "Room is empty, dimensions estimated based on standard door and window sizes relative to the visible floor area."
+  }
+}

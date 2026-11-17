@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "photo": "sala-vacia-cocina-abierta.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 2.52,
+    "usage": {
+      "queue_time": 0.213292224,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.180546558,
+      "completion_tokens": 478,
+      "completion_time": 0.942154532,
+      "total_tokens": 2857,
+      "total_time": 1.12270109
+    },
+    "remainingRequests": "993",
+    "remainingTokens": "1274"
+  },
+  "room": {
+    "roomType": "kitchen",
+    "shape": "rect",
+    "widthM": 5.5,
+    "depthM": 4.5,
+    "heightM": 2.7,
+    "openings": [
+      {
+        "wall": "left",
+        "type": "window",
+        "positionFraction": 0.25,
+        "widthFraction": 0.2
+      },
+      {
+        "wall": "left",
+        "type": "window",
+        "positionFraction": 0.5,
+        "widthFraction": 0.2
+      },
+      {
+        "wall": "left",
+        "type": "door",
+        "positionFraction": 0.75,
+        "widthFraction": 0.15
+      },
+      {
+        "wall": "left",
+        "type": "window",
+        "positionFraction": 0.9,
+        "widthFraction": 0.1
+      }
+    ],
+    "objects": [
+      {
+        "category": "refrigerator",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "dishwasher",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "oven",
+        "count": 1,
+        "nearWall": "right"
+      },
+      {
+        "category": "cabinet",
+        "count": 1,
+        "nearWall": "right"
+      }
+    ],
+    "palette": {
+      "walls": "#f5f5f5",
+      "floor": "#d4a373",
+      "accent": "#8b5a2b"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.85,
+    "notes": "Exact room dimensions are estimated based on standard appliance sizes and the scale of the window wall."
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "photo": "dormitorio-moderno.jpg",
+    "model": "qwen/qwen3.8-27b",
+    "elapsedS": 2.26,
+    "usage": {
+      "queue_time": 0.242349512,
+      "prompt_tokens": 2379,
+      "prompt_time": 0.172092369,
+      "completion_tokens": 415,
+      "completion_time": 0.834210156,
+      "total_tokens": 2794,
+      "total_time": 1.006302525
+    },
+    "remainingRequests": "997",
+    "remainingTokens": "3704"
+  },
+  "room": {
+    "roomType": "bedroom",
+    "shape": "rect",
+    "widthM": 4.2,
+    "depthM": 5.5,
+    "heightM": 2.8,
+    "openings": [
+      {
+        "wall": "right",
+        "type": "door",
+        "positionFraction": 0.5,
+        "widthFraction": 0.25
+      }
+    ],
+    "objects": [
+      {
+        "category": "bed",
+        "count": 1,
+        "nearWall": "left"
+      },
+      {
+        "category": "nightstand",
+        "count": 2,
+        "nearWall": "left"
+      },
+      {
+        "category": "rug",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "picture",
+        "count": 1,
+        "nearWall": "back"
+      },
+      {
+        "category": "lamp",
+        "count": 1,
+        "nearWall": "center"
+      },
+      {
+        "category": "shelf",
+        "count": 1,
+        "nearWall": "right"
+      }
+    ],
+    "palette": {
+      "walls": "#8d8c8a",
+      "floor": "#4a3b32",
+      "accent": "#c4a484"
+    },
+    "floorMaterial": "wood",
+    "style": "moderno",
+    "confidence": 0.75,
+    "notes": "Exact room dimensions are estimated based on the scale of the bed and door frame; the depth is inferred from the perspective of the hallway."
+  }
+}

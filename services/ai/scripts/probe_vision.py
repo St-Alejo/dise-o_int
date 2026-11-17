@@ -11,6 +11,7 @@ Uso (desde la raíz del repo, con GROQ_API_KEY en el entorno o en `.env`):
 
     python services/ai/scripts/probe_vision.py --list-models
     python services/ai/scripts/probe_vision.py
+    python services/ai/scripts/probe_vision.py --fotos pruebas/fotos --salida pruebas/analisis
 """
 
 from __future__ import annotations
@@ -197,17 +198,21 @@ def probe(client: httpx.Client, photo: Path, model: str) -> bool:
 
 
 def main() -> None:
+    global OUT_DIR
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--list-models", action="store_true", help="solo lista los modelos disponibles")
     parser.add_argument("--model", default=os.environ.get("VISION_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--fotos", type=Path, default=PHOTOS_DIR, help="carpeta con las fotos (.jpg)")
+    parser.add_argument("--salida", type=Path, default=OUT_DIR, help="carpeta donde guardar los .json")
     args = parser.parse_args()
+    OUT_DIR = args.salida
 
     with httpx.Client(base_url=API_URL, headers={"Authorization": f"Bearer {api_key()}"}, timeout=60) as client:
         if args.list_models:
             list_models(client)
             return
         OUT_DIR.mkdir(parents=True, exist_ok=True)
-        photos = sorted(PHOTOS_DIR.glob("*.jpg"))
+        photos = sorted(args.fotos.glob("*.jpg"))
         for index, photo in enumerate(photos):
             if (OUT_DIR / f"{photo.stem}.json").exists():
                 print(f"{photo.name}: en caché, no se llama.")
