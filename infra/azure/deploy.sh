@@ -5,11 +5,13 @@
 #                      ingress interno; los datos vienen sembrados en las imágenes y se reinician
 #                      cada vez que la app se apaga por inactividad.
 # Requisitos: az login, el entorno $ENV_NAME y el registro $ACR creados, imágenes subidas con $TAG.
+# PLANO3D_API_URL: API de Plano 3D para enlazar casas por código (por defecto, su demo en Azure).
 # Uso: ACR=acrinteriores1256 TAG=<sha> bash infra/azure/deploy.sh
 set -euo pipefail
 RG=${RG:-rg-interiores-demo}
 ENV_NAME=${ENV_NAME:-cae-interiores}
 ACR=${ACR:?define ACR}
+PLANO3D_API_URL=${PLANO3D_API_URL:-https://ca-plano3d-api.bravefield-201b313a.brazilsouth.azurecontainerapps.io}
 TAG=${TAG:?define TAG}
 R=$ACR.azurecr.io
 
@@ -77,6 +79,7 @@ properties:
           - { name: AI_INTERNAL_TOKEN, secretRef: ai-token }
           - { name: COOKIE_SECURE, value: "true" }
           - { name: PUBLIC_WEB_URL, value: "$WEB_URL" }
+          - { name: PLANO3D_API_URL, value: "$PLANO3D_API_URL" }
           - { name: CHAT_LLM, value: "off" }
           - { name: WORKER_CONCURRENCY, value: "2" }
       - name: worker
@@ -97,6 +100,7 @@ properties:
           - { name: AI_SERVICE_URL, value: "http://localhost:8000" }
           - { name: AI_INTERNAL_TOKEN, secretRef: ai-token }
           - { name: PUBLIC_WEB_URL, value: "$WEB_URL" }
+          - { name: PLANO3D_API_URL, value: "$PLANO3D_API_URL" }
           - { name: CHAT_LLM, value: "off" }
           - { name: WORKER_CONCURRENCY, value: "2" }
       - name: ai
