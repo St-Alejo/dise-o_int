@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import type { HouseLevel, HouseRoom } from '@interiores/shared-types';
 import { firstValueFrom } from 'rxjs';
 
 /** Una casa de Plano 3D enlazada por código (ADR-0039). */
@@ -13,6 +14,19 @@ export interface Plano3dLink {
   /** Quiénes están ahora en la casa desde Plano 3D. */
   peers: Plano3dPeer[];
   createdAt: string;
+}
+
+/** Un ambiente de la casa; `projectId` es su cuarto de Interiores (null: no se amuebla). */
+export interface Plano3dHouseRoom extends HouseRoom {
+  projectId: string | null;
+}
+
+/** La casa entera por pisos (todos los ambientes, amueblables o no). */
+export interface Plano3dHouse {
+  linkId: string;
+  homeId: string;
+  projectName: string;
+  levels: (Omit<HouseLevel, 'rooms'> & { rooms: Plano3dHouseRoom[] })[];
 }
 
 /** Una persona en Plano 3D: `client` es web o desktop. */
@@ -41,6 +55,9 @@ export class Plano3dApi {
   }
   sync(id: string): Promise<Plano3dLink> {
     return firstValueFrom(this.http.post<Plano3dLink>(`${this.base}/${id}/sync`, {}));
+  }
+  house(id: string): Promise<Plano3dHouse> {
+    return firstValueFrom(this.http.get<Plano3dHouse>(`${this.base}/${id}/house`));
   }
   unlink(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`${this.base}/${id}`));

@@ -20,6 +20,7 @@ import { downloadBlob, fileSlug } from '../../core/ui/download';
 import { ToastService } from '../../core/ui/toast.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { oneDecimal } from '../projects/projects-filter';
+import { House3dComponent } from './house-3d.component';
 
 /** Un cuarto tal como se dibuja en la planta conjunta. */
 interface PlanRoom {
@@ -74,7 +75,7 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
 @Component({
   selector: 'app-home-plan-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CurrencyPipe, IconComponent],
+  imports: [RouterLink, CurrencyPipe, IconComponent, House3dComponent],
   template: `
     <section class="container page">
       <a class="back" routerLink="/proyectos"><app-icon name="back" /> Mis proyectos</a>
@@ -132,16 +133,28 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
           }
         </dl>
 
-        @if (levels().length > 1) {
-          <div class="levels" role="tablist" aria-label="Pisos de la casa">
-            @for (l of levels(); track l.index) {
-              <button type="button" role="tab" class="btn btn-sm" [class.btn-primary]="l.index === level()" [attr.aria-selected]="l.index === level()" (click)="level.set(l.index)">
-                {{ l.name }} <span class="count">{{ l.rooms }}</span>
-              </button>
-            }
-          </div>
+        <div class="row bar">
+          @if (levels().length > 1) {
+            <div class="levels" role="tablist" aria-label="Pisos de la casa">
+              @for (l of levels(); track l.index) {
+                <button type="button" role="tab" class="btn btn-sm" [class.btn-primary]="l.index === currentLevel()" [attr.aria-selected]="l.index === currentLevel()" (click)="level.set(l.index)">
+                  {{ l.name }} <span class="count">{{ l.rooms }}</span>
+                </button>
+              }
+            </div>
+          }
+          @if (linked()) {
+            <span class="spacer"></span>
+            <div class="views" role="group" aria-label="Cómo ver la casa">
+              <button type="button" class="btn btn-sm" [class.btn-primary]="view() === '3d'" [attr.aria-pressed]="view() === '3d'" (click)="view.set('3d')"><app-icon name="cube" /> Casa 3D</button>
+              <button type="button" class="btn btn-sm" [class.btn-primary]="view() === '2d'" [attr.aria-pressed]="view() === '2d'" (click)="view.set('2d')">Planta 2D</button>
+            </div>
+          }
+        </div>
+        @if (linked() && view() === '3d') {
+          <app-house-3d class="plan" [homeId]="id()" [level]="currentLevel()" (openRoom)="openRoom($event)" />
         }
-        <div class="plan">
+        <div class="plan" [hidden]="linked() && view() === '3d'">
           <svg
             #svg
             [attr.viewBox]="viewBox()"
@@ -182,7 +195,9 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
         </div>
         <div class="row under">
           @if (linked()) {
-            <p class="muted hint">Toca un cuarto para abrirlo en el editor 3D y amueblarlo.</p>
+            <p class="muted hint">
+              {{ view() === '3d' ? 'Gira la casa arrastrando. Toca un cuarto con nombre destacado para entrar a amueblarlo; los vecinos se ven alrededor.' : 'Toca un cuarto para abrirlo en el editor 3D y amueblarlo.' }}
+            </p>
           }
           <p class="muted hint" [hidden]="linked()">
             Arrastra cada cuarto a su sitio: al acercarlo a otro, sus paredes se pegan. Con el teclado, las flechas lo mueven 10 cm (con Mayús, 1 m). La
@@ -395,11 +410,17 @@ export function planRooms(rooms: readonly ProjectListItem[], positions: Readonly
       align-items: start;
       margin-top: var(--space-3);
     }
-    .levels {
+    .bar {
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin: var(--space-4) 0 var(--space-2);
+    }
+    .levels,
+    .views {
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin: var(--space-4) 0 var(--space-2);
     }
     .levels .count {
       margin-left: var(--space-1);
@@ -448,11 +469,15 @@ export class HomePlanPage {
     return [...byIndex.values()].sort((a, b) => a.index - b.index);
   });
   protected readonly level = signal(0);
-  protected readonly visibleRooms = computed(() => {
+  /** Casa enlazada: en 3D (por defecto) o la planta 2D. */
+  protected readonly view = signal<'3d' | '2d'>('3d');
+  protected readonly currentLevel = computed(() => {
     const levels = this.levels();
-    if (levels.length < 2) return this.rooms();
-    const current = levels.some((l) => l.index === this.level()) ? this.level() : levels[0]!.index;
-    return this.rooms().filter((r) => r.homeLevel?.index === current);
+    return levels.some((l) => l.index === this.level()) ? this.level() : (levels[0]?.index ?? 0);
+  });
+  protected readonly visibleRooms = computed(() => {
+    if (this.levels().length < 2) return this.rooms();
+    return this.rooms().filter((r) => r.homeLevel?.index === this.currentLevel());
   });
   protected readonly plan = computed(() => planRooms(this.visibleRooms(), this.positions()));
   protected readonly anyOverlap = computed(() => this.plan().some((r) => r.overlaps));
@@ -571,6 +596,11 @@ export class HomePlanPage {
     if (!by || !at || this.linked()) return;
     event.preventDefault();
     this.moveTo(id, { x: at.x + by.x, z: at.z + by.z }, false);
+  }
+
+  /** Desde la casa en 3D. */
+  protected openRoom(id: string): void {
+    this.open(id);
   }
 
   /** Abre el cuarto en el editor 3D. */

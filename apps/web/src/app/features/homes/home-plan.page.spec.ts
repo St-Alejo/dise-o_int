@@ -3,6 +3,7 @@ import { Router, provideRouter } from '@angular/router';
 import type { PlanPoint, ProjectListItem } from '@interiores/shared-types';
 import { ProjectsApi } from '../../core/api/projects.api';
 import { HomePlanPage, planRooms } from './home-plan.page';
+import { HouseData } from './house-data';
 
 const HOME = '11111111-1111-4111-8111-111111111111';
 const rect = (w: number, d: number) => [
@@ -60,7 +61,9 @@ describe('HomePlanPage', () => {
         return {};
       },
     };
-    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ProjectsApi, useValue: api }] });
+    // la casa en 3D no carga nada aquí (sin WebGL en las pruebas)
+    const house = { byHome: async () => null, rooms: async () => [], forget: () => undefined };
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ProjectsApi, useValue: api }, { provide: HouseData, useValue: house }] });
     const fixture = TestBed.createComponent(HomePlanPage);
     fixture.componentRef.setInput('id', HOME);
     await fixture.whenStable();
@@ -123,12 +126,18 @@ describe('HomePlanPage', () => {
   });
 
   it('en una casa de Plano 3D tocar un cuarto lo abre en el editor 3D para amueblarlo', async () => {
-    const { el } = await setup([
+    const { el, fixture } = await setup([
       room('sala', 'Sala', 5, 4, { homeLevel: { index: 0, name: 'Piso 1' }, homePosition: { x: 0, z: 0 } }),
       room('cocina', 'Cocina', 3, 3, { homeLevel: { index: 0, name: 'Piso 1' }, homePosition: { x: 5, z: 0 } }),
     ]);
     const router = TestBed.inject(Router);
     const go = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    // una casa enlazada se abre en 3D; la planta 2D sigue a un clic
+    expect(el.querySelector('app-house-3d')).not.toBeNull();
+    expect(el.textContent).toContain('Gira la casa arrastrando');
+    [...el.querySelectorAll<HTMLButtonElement>('.views button')].find((b) => b.textContent?.includes('Planta 2D'))!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('app-house-3d')).toBeNull();
     expect(el.textContent).toContain('Toca un cuarto para abrirlo en el editor 3D');
     // los cuartos los manda Plano 3D: aquí no se añaden
     expect(el.textContent).not.toContain('Añadir cuarto');

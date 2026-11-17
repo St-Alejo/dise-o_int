@@ -1,4 +1,4 @@
-import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import {
   buildWalkWorld,
   effectiveDimensions,
@@ -19,6 +19,7 @@ import {
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clearancesOf, metres } from '../floor-plan/floor-plan-model';
+import { HouseData } from '../homes/house-data';
 import { DesignProjectStore } from '../project/design-project.store';
 import type { StudioView } from '../render-studio/studio-camera';
 import { CameraDirector } from './camera/camera-director';
@@ -27,6 +28,7 @@ import type { CameraModeId } from './camera/camera-mode';
 import { ORBIT_FOV, OrbitMode } from './camera/orbit-mode';
 import { RoomCamera } from './camera/room-camera';
 import { WalkMode } from './camera/walk-mode';
+import { HouseView } from './scene/house-view';
 import type { GizmoHandleKind } from './mounts/gizmo-math';
 import type { Ray } from './mounts/mount-strategies';
 import { DragController } from './scene/drag-controller';
@@ -138,6 +140,17 @@ export class SceneService implements SceneContext {
     hover: (id) => this.setHover(id),
   });
   private readonly systems: FrameSystem[] = [];
+  /** Cuarto de una casa de Plano 3D: los demás cuartos del piso, alrededor y solo para ver. */
+  private readonly houseData = inject(HouseData);
+  private readonly neighbors = new HouseView(this, this.room.textureLibrary, 'cut');
+  private neighborToken = 0;
+  private hoveredNeighbor: string | null = null;
+  private pressAt: { x: number; y: number } | null = null;
+  /** Qué vecinos hay que cargar: cambia al abrir otro cuarto, no al guardar. */
+  private readonly neighborKey = computed(() => {
+    const p = this.store.project();
+    return p?.plano3d ? `${p.id}|${p.plano3d.linkId}|${p.plano3d.roomId}` : null;
+  });
 
   private readonly gizmoView = new GizmoView(this);
   private readonly guides = new GuidesView(this);
@@ -262,6 +275,11 @@ export class SceneService implements SceneContext {
       this.readOnly();
       untracked(() => this.refreshSelection());
     });
+    effect(() => {
+      const key = this.neighborKey();
+      const catalog = this.store.catalog();
+      untracked(() => void this.loadNeighbors(key, catalog));
+    });
     // Acabados propios o, si no hay, la paleta del estilo elegido.
     effect(() => {
       const finishes = this.store.finishes() ?? finishesForStyle(this.store.project()?.selectedStyleId ?? null);
@@ -380,6 +398,8 @@ export class SceneService implements SceneContext {
   }
 
   async dispose(): Promise<void> {
+    this.neighborToken++;
+    this.neighbors.dispose();
     this.room.dispose();
     this.selection.dispose();
     this.gizmoView.dispose();
@@ -387,6 +407,53 @@ export class SceneService implements SceneContext {
     this.labels.attach(null);
     this.lighting.dispose();
     await this.furniture.dispose();
+  }
+
+  // ------------------------------------------------------------------ vecinos (casa de Plano 3D)
+  /**
+   * Los demás cuartos del mismo piso, cada uno en su sitio respecto a este, con sus acabados y
+   * muebles y las paredes en corte: se amuebla viendo la casa alrededor. Si no cargan, el cuarto
+   * se edita igual.
+   */
+  private async loadNeighbors(key: string | null, catalog: ReadonlyMap<string, CatalogItem>): Promise<void> {
+    const token = ++this.neighborToken;
+    if (!key) {
+      this.neighbors.sync([], catalog);
+      this.labels.set('neighbors', []);
+      return;
+    }
+    const [projectId, linkId, roomId] = key.split('|') as [string, string, string];
+    try {
+      const house = await this.houseData.byLink(linkId);
+      const level = house.levels.find((l) => l.rooms.some((r) => r.roomId === roomId));
+      const me = level?.rooms.find((r) => r.roomId === roomId);
+      if (!level || !me || token !== this.neighborToken) return;
+      const rooms = (await this.houseData.rooms(level, projectId)).filter((r) => r.roomId !== roomId);
+      if (token !== this.neighborToken) return;
+      this.neighbors.sync(rooms, catalog, me.origin);
+      this.labels.set(
+        'neighbors',
+        this.neighbors.labels().map((l) => ({ position: { x: l.at.x, y: 0.25, z: l.at.z }, text: l.name, kind: 'room' as const })),
+      );
+      this.invalidate();
+    } catch {
+      // sin vecinos: no es grave
+    }
+  }
+
+  /** Vecino amueblable bajo el cursor (fuera de este cuarto y sin un mueble encima). */
+  private neighborAt(clientX: number, clientY: number): { roomId: string; projectId: string } | null {
+    if (this.cameraMode() !== 'orbit' || !this.neighbors.count || !this.aimAt(clientX, clientY)) return null;
+    if (this.furniture.pick(this.raycaster)) return null;
+    const room = this.neighbors.pick(this.raycaster);
+    return room?.projectId ? { roomId: room.roomId, projectId: room.projectId } : null;
+  }
+
+  private hoverNeighbor(id: string | null): void {
+    if (this.hoveredNeighbor === id) return;
+    this.hoveredNeighbor = id;
+    this.neighbors.setHover(id);
+    if (this.canvas) this.canvas.style.cursor = id ? 'pointer' : '';
   }
 
   // ------------------------------------------------------------------ sincronización
@@ -680,6 +747,8 @@ export class SceneService implements SceneContext {
   private onCameraArrived(mode: CameraModeId): void {
     // Dentro del cuarto las paredes se ven enteras; desde fuera se recortan las que estorban.
     this.room.setCutaway(mode === 'orbit');
+    // a pie, lo que se ve por una puerta es el cuarto de al lado, con sus paredes
+    this.neighbors.setWalls(mode === 'walk' ? 'full' : 'cut');
     this.setInside(mode === 'walk');
     this.invalidate();
   }
@@ -726,6 +795,7 @@ export class SceneService implements SceneContext {
    * vacío para girar la vista.
    */
   onPointerDown(event: PointerEvent): void {
+    this.pressAt = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
     const walking = this.cameraMode() === 'walk';
     const e = event.button === 0 ? this.toolEvent(event) : null;
     if (e) {
@@ -752,6 +822,11 @@ export class SceneService implements SceneContext {
     }
     const e = this.toolEvent(event);
     if (!e) return;
+    if (!this.pressed && this.tool() === 'select') {
+      const near = this.neighborAt(event.clientX, event.clientY);
+      this.hoverNeighbor(near?.roomId ?? null);
+      if (near) return;
+    }
     const cursor = this.tools.move(e, this.pressed);
     if (this.canvas && cursor !== null && (cursor || this.tool() !== 'select')) this.canvas.style.cursor = cursor;
   }
@@ -766,6 +841,13 @@ export class SceneService implements SceneContext {
     }
     this.lookFrom = null;
     if (this.canvas?.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
+    // Un toque (sin arrastrar) en un cuarto vecino lo abre: cada cuarto tiene su propio editor.
+    const press = this.pressAt;
+    this.pressAt = null;
+    if (press && this.tool() === 'select' && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 6) {
+      const near = this.neighborAt(event.clientX, event.clientY);
+      if (near) window.location.assign(`/proyectos/${near.projectId}?vista=3d`);
+    }
   }
 
   /** Los controles de órbita solo mandan en su modo: recorriendo, la cámara la lleva la persona. */

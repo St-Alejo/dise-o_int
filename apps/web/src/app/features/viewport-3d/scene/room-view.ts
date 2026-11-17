@@ -1,6 +1,7 @@
 import { wallThickness, type RoomFinishes, type RoomShell, type WallSpec } from '@interiores/shared-types';
 import { applyFinishes, buildRoom, DEFAULT_PALETTE, disposeObject, type BuiltRoom } from '../room-builder';
 import { hidesRoom } from './cutaway';
+import { setWallCut } from './house-view';
 import type { SceneContext } from './render-loop';
 import { TextureLibrary } from './texture-library';
 
@@ -102,18 +103,7 @@ export class RoomView {
     const cam = this.ctx.camera.position;
     let changed = false;
     for (const wall of [...this.room.walls, ...this.room.partitions]) {
-      const cut = this.cutaway && hidesRoom(wall, cam);
-      if (wall.cut === cut) continue;
-      wall.cut = cut;
-      wall.stub.visible = cut;
-      wall.tiles.visible = !cut;
-      for (const m of wall.materials) {
-        m.colorWrite = !cut;
-        m.depthWrite = !cut && m.userData['baseDepthWrite'] !== false;
-      }
-      // Los pases de posprocesado (oclusión, contorno) ignoran lo que está marcado así.
-      for (const g of wall.groups) g.userData['ghost'] = cut;
-      changed = true;
+      changed = setWallCut(wall, this.cutaway && hidesRoom(wall, cam)) || changed;
     }
     if (changed) this.ctx.invalidate();
   }

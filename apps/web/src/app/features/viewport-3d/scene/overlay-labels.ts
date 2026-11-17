@@ -5,7 +5,7 @@ export interface SceneLabel {
   position: { x: number; y: number; z: number };
   text: string;
   /** Clase de estilo (`scene-label-<kind>` en los estilos globales). */
-  kind: 'clearance' | 'measure';
+  kind: 'clearance' | 'measure' | 'room';
 }
 
 /**

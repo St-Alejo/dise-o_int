@@ -777,6 +777,12 @@ dialog.modal::backdrop {
   background: #b3261e;
   font-size: 0.8rem;
 }
+.scene-label-room {
+  background: rgb(255 255 255 / 0.85);
+  color: #3a3631;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  pointer-events: none;
+}
 
 /* Lenis (scroll suave de la portada): reglas de su hoja oficial. */
 html.lenis,
