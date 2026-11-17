@@ -6,6 +6,8 @@
 #                      cada vez que la app se apaga por inactividad.
 # Requisitos: az login, el entorno $ENV_NAME y el registro $ACR creados, imágenes subidas con $TAG.
 # PLANO3D_API_URL: API de Plano 3D para enlazar casas por código (por defecto, su demo en Azure).
+# ANTHROPIC_API_KEY (opcional, se lee del entorno; nunca se escribe en el repo): con ella el chat y la
+# lectura de fotos usan Claude (secreto anthropic-key, tope CLAUDE_BUDGET_USD); sin ella, solo lo local.
 # Uso: ACR=acrinteriores1256 TAG=<sha> bash infra/azure/deploy.sh
 set -euo pipefail
 RG=${RG:-rg-interiores-demo}
@@ -23,6 +25,18 @@ WEB_URL=https://ca-interiores-web.$DOMAIN
 ACR_PASS=$(az acr credential show -n "$ACR" --query 'passwords[0].value' -o tsv)
 rnd() { openssl rand -hex "$1"; }
 PG_PASS=$(rnd 16) S3_KEY=$(rnd 10) S3_SECRET=$(rnd 20) JWT=$(rnd 32) MEDIA=$(rnd 32) AI_TOKEN=$(rnd 24)
+
+# IA con Claude solo si hay clave. Groq ya no se usa (su cuota gratuita se agota en una demostración).
+CLAUDE_SECRET="" CHAT_ENV='          - { name: CHAT_LLM, value: "off" }' ROOM_ENV='          - { name: ROOM_ANALYZER, value: mock }'
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  CLAUDE_SECRET="      - { name: anthropic-key, value: \"$ANTHROPIC_API_KEY\" }"
+  CHAT_ENV='          - { name: CHAT_LLM, value: "claude" }
+          - { name: ANTHROPIC_API_KEY, secretRef: anthropic-key }
+          - { name: CHAT_MODEL, value: "claude-sonnet-5-5" }
+          - { name: CLAUDE_BUDGET_USD, value: "'"${CLAUDE_BUDGET_USD:-1}"'" }'
+  ROOM_ENV='          - { name: ROOM_ANALYZER, value: vision }
+          - { name: ANTHROPIC_API_KEY, secretRef: anthropic-key }'
+fi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -51,6 +65,7 @@ properties:
       - { name: jwt, value: "$JWT" }
       - { name: media, value: "$MEDIA" }
       - { name: ai-token, value: "$AI_TOKEN" }
+$CLAUDE_SECRET
   template:
     scale:
       minReplicas: 0
@@ -80,7 +95,7 @@ properties:
           - { name: COOKIE_SECURE, value: "true" }
           - { name: PUBLIC_WEB_URL, value: "$WEB_URL" }
           - { name: PLANO3D_API_URL, value: "$PLANO3D_API_URL" }
-          - { name: CHAT_LLM, value: "off" }
+$CHAT_ENV
           - { name: WORKER_CONCURRENCY, value: "2" }
       - name: worker
         image: $R/api:$TAG
@@ -101,14 +116,14 @@ properties:
           - { name: AI_INTERNAL_TOKEN, secretRef: ai-token }
           - { name: PUBLIC_WEB_URL, value: "$WEB_URL" }
           - { name: PLANO3D_API_URL, value: "$PLANO3D_API_URL" }
-          - { name: CHAT_LLM, value: "off" }
+$CHAT_ENV
           - { name: WORKER_CONCURRENCY, value: "2" }
       - name: ai
         image: $R/ai:$TAG
         resources: { cpu: 0.5, memory: 1Gi }
         env:
           - { name: AI_INTERNAL_TOKEN, secretRef: ai-token }
-          - { name: ROOM_ANALYZER, value: mock }
+$ROOM_ENV
           - { name: STYLE_GENERATOR, value: mock }
           - { name: REDIS_URL, value: "redis://localhost:6379/0" }
           - { name: S3_ENDPOINT, value: "http://localhost:8333" }
