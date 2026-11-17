@@ -261,4 +261,16 @@ describe('Puente con Plano 3D (ADR-0039)', () => {
     await settle();
     expect((await service.list(actor))[0]!.peers).toEqual([{ name: 'Beto', client: 'desktop' }]);
   });
+  it('la casa entera por pisos: también el garaje, con el cuarto de cada ambiente amueblable', async () => {
+    const { id } = await service.link(actor, 'K7QM-3XTP');
+    const house = await service.house(actor, id);
+    expect(house.levels.map((l) => l.name)).toEqual(['Piso 1', 'Piso 2']);
+    const [sala, garaje] = house.levels[0]!.rooms;
+    const byName = new Map((await projects.listByOwner('u1')).map((p) => [p.plano3d!.roomId, p.id]));
+    expect(sala).toMatchObject({ name: 'Sala', roomType: 'living', projectId: byName.get('sala'), origin: { x: 0, z: 0 } });
+    expect(garaje).toMatchObject({ name: 'Garaje', roomType: null, projectId: null, origin: { x: 5, z: 0 } });
+    expect(garaje!.shell.widthM).toBeCloseTo(3);
+    expect(house.levels[1]!.rooms[0]!.projectId).toBe(byName.get('alcoba'));
+    await expect(service.house({ userId: 'otro' }, id)).rejects.toBeInstanceOf(NotFoundError);
+  });
 });

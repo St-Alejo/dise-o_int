@@ -4,10 +4,13 @@ import {
   floorMaterialOp,
   fromPlano3dFurniture,
   furnitureOps,
+  houseLevels,
   interioresFurnitureOf,
   linkedRooms,
   touchesArchitecture,
   type FurniturePlacement,
+  type HouseLevel,
+  type HouseRoom,
   type LinkedRoom,
   type Plano3dFurniture,
   type Plano3dModel,
@@ -44,6 +47,19 @@ export interface Plano3dLinkSummary {
   /** Quiénes están ahora en la casa desde Plano 3D (sin contar a Interiores). */
   peers: Plano3dPresence[];
   createdAt: string;
+}
+
+/** Un ambiente de la casa en 3D; `projectId` es su cuarto de Interiores (null: no se amuebla). */
+export interface Plano3dHouseRoom extends HouseRoom {
+  projectId: string | null;
+}
+
+/** La casa entera por pisos para la vista 3D de Interiores. */
+export interface Plano3dHouse {
+  linkId: string;
+  homeId: string;
+  projectName: string;
+  levels: (Omit<HouseLevel, 'rooms'> & { rooms: Plano3dHouseRoom[] })[];
 }
 
 /** Una persona en Plano 3D, como la ve la web. */
@@ -169,6 +185,34 @@ export class Plano3dService implements OnModuleInit, OnModuleDestroy {
     const link = await this.owned(actor, linkId);
     await this.resync(link, 'all');
     return this.summary(link);
+  }
+
+  /**
+   * La casa entera para verla en 3D: todos los ambientes de cada piso (también escaleras,
+   * halls y garajes) y, en los amueblables, el id de su cuarto de Interiores.
+   */
+  async house(actor: Actor, linkId: string): Promise<Plano3dHouse> {
+    const link = await this.owned(actor, linkId);
+    let model = this.live.get(link.id)?.model ?? null;
+    if (!model) {
+      try {
+        model = (await this.client.project(link.linkToken)).model;
+      } catch (err) {
+        if (err instanceof UnauthorizedError) await this.revokedRemotely(link);
+        throw err;
+      }
+    }
+    if (!model) throw new NotFoundError('La casa de Plano 3D todavía no tiene modelo');
+    const byRoom = new Map((await this.roomsOf(link)).map((p) => [p.plano3d!.roomId, p.id]));
+    return {
+      linkId: link.id,
+      homeId: link.homeId,
+      projectName: link.projectName,
+      levels: houseLevels(model).map((level) => ({
+        ...level,
+        rooms: level.rooms.map((room) => ({ ...room, projectId: byRoom.get(room.roomId) ?? null })),
+      })),
+    };
   }
 
   // ------------------------------------------------------------------ Interiores → Plano 3D

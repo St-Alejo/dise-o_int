@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { perMinute } from '../../common/rate-limit.js';
 import { ZodPipe } from '../../common/zod.js';
 import { CurrentUser, RequestId, type AuthPrincipal } from '../auth/auth.decorators.js';
-import { Plano3dService, type Plano3dLinkSummary } from './plano3d.service.js';
+import { Plano3dService, type Plano3dHouse, type Plano3dLinkSummary } from './plano3d.service.js';
 
 const LinkRequestSchema = z.object({ code: z.string().trim().min(6).max(20) });
 type LinkRequest = z.infer<typeof LinkRequestSchema>;
@@ -37,6 +37,12 @@ export class Plano3dController {
   @Throttle(perMinute(20))
   sync(@CurrentUser() user: AuthPrincipal, @Param('linkId', uuid) linkId: string): Promise<Plano3dLinkSummary> {
     return this.service.refresh({ userId: user.userId }, linkId);
+  }
+
+  /** La casa entera por pisos, para verla y amueblarla en 3D. */
+  @Get(':linkId/house')
+  house(@CurrentUser() user: AuthPrincipal, @Param('linkId', uuid) linkId: string): Promise<Plano3dHouse> {
+    return this.service.house({ userId: user.userId }, linkId);
   }
 
   @Delete(':linkId')
