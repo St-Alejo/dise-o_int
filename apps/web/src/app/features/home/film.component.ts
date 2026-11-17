@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, input, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../../shared/ui/icon.component';
 
@@ -6,7 +6,7 @@ import { IconComponent } from '../../shared/ui/icon.component';
 export interface Chapter {
   id: string;
   name: string;
-  /** Inicio del tramo, de 0 a 1 sobre todo el recorrido. */
+  /** Inicio del tramo, de 0 a 1 sobre la película (fotograma / total). */
   from: number;
   lines: string[];
   text: string;
@@ -72,6 +72,47 @@ export function scrollProgress(top: number, height: number, viewport: number): n
 export function frameAt(progress: number, count: number): number {
   if (count <= 0) return 0;
   return Math.round(Math.min(1, Math.max(0, progress)) * (count - 1));
+}
+
+/** Ritmo parejo: cada fotograma ocupa el mismo tramo de scroll (si no llega `ritmo.json`). */
+export function evenPace(count: number): number[] {
+  if (count < 2) return [0];
+  return Array.from({ length: count }, (_, i) => i / (count - 1));
+}
+
+/**
+ * El fotograma, con decimales, que toca a un progreso según el ritmo de la película: `pace[i]` es el
+ * progreso en el que se ve entero el fotograma i. Los decimales dicen cuánto se funde con el siguiente.
+ */
+export function frameAtPace(progress: number, pace: readonly number[]): number {
+  const n = pace.length;
+  if (n < 2) return 0;
+  const p = Math.min(1, Math.max(0, progress));
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (pace[mid]! <= p) lo = mid;
+    else hi = mid;
+  }
+  const span = pace[hi]! - pace[lo]!;
+  return span > 0 ? lo + Math.min(1, (p - pace[lo]!) / span) : hi;
+}
+
+/** El progreso en el que se ve el fotograma dado (el inverso de `frameAtPace`). */
+export function progressAtFrame(frame: number, pace: readonly number[]): number {
+  if (pace.length < 2) return 0;
+  return pace[Math.min(pace.length - 1, Math.max(0, Math.round(frame)))]!;
+}
+
+/**
+ * Acerca el fotograma mostrado al pedido sin saltar: amortigua con constante `tau` (segundos), así un
+ * golpe de rueda o un salto de capítulo se ven como un movimiento de cámara y no como un corte.
+ */
+export function approach(current: number, target: number, dt: number, tau = 0.1): number {
+  if (dt <= 0) return current;
+  const next = current + (target - current) * (1 - Math.exp(-dt / tau));
+  return Math.abs(target - next) < 0.01 ? target : next;
 }
 
 /** El capítulo en curso: el último cuyo inicio ya pasó. */
@@ -218,8 +259,9 @@ export function framePath(set: string, index: number): string {
   styles: `
     :host {
       display: block;
-      /* Pantallas de scroll que dura la película: corta para no cansar (era 8). */
-      --film-len: 5;
+      /* Pantallas de scroll que dura la película: corta para no cansar (era 8). Los cambios de estilo
+         se llevan más recorrido que los tramos quietos (ver ritmo.json). */
+      --film-len: 6;
       background: #100f0e;
       color: #f3eee6;
     }
@@ -230,7 +272,7 @@ export function framePath(set: string, index: number): string {
     /* Destino de "Estilos" en la cabecera: el capítulo de los seis estilos. */
     .anchor {
       position: absolute;
-      top: calc(0.63 * (var(--film-len) - 1) * 100svh);
+      top: calc(0.5 * (var(--film-len) - 1) * 100svh);
     }
     .stage {
       position: sticky;
@@ -265,9 +307,14 @@ export function framePath(set: string, index: number): string {
       display: grid;
       gap: 20px;
       pointer-events: none;
+      /* El capítulo que se va se apaga rápido: así no se lee encima del que entra. */
+      opacity: 0;
+      transition: opacity 0.3s ease;
     }
     .chapter.on {
       pointer-events: auto;
+      opacity: 1;
+      transition-duration: 0.5s;
     }
     .big {
       margin: 0;
@@ -291,10 +338,11 @@ export function framePath(set: string, index: number): string {
          escondidas a 105 %, asomaban dentro de la máscara en todos los capítulos. */
       transform: translateY(calc(100% + 0.5em));
       transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.1, 1);
-      transition-delay: calc(var(--d) * 90ms);
     }
     .chapter.on .line > span {
       transform: none;
+      /* Entra cuando el anterior ya casi se fue. */
+      transition-delay: calc(150ms + var(--d) * 90ms);
     }
     .text,
     .meta,
@@ -310,7 +358,7 @@ export function framePath(set: string, index: number): string {
     .chapter.on .cta {
       opacity: 1;
       transform: none;
-      transition-delay: 0.25s;
+      transition-delay: 0.35s;
     }
     .text {
       margin: 0;
@@ -458,7 +506,9 @@ export class FilmComponent {
   protected readonly poster = framePath('desk', 0);
   protected readonly posterMob = framePath('mob', 0);
   protected readonly progress = signal(0);
-  protected readonly chapter = computed(() => chapterAt(this.progress(), this.chapters));
+  protected readonly chapter = signal(0);
+  /** Dónde cae cada fotograma en el scroll; lo afina `cine/{set}/ritmo.json` (scripts/cine_ritmo.py). */
+  private pace: readonly number[] = evenPace(this.count);
   protected readonly drawn = signal(false);
   protected readonly still = signal(false);
   private readonly run = viewChild<ElementRef<HTMLElement>>('run');
@@ -480,33 +530,65 @@ export class FilmComponent {
       }
       const frames: HTMLImageElement[] = [];
       const loaded: boolean[] = new Array(this.count).fill(false);
-      let shown = -1;
+      const last = this.count - 1;
+      /** Lo que hay pintado en el canvas, para no repetir trabajo. */
+      let shown = '';
+      /** Fotograma mostrado (con decimales); persigue al que pide el scroll. */
+      let at = -1;
       let frame = 0;
+      let before = 0;
       let alive = true;
 
       const fit = () => {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = Math.round(canvas.clientWidth * dpr);
         canvas.height = Math.round(canvas.clientHeight * dpr);
-        shown = -1;
+        shown = '';
       };
-      const draw = () => {
+      const paint = (index: number, alpha: number) => {
+        const img = frames[index]!;
+        // Como object-fit: cover.
+        const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+        const w = img.naturalWidth * scale;
+        const h = img.naturalHeight * scale;
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+        ctx.globalAlpha = 1;
+      };
+      const draw = (now: number) => {
         frame = 0;
         const run = this.run()?.nativeElement;
         if (!run) return;
         const rect = run.getBoundingClientRect();
         const p = scrollProgress(rect.top, rect.height, window.innerHeight);
         this.progress.set(p);
-        const index = nearestLoaded(frameAt(p, this.count), loaded);
-        if (index < 0 || index === shown) return;
-        const img = frames[index]!;
-        // Como object-fit: cover.
-        const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
-        const w = img.naturalWidth * scale;
-        const h = img.naturalHeight * scale;
-        ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-        shown = index;
+        const target = frameAtPace(p, this.pace);
+        at = at < 0 ? target : approach(at, target, Math.min(0.1, (now - before) / 1000));
+        before = now;
+        const chapter = chapterAt(at / last, this.chapters);
+        if (chapter !== this.chapter()) this.chapter.set(chapter);
+
+        // Entre dos fotogramas se pinta el primero y encima el siguiente, tan opaco como cerca esté:
+        // el paso de uno a otro es un fundido continuo y no un salto.
+        const a = Math.floor(at);
+        const b = Math.min(last, a + 1);
+        const t = Math.round((at - a) * 32) / 32;
+        let key: string;
+        if (loaded[a] && loaded[b] && t > 0 && b !== a) {
+          key = `${a}+${b}@${t}`;
+          if (key !== shown) {
+            paint(a, 1);
+            paint(b, t);
+          }
+        } else {
+          const index = nearestLoaded(Math.round(at), loaded);
+          if (index < 0) return;
+          key = String(index);
+          if (key !== shown) paint(index, 1);
+        }
+        shown = key;
         if (!this.drawn()) this.drawn.set(true);
+        if (at !== target) schedule();
       };
       const schedule = () => {
         if (!frame) frame = requestAnimationFrame(draw);
@@ -515,6 +597,17 @@ export class FilmComponent {
         fit();
         schedule();
       };
+
+      fetch(`cine/${this.set}/ritmo.json`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { pos?: unknown } | null) => {
+          const pos = d?.pos;
+          if (alive && Array.isArray(pos) && pos.length === this.count && pos.every((x) => typeof x === 'number')) {
+            this.pace = pos as number[];
+            schedule();
+          }
+        })
+        .catch(() => undefined);
 
       // Se piden de a seis a la vez, en el orden que deja recorrer la película cuanto antes.
       const queue = loadOrder(this.count);
@@ -537,7 +630,7 @@ export class FilmComponent {
       fit();
       window.addEventListener('scroll', schedule, { passive: true });
       window.addEventListener('resize', onResize, { passive: true });
-      draw();
+      draw(performance.now());
       destroy.onDestroy(() => {
         alive = false;
         window.removeEventListener('scroll', schedule);
@@ -559,7 +652,7 @@ export class FilmComponent {
     if (!run) return;
     const top = run.getBoundingClientRect().top + window.scrollY;
     const travel = run.offsetHeight - window.innerHeight;
-    const at = (this.chapters[i]!.from + (i ? 0.01 : 0)) * travel;
+    const at = progressAtFrame(this.chapters[i]!.from * (this.count - 1) + (i ? 1 : 0), this.pace) * travel;
     window.scrollTo({ top: top + at, behavior: 'smooth' });
   }
 }

@@ -1,4 +1,4 @@
-import { CHAPTERS, chapterAt, filmSet, frameAt, framePath, loadOrder, nearestLoaded, scrollProgress } from './film.component';
+import { CHAPTERS, approach, chapterAt, evenPace, filmSet, frameAt, frameAtPace, framePath, loadOrder, nearestLoaded, progressAtFrame, scrollProgress } from './film.component';
 
 describe('película de la portada', () => {
   it('el progreso va de 0 al entrar al tramo fijo a 1 al salir', () => {
@@ -46,5 +46,32 @@ describe('película de la portada', () => {
   it('en vertical se usa la película del celular', () => {
     expect(filmSet(true)).toBe('mob');
     expect(filmSet(false)).toBe('desk');
+  });
+
+  it('con ritmo parejo cada progreso cae entre dos fotogramas y dice cuánto se funden', () => {
+    const pace = evenPace(5);
+    expect(pace).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(frameAtPace(0, pace)).toBe(0);
+    expect(frameAtPace(0.375, pace)).toBeCloseTo(1.5);
+    expect(frameAtPace(1, pace)).toBe(4);
+    expect(frameAtPace(-1, pace)).toBe(0);
+    expect(frameAtPace(0.5, [0])).toBe(0);
+  });
+
+  it('un cambio brusco con más ritmo se lleva más scroll', () => {
+    // El paso del fotograma 1 al 2 ocupa la mitad del recorrido.
+    const pace = [0, 0.25, 0.75, 1];
+    expect(frameAtPace(0.5, pace)).toBeCloseTo(1.5);
+    expect(frameAtPace(0.3, pace)).toBeCloseTo(1.1);
+    expect(progressAtFrame(2, pace)).toBe(0.75);
+    expect(progressAtFrame(9, pace)).toBe(1);
+  });
+
+  it('el fotograma mostrado alcanza al pedido sin saltar', () => {
+    const half = approach(0, 10, 0.1);
+    expect(half).toBeGreaterThan(5);
+    expect(half).toBeLessThan(10);
+    expect(approach(9.995, 10, 0.016)).toBe(10);
+    expect(approach(3, 10, 0)).toBe(3);
   });
 });
