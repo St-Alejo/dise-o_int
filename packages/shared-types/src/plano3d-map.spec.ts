@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { FurniturePlacement } from './domain.js';
 import {
+  cleanPolygon,
   floorMaterialOp,
+  houseLevels,
   fromPlano3dFurniture,
   furnitureOps,
   interioresFurnitureOf,
@@ -85,11 +87,26 @@ describe('puente con Plano 3D', () => {
     expect(door.offsetM).toBeCloseTo(along);
   });
 
-  it('tipos: comedor por nombre, estudio → oficina, el resto no se diseña', () => {
+  it('tipos: comedor por nombre, estudio → oficina, los de paso no se diseñan', () => {
     expect(interioresRoomType({ label: 'Comedor', room_type: 'living' })).toBe('dining');
     expect(interioresRoomType({ label: 'Sala comedor', room_type: 'living' })).toBe('living');
     expect(interioresRoomType({ label: 'Estudio', room_type: 'study' })).toBe('office');
-    expect(interioresRoomType({ label: 'Patio', room_type: 'patio' })).toBeNull();
+    expect(interioresRoomType({ label: 'Garaje', room_type: 'garage' })).toBeNull();
+    expect(interioresRoomType({ label: 'Escalera', room_type: 'other' })).toBeNull();
+    expect(interioresRoomType({ label: 'Hall de acceso', room_type: 'living' })).toBeNull();
+  });
+
+  it('si Plano 3D dice «otro», manda el nombre del ambiente', () => {
+    const t = (label: string, room_type = 'other') => interioresRoomType({ label, room_type });
+    expect(t('Sala')).toBe('living');
+    expect(t('Habitación')).toBe('bedroom');
+    expect(t('Local 1')).toBe('office');
+    expect(t('Salón de ventas')).toBe('office');
+    expect(t('Gimnasio')).toBe('living');
+    expect(t('Terraza BBQ', 'patio')).toBe('living');
+    expect(t('Vestier', 'storage')).toBe('bedroom');
+    expect(t('Ropas', 'laundry')).toBeNull();
+    expect(t('Espacio 3')).toBeNull();
   });
 
   it('un mueble vuelve al mundo de Plano 3D con el giro invertido', () => {
@@ -142,5 +159,49 @@ describe('puente con Plano 3D', () => {
     expect(back).toMatchObject({ id: 'p1', catalogItemId: 'sofa-3', position: { x: 2, y: 0, z: 2 }, rotationY: 1.571 });
     expect(fromPlano3dFurniture(room, { ...f, id: 'sofa-generico' })).toBeNull();
     expect(fromPlano3dFurniture({ ...room, roomId: 'r-otro' }, f)).toBeNull();
+  });
+
+  it('una puerta que se pasa unos cm de la esquina se acomoda en el lado del cuarto', () => {
+    const model: Plano3dModel = {
+      levels: [
+        {
+          id: 'l1',
+          name: 'Piso 1',
+          height: 2.6,
+          walls: [
+            // eje a 9 cm de la cara del baño; la puerta llega 6 cm más allá de su esquina
+            { id: 'w', start: { x: 1.56, y: -0.07 }, end: { x: 1.56, y: 1.27 }, thickness: 0.17, openings: [{ id: 'd', kind: 'door', offset: 0.6, width: 0.72, height: 2.1 }] },
+          ],
+          rooms: [{ id: 'b', label: 'Baño', room_type: 'bathroom', polygon: [{ x: 0, y: 0 }, { x: 1.47, y: 0 }, { x: 1.47, y: 1.19 }, { x: 0, y: 1.19 }] }],
+        },
+      ],
+    };
+    const [bath] = linkedRooms(model);
+    expect(bath!.shell.openings).toHaveLength(1);
+    const door = bath!.shell.openings[0]!;
+    expect(door.widthM).toBeCloseTo(0.72);
+    expect(door.offsetM + door.widthM / 2).toBeLessThanOrEqual(1.19 + 1e-9);
+  });
+
+  it('las muescas de 1 cm del contorno no se vuelven paredes', () => {
+    const notch = [
+      { x: 0, y: 0 },
+      { x: 3, y: 0 },
+      { x: 3, y: 3 },
+      { x: 1.5, y: 3 },
+      { x: 1.5, y: 2.99 },
+      { x: 0, y: 3 },
+    ];
+    expect(cleanPolygon(notch)).toHaveLength(4);
+    const l = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 4 }, { x: 0, y: 4 }];
+    expect(cleanPolygon(l)).toHaveLength(6);
+  });
+
+  it('la casa en 3D trae todos los ambientes, también los que no se amueblan', () => {
+    const [level] = houseLevels(MODEL);
+    expect(level!.rooms.map((r) => [r.name, r.roomType])).toEqual(
+      MODEL.levels[0]!.rooms!.map((r) => [r.label, interioresRoomType(r)]),
+    );
+    expect(level!.rooms.some((r) => r.roomType === null)).toBe(true);
   });
 });

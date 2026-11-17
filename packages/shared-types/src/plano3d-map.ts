@@ -76,9 +76,23 @@ export const DEFAULT_LEVEL_HEIGHT_M = 2.6;
 export const INTERIORES_FURNITURE_PREFIX = 'int-';
 export const INTERIORES_CATALOG_PREFIX = 'int_';
 
+/** Espacios de paso o de servicio: se ven en la casa, pero no se amueblan aquí. */
+const NOT_FURNISHED =
+  /(^|[^a-zñ])(escaleras?|punto fijo|hall|pasillo|corredor|circulaci[oó]n|parqueaderos?|garajes?|estacionamiento|ropas|lavander[ií]a|lavado|despensa|bodega|shut|ducto|vac[ií]o)([^a-zñ]|$)/;
+
+/** Por el nombre que puso el arquitecto, cuando el tipo de Plano 3D no dice nada útil. */
+const BY_LABEL: [RegExp, RoomType][] = [
+  [/(ba[ñn]os?|aseo|wc|toilet|bath)/, 'bathroom'],
+  [/(cocina|kitchen|cocineta)/, 'kitchen'],
+  [/(alcobas?|habitaci[oó]n|dormitorio|rec[aá]mara|cuarto|suite|bedroom|vestier|closet)/, 'bedroom'],
+  [/(estudio|oficina|despacho|study|office|local|sal[oó]n de ventas|consultorio|tienda)/, 'office'],
+  [/(sala|estar|living|tv|juegos|gimnasio|gym|terraza|balc[oó]n|sol[aá]rium|bbq|patio|social|sal[oó]n)/, 'living'],
+];
+
 /** Tipo de ambiente de Plano 3D → tipo de cuarto de Interiores (null = no se diseña aquí). */
 export function interioresRoomType(room: Pick<Plano3dRoom, 'room_type' | 'label'>): RoomType | null {
   const label = room.label.toLowerCase();
+  if (NOT_FURNISHED.test(label)) return null;
   if (/comedor/.test(label) && !/sala/.test(label)) return 'dining';
   switch (room.room_type) {
     case 'living':
@@ -91,8 +105,16 @@ export function interioresRoomType(room: Pick<Plano3dRoom, 'room_type' | 'label'
       return 'bathroom';
     case 'study':
       return 'office';
-    default:
+    case 'dining':
+      return 'dining';
+    case 'stairs':
+    case 'circulation':
+    case 'garage':
+    case 'laundry':
       return null;
+    default:
+      // «otro», terrazas, vestieres, locales…: manda el nombre
+      return BY_LABEL.find(([re]) => re.test(label))?.[1] ?? null;
   }
 }
 
@@ -141,15 +163,22 @@ function openingsOnShell(shell: RoomShell, origin: { x: number; z: number }, wal
         const parallel = Math.abs((sx * uz - sz * ux) / segLen) < 0.02;
         const along = ((cx - seg.start.x) * sx + (cz - seg.start.z) * sz) / segLen;
         const dist = Math.abs(((cx - seg.start.x) * sz - (cz - seg.start.z) * sx) / segLen);
-        if (!parallel || dist > tol || along < op.width / 2 - 1e-3 || along > segLen - op.width / 2 + 1e-3) continue;
+        if (!parallel || dist > tol || along < -1e-3 || along > segLen + 1e-3) continue;
+        // una puerta junto a la esquina puede pasarse unos cm del lado del cuarto (el muro de
+        // Plano 3D sigue por dentro del otro): se acomoda al lado en vez de perderla
+        const over = Math.max(0, op.width / 2 - along, along + op.width / 2 - segLen);
+        if (over > CORNER_OVERHANG_M) continue;
+        const width = Math.min(op.width, segLen - 0.02);
+        if (width < 0.3) continue;
+        const center = Math.min(Math.max(along, width / 2), segLen - width / 2);
         const isWindow = op.kind.includes('window');
         out.push({
           id: `p3d-${op.id}`.slice(0, 64),
           type: isWindow ? 'window' : 'door',
           wallId: seg.id,
-          widthM: round3(op.width),
+          widthM: round3(width),
           heightM: round3(op.height),
-          offsetM: round3(along),
+          offsetM: round3(center),
           sillHeightM: isWindow ? round3(op.sill ?? 0.9) : 0,
         });
         break;
@@ -159,24 +188,62 @@ function openingsOnShell(shell: RoomShell, origin: { x: number; z: number }, wal
   return out;
 }
 
-/** Un ambiente de Plano 3D como cuarto de Interiores (o null si no es diseñable o no es válido). */
-export function linkedRoomFrom(level: Plano3dLevel, levelIndex: number, room: Plano3dRoom): LinkedRoom | null {
-  const roomType = interioresRoomType(room);
-  if (!roomType || room.polygon.length < 3) return null;
-  const minX = Math.min(...room.polygon.map((p) => p.x));
-  const minZ = Math.min(...room.polygon.map((p) => p.y));
-  const origin = { x: round3(minX), z: round3(minZ) };
+/** Cuánto puede pasarse una abertura del lado del cuarto (m) y aun así acomodarse en él. */
+const CORNER_OVERHANG_M = 0.3;
+/** Lados más cortos que esto (m) son muescas del dibujo, no paredes. */
+const MIN_SIDE_M = 0.05;
+
+/**
+ * Contorno sin muescas: quita los vértices a menos de 5 cm del vecino y los que quedan casi en
+ * línea recta entre sus vecinos (si no, el cuarto lleva paredes de 1 cm).
+ */
+export function cleanPolygon(points: readonly Plano3dPoint[]): Plano3dPoint[] {
+  const pts = [...points];
+  for (let changed = true; changed && pts.length > 3; ) {
+    changed = false;
+    for (let i = 0; i < pts.length && pts.length > 3; i++) {
+      const a = pts[(i - 1 + pts.length) % pts.length]!;
+      const b = pts[i]!;
+      const c = pts[(i + 1) % pts.length]!;
+      const ab = Math.hypot(b.x - a.x, b.y - a.y);
+      const ac = Math.hypot(c.x - a.x, c.y - a.y);
+      const offLine = ac > 1e-9 ? Math.abs((c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x)) / ac : 0;
+      if (ab < MIN_SIDE_M || offLine < MIN_SIDE_M / 2) {
+        pts.splice(i, 1);
+        changed = true;
+        i--;
+      }
+    }
+  }
+  return pts;
+}
+
+/** La geometría de un ambiente en coordenadas de cuarto (o null si el contorno no sirve). */
+function shellFrom(level: Plano3dLevel, room: Plano3dRoom): { origin: { x: number; z: number }; shell: RoomShell } | null {
+  const polygon = cleanPolygon(room.polygon);
+  if (polygon.length < 3) return null;
+  const origin = { x: round3(Math.min(...polygon.map((p) => p.x))), z: round3(Math.min(...polygon.map((p) => p.y))) };
   let shell: RoomShell;
   try {
     shell = createPolygonShell(
-      room.polygon.map((p) => ({ x: p.x, z: p.y })),
+      polygon.map((p) => ({ x: p.x, z: p.y })),
       level.height ?? DEFAULT_LEVEL_HEIGHT_M,
       { id: room.id.slice(0, 64), scaleConfidence: 1, needsCalibration: false },
     );
   } catch {
     return null;
   }
-  shell = { ...shell, shape: room.polygon.length === 4 ? 'rect' : 'free', openings: openingsOnShell(shell, origin, level.walls ?? []) };
+  shell = { ...shell, shape: polygon.length === 4 ? 'rect' : 'free', openings: openingsOnShell(shell, origin, level.walls ?? []) };
+  return { origin, shell };
+}
+
+/** Un ambiente de Plano 3D como cuarto de Interiores (o null si no es diseñable o no es válido). */
+export function linkedRoomFrom(level: Plano3dLevel, levelIndex: number, room: Plano3dRoom): LinkedRoom | null {
+  const roomType = interioresRoomType(room);
+  if (!roomType) return null;
+  const built = shellFrom(level, room);
+  if (!built) return null;
+  const { origin, shell } = built;
   return {
     levelId: level.id,
     levelIndex,
@@ -188,6 +255,45 @@ export function linkedRoomFrom(level: Plano3dLevel, levelIndex: number, room: Pl
     shell,
     floorMaterial: room.floor_material ?? null,
   };
+}
+
+/** Un ambiente de la casa tal como se ve en 3D (también escaleras, halls, garajes…). */
+export interface HouseRoom {
+  roomId: string;
+  name: string;
+  /** null: se ve, pero no es un cuarto de Interiores (no se amuebla). */
+  roomType: RoomType | null;
+  origin: { x: number; z: number };
+  shell: RoomShell;
+}
+
+/** Un piso de la casa para la vista 3D. */
+export interface HouseLevel {
+  levelId: string;
+  index: number;
+  name: string;
+  elevation: number;
+  heightM: number;
+  rooms: HouseRoom[];
+}
+
+/** Ambientes de menos de esto (m²) no se dibujan: rendijas entre contornos. */
+const MIN_HOUSE_ROOM_M2 = 0.8;
+
+/** La casa entera por pisos, para verla en 3D: todos los ambientes, amueblables o no. */
+export function houseLevels(model: Plano3dModel): HouseLevel[] {
+  return model.levels.map((level, index) => ({
+    levelId: level.id,
+    index,
+    name: level.name,
+    elevation: level.elevation ?? 0,
+    heightM: level.height ?? DEFAULT_LEVEL_HEIGHT_M,
+    rooms: (level.rooms ?? []).flatMap((room) => {
+      const built = shellFrom(level, room);
+      if (!built || built.shell.widthM * built.shell.depthM < MIN_HOUSE_ROOM_M2) return [];
+      return [{ roomId: room.id, name: room.label, roomType: interioresRoomType(room), ...built }];
+    }),
+  }));
 }
 
 /** Todos los ambientes diseñables de la casa, piso por piso. */
