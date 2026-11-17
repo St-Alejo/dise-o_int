@@ -61,20 +61,22 @@ export function plano3dFeaturedUrl(host: string): string {
 
       <div class="floors" role="tablist" aria-label="Pisos de la casa">
         @for (f of floors; track f) {
-          <button type="button" role="tab" [attr.aria-selected]="floor() === f" [class.on]="floor() === f" (click)="pick(f)">
+          <button type="button" role="tab" aria-controls="casa-piso" [attr.aria-selected]="floor() === f" [class.on]="floor() === f" (click)="pick(f)">
             Piso {{ f }} <span>{{ countOn(f) }} {{ countOn(f) === 1 ? 'ambiente' : 'ambientes' }}</span>
           </button>
         }
       </div>
-      <ul class="rooms" role="tabpanel" [attr.aria-label]="'Piso ' + floor()">
-        @for (r of shown(); track r.id) {
-          <li>
-            <img [src]="'escenas/casa4/' + r.id + '.webp'" [alt]="r.name + ': ' + r.summary" width="1600" height="900" loading="lazy" decoding="async" />
-            <h3>{{ r.name }}</h3>
-            <p>{{ r.summary }}</p>
-          </li>
-        }
-      </ul>
+      <div id="casa-piso" class="panel" role="tabpanel" [attr.aria-label]="'Piso ' + floor()">
+        <ul class="rooms">
+          @for (r of shown(); track r.id) {
+            <li>
+              <img [src]="'escenas/casa4/' + r.id + '.webp'" [alt]="r.name + ': ' + r.summary" width="1600" height="900" loading="lazy" decoding="async" />
+              <h3>{{ r.name }}</h3>
+              <p>{{ r.summary }}</p>
+            </li>
+          }
+        </ul>
+      </div>
     </div>
   `,
   styles: `
@@ -156,8 +158,10 @@ export function plano3dFeaturedUrl(host: string): string {
       color: var(--text);
       border-bottom-color: var(--primary);
     }
-    .rooms {
+    .panel {
       grid-column: 1 / -1;
+    }
+    .rooms {
       list-style: none;
       margin: 0;
       padding: 0;
