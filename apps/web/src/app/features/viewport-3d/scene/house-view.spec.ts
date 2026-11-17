@@ -30,6 +30,14 @@ describe('HouseView', () => {
       [-3.15, 4.15],
     ]);
     holders.forEach((h) => expect(h.getObjectByName('ceiling')!.visible).toBe(false));
+    // los rótulos van en el centro de cada cuarto, ya en su sitio
+    expect(view.labels().map((l) => [l.name, Math.round(l.at.x * 100) / 100, Math.round(l.at.z * 100) / 100])).toEqual([
+      ['sala', -1.65, 2],
+      ['cocina', 1.5, 2],
+      ['hall', -1.65, 6.15],
+    ]);
+    const box = view.bounds();
+    expect([box.min.x, box.max.x]).toEqual([-3.15, 3]);
   });
 
   it('en modo corte todas las paredes quedan a ras; enteras al recorrer', () => {

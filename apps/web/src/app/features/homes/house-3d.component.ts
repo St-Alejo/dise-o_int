@@ -83,8 +83,8 @@ interface Label {
       transform: translate(-50%, -50%);
       padding: 2px 8px;
       border-radius: 999px;
-      background: rgb(255 255 255 / 0.88);
-      color: var(--text);
+      background: rgb(255 255 255 / 0.9);
+      color: #23201c;
       font-size: var(--text-xs, 12px);
       font-weight: 600;
       white-space: nowrap;
@@ -92,8 +92,8 @@ interface Label {
       box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
     }
     .tag.service {
-      background: rgb(255 255 255 / 0.6);
-      color: var(--text-muted);
+      background: rgb(255 255 255 / 0.55);
+      color: #5c564e;
       font-weight: 500;
     }
     .tag.on {
@@ -106,6 +106,7 @@ interface Label {
       margin: 0;
       padding: var(--space-2) var(--space-3);
       background: rgb(255 255 255 / 0.9);
+      color: #3a3631;
       font-size: var(--text-sm);
     }
     .status.error {
@@ -178,6 +179,7 @@ export class House3dComponent {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const pmrem = new THREE.PMREMGenerator(renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.background = new THREE.Color('#e6e9ec');
     pmrem.dispose();
     this.scene.add(new THREE.HemisphereLight('#f4f7ff', '#b9ab98', 0.6));
     this.sun.castShadow = true;

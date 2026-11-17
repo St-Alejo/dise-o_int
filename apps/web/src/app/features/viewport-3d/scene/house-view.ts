@@ -113,10 +113,11 @@ export class HouseView {
         });
       }
       this.root.add(holder);
-      // setFromObject ya pone el piso en el mundo (con el sitio del cuarto)
-      const center3 = new THREE.Box3().setFromObject(room.floor).getCenter(new THREE.Vector3());
-      this.rooms.push({ data, holder, room, center: center3 });
+      this.rooms.push({ data, holder, room, center: new THREE.Vector3() });
     }
+    // los pisos en el mundo (con el sitio de cada cuarto) antes de medirlos
+    this.root.updateMatrixWorld(true);
+    for (const r of this.rooms) new THREE.Box3().setFromObject(r.room.floor).getCenter(r.center);
     this.updateCutaway();
     this.ctx.invalidate();
   }
@@ -129,6 +130,7 @@ export class HouseView {
 
   /** Lo que abarcan los cuartos (para encuadrar la cámara). */
   bounds(): THREE.Box3 {
+    this.root.updateMatrixWorld(true);
     const box = new THREE.Box3();
     for (const r of this.rooms) box.expandByObject(r.room.floor);
     return box;
