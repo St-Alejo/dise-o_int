@@ -4,6 +4,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { IconComponent } from '../../shared/ui/icon.component';
 import { RevealDirective } from '../../shared/ui/reveal.directive';
 import { HERO_TEMPLATE } from './cover.component';
+import { CasaMiradorComponent } from './casa-mirador.component';
 import { FilmComponent } from './film.component';
 import { reducedMotion, smoothScroll } from './motion';
 import { PiecesComponent } from './pieces.component';
@@ -20,7 +21,7 @@ import { WalkComponent } from './walk.component';
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, RevealDirective, FilmComponent, RunwayComponent, WalkComponent, PiecesComponent, VitrinaComponent],
+  imports: [RouterLink, IconComponent, RevealDirective, FilmComponent, RunwayComponent, WalkComponent, PiecesComponent, VitrinaComponent, CasaMiradorComponent],
   template: `
     <app-film [start]="start()" />
 
@@ -35,6 +36,10 @@ import { WalkComponent } from './walk.component';
 
     <section id="plantillas" class="vitrina-sec" aria-labelledby="templates-title">
       <app-vitrina appReveal />
+    </section>
+
+    <section id="casa" class="vitrina-sec casa-sec" aria-labelledby="casa-title">
+      <app-casa-mirador appReveal />
     </section>
 
     <section class="closing" aria-labelledby="closing-title">
@@ -78,6 +83,9 @@ import { WalkComponent } from './walk.component';
     .vitrina-sec {
       padding-block: var(--section-y);
       background: var(--bg);
+    }
+    .casa-sec {
+      padding-top: 0;
     }
 
     /* Cierre: la sala de noche a sangre y una frase que ocupa todo el ancho. */
