@@ -5,7 +5,7 @@ cuarto en 3D, lo amuebla con piezas reales a escala, propone estilos y entrega l
 planos y el presupuesto. Se edita a la vez en un plano 2D y en una vista 3D, se recorre a pie y se puede
 exportar a Blender.
 
-Proyecto final de Programación Orientada a Objetos (semestre 7).
+Proyecto final de Programación Orientada a la Web (semestre 7).
 
 ## Enlaces
 
@@ -15,7 +15,7 @@ Proyecto final de Programación Orientada a Objetos (semestre 7).
 | Plantillas para probar sin cuenta | https://ca-interiores-web.bravecoast-df66f28f.brazilsouth.azurecontainerapps.io/plantillas |
 | Estado de la API (salud de cada dependencia) | https://ca-interiores-web.bravecoast-df66f28f.brazilsouth.azurecontainerapps.io/api/health/ready |
 | Plano 3D (proyecto hermano que se conecta con esta app) | https://lively-island-09e124b1e.5.azurestaticapps.net |
-| Repositorio | https://github.com/St-Alejo/dise-o_int |
+| Repositorio (versión final, rama `conexion`) | https://github.com/St-Alejo/dise-o_int/tree/conexion |
 
 La demo en Azure escala a cero cuando nadie la usa: la primera visita puede tardar entre 20 y 40
 segundos en responder mientras arrancan los contenedores.
@@ -166,8 +166,8 @@ No hace falta instalar Node, Python ni bases de datos: todo corre en contenedore
 ### Pasos
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/St-Alejo/dise-o_int.git interiores
+# 1. Clonar el repositorio (la versión final está en la rama conexion)
+git clone -b conexion https://github.com/St-Alejo/dise-o_int.git interiores
 cd interiores
 
 # 2. Crear el archivo .env con secretos aleatorios (una sola vez)
