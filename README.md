@@ -7,6 +7,8 @@ exportar a Blender.
 
 Proyecto final de Programación Orientada a la Web (semestre 7).
 
+![Portada de Interiores IA](docs/capturas/readme/portada.jpg)
+
 ## Enlaces
 
 | Qué | URL |
@@ -31,6 +33,7 @@ Una vez corriendo en local (ver [Correr el proyecto en local](#correr-el-proyect
 
 ## Contenido
 
+- [Capturas](#capturas)
 - [Qué hace](#qué-hace)
 - [Tecnologías](#tecnologías)
 - [Arquitectura](#arquitectura)
@@ -42,6 +45,16 @@ Una vez corriendo en local (ver [Correr el proyecto en local](#correr-el-proyect
 - [Seguridad y robustez](#seguridad-y-robustez)
 - [Documentación adicional](#documentación-adicional)
 - [Licencias de contenido](#licencias-de-contenido)
+
+## Capturas
+
+| Editor con plano y 3D a la vez | Recorrido a pie dentro del cuarto |
+|---|---|
+| ![Editor con el plano y la vista 3D lado a lado](docs/capturas/readme/editor.jpg) | ![Recorrido del cuarto a la altura de los ojos](docs/capturas/readme/recorrido.jpg) |
+
+| Plantillas para probar sin cuenta |
+|---|
+| ![Galería de plantillas](docs/capturas/readme/plantillas.jpg) |
 
 ## Qué hace
 
@@ -194,11 +207,6 @@ Después abrir **http://localhost:8080**.
 no ASCII (por ejemplo "diseño"), con el error `x-docker-expose-session-sharedkey`. Por eso se usa
 `scripts/build-images.sh`, que llama a `docker build` directamente. Aun así, conviene clonar en una ruta
 sin tildes ni espacios, como `C:\proyectos\interiores`.
-
-**La película de la portada:** los 480 fotogramas de la animación de la página de inicio
-(`apps/web/public/cine/`) no están en el repositorio por su peso. Sin ellos, la portada muestra el
-resto de secciones y el texto, pero no la animación del fondo. El resto de la aplicación no depende de
-ellos. La animación completa se puede ver en la demo en línea.
 
 ### Comprobar que funciona
 
