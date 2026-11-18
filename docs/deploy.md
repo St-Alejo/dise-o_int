@@ -182,8 +182,8 @@ done
 ACR=acrinteriores1256 TAG=$TAG bash infra/azure/deploy.sh
 ```
 
-Las imágenes se construyen en local (no en CI) porque la película de la portada (`public/cine/`)
-no está en git. Si se vuelven a renderizar sus fotogramas, regenera su `ritmo.json` con
+Las imágenes de la demo se construyen en local. Si se vuelven a renderizar los fotogramas de la
+película de la portada (`public/cine/`), regenera su `ritmo.json` con
 `python scripts/cine_ritmo.py` (reparte el scroll según cuánto cambia la imagen). Ver el estado: `az containerapp revision list -n ca-interiores-api -g rg-interiores-demo -o table`
 y los registros en vivo con `az containerapp logs show -n ca-interiores-api -g rg-interiores-demo --container api --follow`.
 
