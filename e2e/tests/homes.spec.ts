@@ -22,7 +22,7 @@ test('vivienda: fundarla desde un cuarto, añadir otro y verlos juntos', async (
 
   // Desde el cuarto: fundar la vivienda lleva al asistente con ella ya elegida.
   await page.goto(`/proyectos/${livingRoomId}?vista=3d`);
-  await page.getByRole('button', { name: /Añadir otro roomId a esta vivienda/ }).click();
+  await page.getByRole('button', { name: /Añadir otro cuarto a esta vivienda/ }).click();
   await expect(page).toHaveURL(/\/proyectos\/nuevo\?vivienda=[0-9a-f-]{36}$/);
   const homeId = new URL(page.url()).searchParams.get('vivienda')!;
   const livingRoom = await (await page.request.get(`/api/projects/${livingRoomId}`, { headers })).json();
