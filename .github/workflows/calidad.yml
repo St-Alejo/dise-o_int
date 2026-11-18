@@ -4,7 +4,7 @@ name: Calidad
 
 on:
   push:
-    branches: [main, conexion]
+    branches: [main]
   pull_request:
   schedule:
     - cron: '0 12 * * 1'
